@@ -40,10 +40,10 @@ extern "C" {
     */
     MOCKABLE_FUNCTION(, void, prov_sc_destroy, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client);
 
-    /** @brief Creates or updates an individual device enrollment record on the Provisioning Service.
+    /** @brief Creates or updates an individual device enrollment record on the Provisioning Service, reflecting the changes in the given struct.
     *
     * @param    prov_client    The handle used for connecting to the Provisioning Service.
-    * @param    enrollment     A struct describing the desired changes to the individual enrollment.
+    * @param    enrollment     A double pointer to a struct describing the desired changes to the individual enrollment.
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
@@ -52,27 +52,28 @@ extern "C" {
     /** @brief  Deletes a individual device enrollment record on the Provisioning Service.
     *
     * @param    prov_client    The handle used for connecting to the Provisioning Service.
-    * @param    enrollment     A struct representation of the target individual enrollment.
+    * @param    enrollment     Pointer to a struct representation of the target individual enrollment.
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
     MOCKABLE_FUNCTION(, int, prov_sc_delete_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, INDIVIDUAL_ENROLLMENT*, enrollment);
 
 
-    /** @brief  Deletes an individual device enrollment record on the Provisioning Service with a specified id, irregardless of etag.
+    /** @brief  Deletes an individual device enrollment record on the Provisioning Service.
     *
     * @param    prov_client     The handle used for connecting to the Provisioning Service.
-    * @param    id              The registration id of the target individual enrollment.
+    * @param    reg_id          The registration id of the target individual enrollment.
+    * @param    etag            The etag of the target individual enrollment. If given as "*", will ignore.
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
-    MOCKABLE_FUNCTION(, int, prov_sc_delete_individual_enrollment_by_id, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, id);
+    MOCKABLE_FUNCTION(, int, prov_sc_delete_individual_enrollment_by_param, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, reg_id, const char*, etag);
 
     /** @breif  Retreives an individual device enrollment record from the Provisioning Service.
     *
     * @param    prov_client     The handle used for connecting to the Provisioning Service.
     * @param    id              The registration id of the target individual enrollment.
-    * @param    enrollment      A struct representing an individual enrollment, to be filled with retreived data.
+    * @param    enrollment      Pointer to a struct representing an individual enrollment, to be filled with retreived data.
     *
     * @return   0 upon success, a non-zero number upon failure.
     */

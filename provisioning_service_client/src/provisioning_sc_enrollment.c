@@ -449,6 +449,42 @@ void individualEnrollment_free(INDIVIDUAL_ENROLLMENT* enrollment)
     free(enrollment);
 }
 
+int individualEnrollment_setDeviceId(INDIVIDUAL_ENROLLMENT* enrollment, const char* device_id)
+{
+    int result = 0;
+
+    if (device_id == NULL)
+    {
+        LogError("Invalid device id");
+        result = 1;
+    }
+    else if ((enrollment->device_id = copy_string(device_id)) == NULL)
+    {
+        LogError("Failed to set device id");
+        result = 1;
+    }
+
+    return result;
+}
+
+int individualEnrollment_setEtag(INDIVIDUAL_ENROLLMENT* enrollment, const char* etag)
+{
+    int result = 0;
+
+    if (etag == NULL)
+    {
+        LogError("Invalid etag");
+        result = 1;
+    }
+    else if ((enrollment->etag = copy_string(etag)) == NULL)
+    {
+        LogError("Failed to set etag");
+        result = 1;
+    }
+
+    return result;
+}
+
 const char* individualEnrollment_serialize(const INDIVIDUAL_ENROLLMENT* enrollment)
 {
     char* result = NULL;

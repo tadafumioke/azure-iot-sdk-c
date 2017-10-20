@@ -143,6 +143,10 @@ extern "C" {
 
     MOCKABLE_FUNCTION(, void, individualEnrollment_free, INDIVIDUAL_ENROLLMENT*, enrollment);
 
+    MOCKABLE_FUNCTION(, int, individualEnrollment_setDeviceId, INDIVIDUAL_ENROLLMENT*, enrollment, const char*, device_id);
+
+    MOCKABLE_FUNCTION(, int, individualEnrollment_setEtag, INDIVIDUAL_ENROLLMENT*, enrollment, const char*, etag);
+
     MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT*, individualEnrollment_deserialize, const char*, json);
 
     MOCKABLE_FUNCTION(, const char*, individualEnrollment_serialize, const INDIVIDUAL_ENROLLMENT*, enrollment);

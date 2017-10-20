@@ -90,6 +90,14 @@ static const char* retrieve_json_string(const char* value)
     return result;
 }
 
+static void sc_operation_cleanup(PROV_SERVICE_CLIENT* prov_client)
+{
+    prov_client->http_state = HTTP_STATE_DISCONNECTED;
+    free(prov_client->response);
+    prov_client->response = NULL;
+}
+
+
 static void on_http_connected(void* callback_ctx, HTTP_CALLBACK_REASON connect_result)
 {
     if (callback_ctx != NULL)
@@ -131,15 +139,20 @@ static void on_http_reply_recv(void* callback_ctx, HTTP_CALLBACK_REASON request_
         PROV_SERVICE_CLIENT* prov_client = (PROV_SERVICE_CLIENT*)callback_ctx;
         char* content_str = (char*)content;
 
-        if ((prov_client->response = malloc(strlen(content_str) + 1)) == NULL)
+        //if there is a json response
+        if (content != NULL)
         {
-            LogError("Allocating response failed");
+            if ((prov_client->response = malloc(strlen(content_str) + 1)) == NULL)
+            {
+                LogError("Allocating response failed");
+            }
+            else
+            {
+                strcpy(prov_client->response, content_str);
+            }
         }
-        else
-        {
-            strcpy(prov_client->response, content_str);
-        }
-
+        
+        //update HTTP state
         if (request_result == HTTP_CALLBACK_REASON_OK)
         {
             if (status_code >= 200 && status_code <= 299)
@@ -443,6 +456,7 @@ int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_H
             } while (prov_client->http_state != HTTP_STATE_COMPLETE && prov_client->http_state != HTTP_STATE_ERROR);
         }
     }
+    sc_operation_cleanup(prov_client);
     return result;
 }
 
@@ -482,7 +496,7 @@ int prov_sc_delete_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov
                     }
                     else
                     {
-                        if (uhttp_client_execute_request(http_client, HTTP_CLIENT_REQUEST_DELETE, STRING_c_str(registration_path), request_headers, NULL, 0, on_http_reply_recv, &prov_client) != HTTP_CLIENT_OK)
+                        if (uhttp_client_execute_request(http_client, HTTP_CLIENT_REQUEST_DELETE, STRING_c_str(registration_path), request_headers, NULL, 0, on_http_reply_recv, prov_client) != HTTP_CLIENT_OK)
                         {
                             LogError("Failure executing http request");
                             prov_client->http_state = HTTP_STATE_ERROR;
@@ -506,92 +520,29 @@ int prov_sc_delete_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov
             } while (prov_client->http_state != HTTP_STATE_COMPLETE && prov_client->http_state != HTTP_STATE_ERROR);
         }
     }
+    sc_operation_cleanup(prov_client);
     return result;
 }
 
+int prov_sc_delete_individual_enrollment_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* reg_id, const char* etag)
+{
+    int result;
+
+    INDIVIDUAL_ENROLLMENT* enrollment = individualEnrollment_create(reg_id);
+    individualEnrollment_setEtag(enrollment, etag);
+    result = prov_sc_delete_individual_enrollment(prov_client, enrollment);
+    individualEnrollment_free(enrollment);
+
+    return result;
+}
 
 int prov_sc_get_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, INDIVIDUAL_ENROLLMENT* enrollment)
 {
     UNREFERENCED_PARAMETER(prov_client);
     UNREFERENCED_PARAMETER(id);
     UNREFERENCED_PARAMETER(enrollment);
-
-    //int result;
-    //HTTP_CLIENT_HANDLE http_client;
-
-    //http_client = connect_to_service(prov_client);
-    //if (http_client == NULL)
-    //{
-    //   LogError("Failed connecting to service");
-    //   result = __LINE__;
-    //}
-    //else
-    //{
-    //   STRING_HANDLE registration_path;
-    //   if ((registration_path = construct_registration_path(id, ENROLL_PROVISION_PATH_FMT)) == NULL)
-    //   {
-    //       LogError("Failed constructing provisioning path");
-    //       result = __LINE__;
-    //   }
-    //   else
-    //   {
-    //       HTTP_HEADERS_HANDLE request_headers;
-    //       result = 0;
-    //       do
-    //       {
-    //           uhttp_client_dowork(http_client);
-    //           if (prov_client->http_state == HTTP_STATE_CONNECTED)
-    //           {
-    //               char* content = individualEnrollment_serialize(enrollment);
-    //               if (content == NULL)
-    //               {
-    //                  LogError("Failure creating registration json content");
-    //                  prov_client->http_state = HTTP_STATE_ERROR;
-    //                  result = __LINE__;
-    //               }
-    //               else if ((request_headers = construct_http_headers(prov_client)) == NULL)
-    //               {
-    //                   LogError("Failure creating registration json content");
-    //                   prov_client->http_state = HTTP_STATE_ERROR;
-    //                   result = __LINE__;
-    //               }
-    //               else
-    //               {
-    //                   if (uhttp_client_execute_request(http_client, HTTP_CLIENT_REQUEST_PUT, STRING_c_str(registration_path), request_headers, NULL, 0, on_http_reply_recv, prov_client) != HTTP_CLIENT_OK)
-    //                   {
-    //                       LogError("Failure executing http request");
-    //                       prov_client->http_state = HTTP_STATE_ERROR;
-    //                       result = __LINE__;
-    //                   }
-    //                   else
-    //                   {
-    //                       prov_client->http_state = HTTP_STATE_REQUEST_SENT;
-    //                   }
-    //                   HTTPHeaders_Free(request_headers);
-    //               }
-    //           }
-    //       }
-    //   }
-    //}
-
-
     return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 int prov_sc_delete_individual_enrollment_by_id(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id)
@@ -600,8 +551,6 @@ int prov_sc_delete_individual_enrollment_by_id(PROVISIONING_SERVICE_CLIENT_HANDL
     UNREFERENCED_PARAMETER(id);
     return 0;
 }
-
-
 
 int prov_sc_delete_device_registration_status(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id)
 {
