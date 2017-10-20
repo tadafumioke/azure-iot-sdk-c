@@ -47,7 +47,7 @@ extern "C" {
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
-    MOCKABLE_FUNCTION(, int, prov_sc_create_or_update_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const INDIVIDUAL_ENROLLMENT*, enrollment);
+    MOCKABLE_FUNCTION(, int, prov_sc_create_or_update_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, INDIVIDUAL_ENROLLMENT**, enrollment_ptr);
   
     /** @brief  Deletes a individual device enrollment record on the Provisioning Service.
     *
@@ -56,7 +56,7 @@ extern "C" {
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
-    MOCKABLE_FUNCTION(, int, prov_sc_delete_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const INDIVIDUAL_ENROLLMENT*, enrollment);
+    MOCKABLE_FUNCTION(, int, prov_sc_delete_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, INDIVIDUAL_ENROLLMENT*, enrollment);
 
 
     /** @brief  Deletes an individual device enrollment record on the Provisioning Service with a specified id, irregardless of etag.
@@ -105,7 +105,7 @@ extern "C" {
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
-    MOCKABLE_FUNCTION(, int, prov_sc_create_or_update_enrollment_group, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, id, const ENROLLMENT_GROUP*, enrollment_group);
+    MOCKABLE_FUNCTION(, int, prov_sc_create_or_update_enrollment_group, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, id, ENROLLMENT_GROUP*, enrollment_group);
 
     /** @brief  Deletes a device enrollment group record on the Provisioning Service.
     * @param    prov_client         The handle used for connecting to the Provisioning Service.
@@ -113,7 +113,7 @@ extern "C" {
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
-    MOCKABLE_FUNCTION(, int, prov_sc_delete_enrollment_group, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const ENROLLMENT_GROUP*, enrollment_group);
+    MOCKABLE_FUNCTION(, int, prov_sc_delete_enrollment_group, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, ENROLLMENT_GROUP*, enrollment_group);
 
     /** @brief  Deletes a device enrollment group record on the Provisioning Service with a specified id, irregardless of etag.
     * @param    prov_client     The handle used for connecting to the Provisioning Service.

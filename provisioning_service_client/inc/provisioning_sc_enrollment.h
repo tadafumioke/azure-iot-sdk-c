@@ -25,18 +25,21 @@ extern "C" {
     ATTESTATION_TYPE_TPM, \
     ATTESTATION_TYPE_X509 \
 
+    //Note: ATTESTATION_TYPE_NONE is invalid, indicating error
     DEFINE_ENUM(ATTESTATION_TYPE, ATTESTATION_TYPE_VALUES);
 
     #define PROVISIONING_STATUS_VALUES \
+    PROVISIONING_STATUS_NONE, \
     PROVISIONING_STATUS_ENABLED, \
     PROVISIONING_STATUS_DISABLED \
 
+    //Note: PROVISIONING_STATUS_NONE is invalid, indicating error
     DEFINE_ENUM(PROVISIONING_STATUS, PROVISIONING_STATUS_VALUES);
 
     typedef struct TPM_ATTESTATION_TAG
     {
         char* endorsement_key;
-        char* storage_root_key;
+        //const char* storage_root_key;
     } TPM_ATTESTATION;
 
     typedef struct X509_CERTIFICATE_INFO_TAG
@@ -73,8 +76,8 @@ extern "C" {
     {
         ATTESTATION_TYPE type;
         union {
-            TPM_ATTESTATION tpm;
-            X509_ATTESTATION x509;
+            TPM_ATTESTATION* tpm;
+            X509_ATTESTATION* x509;
         } attestation;
     } ATTESTATION_MECHANISM;
 
@@ -98,38 +101,35 @@ extern "C" {
 
     typedef struct DEVICE_REGISTRATION_STATUS_TAG
     {
-        const char* registration_id;
-        const time_t created_date_time_utc;
-        const char* assigned_hub;
-        const char* device_id;
+        char* registration_id;
+        char* created_date_time_utc;
+        char* assigned_hub;
+        char* device_id;
         REGISTRATION_STATUS status;
-        time_t updated_date_time_utc;
+        char* updated_date_time_utc;
         int error_code;
-        const char* error_message;
-        const char* etag;
+        char* error_message;
+        char* etag;
     } DEVICE_REGISTRATION_STATUS;
 
     typedef struct INDIVIDUAL_ENROLLMENT_TAG
     {
-        const char* registration_id;
-        const char* device_id;
-        DEVICE_REGISTRATION_STATUS* registration_status;
-        ATTESTATION_MECHANISM* attestation;
-        char* iothub_hostname;
-        TWIN_STATE* initial_twin_state;
+        char* registration_id; //read only
+        char* device_id;
+        //DEVICE_REGISTRATION_STATUS* registration_status;
+        ATTESTATION_MECHANISM* attestation_mechanism;
+        //TWIN_STATE* initial_twin_state;
         char* etag;
-        char* generation_id;
         PROVISIONING_STATUS provisioning_status;
-        const time_t created_date_time_utc;
-        time_t updated_date_time_utc;
+        char* created_date_time_utc; //read only
+        char* updated_date_time_utc; //read only
     } INDIVIDUAL_ENROLLMENT;
 
     typedef struct ENROLLMENT_GROUP_TAG
     {
-        const char* enrollment_group_id;
-        ATTESTATION_MECHANISM* attestation;
-        char* iothub_hostname;
-        TWIN_STATE* initial_twin_state;
+        char* enrollment_group_id;
+        ATTESTATION_MECHANISM* attestation_mechanism;
+        //TWIN_STATE* initial_twin_state;
         char* etag;
         PROVISIONING_STATUS provisioning_status;
         const time_t created_date_time_utc;
@@ -137,7 +137,15 @@ extern "C" {
     } ENROLLMENT_GROUP;
 
 
-    MOCKABLE_FUNCTION(, char*, individualEnrollment_toJson, const INDIVIDUAL_ENROLLMENT*, enrollment);
+    MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT*, individualEnrollment_create, const char*, reg_id);
+
+    MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT*, individualEnrollment_create_tpm, const char*, reg_id, const char*, endorsement_key);
+
+    MOCKABLE_FUNCTION(, void, individualEnrollment_destroy, INDIVIDUAL_ENROLLMENT*, enrollment);
+
+    MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT*, individualEnrollment_deserialize, const char*, json);
+
+    MOCKABLE_FUNCTION(, const char*, individualEnrollment_serialize, const INDIVIDUAL_ENROLLMENT*, enrollment);
 
 #ifdef __cplusplus
 }

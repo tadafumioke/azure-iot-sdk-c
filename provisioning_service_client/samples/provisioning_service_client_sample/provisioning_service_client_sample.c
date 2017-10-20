@@ -3,27 +3,32 @@
 
 #include <stdio.h>
 
+#include "azure_c_shared_utility/platform.h"
+
 #include "provisioning_service_client.h"
 
 int main()
 {
-    int result;
-    result = 0;
+    int result = 0;
 
-    const char* connectionString = "[IoTHub Connection String]";
-    const char* deviceId = "[Device Id]";
+    if (platform_init() != 0)
+    {
+        (void)printf("platform_init failed\r\n");
+        result = __LINE__;
+    }
+
+    const char* connectionString = "[DPS? Connection String]";
+    //const char* deviceId = "[Device Id]";
     const char* registrationId = "[Registration Id]";
+    const char* endorsementKey = "[Endorsement Key]";
 
-    INDIVIDUAL_ENROLLMENT enrollment;
-    enrollment.device_id = deviceId;
-    enrollment.registration_id = registrationId;
-
-    char* json;
-    json = individualEnrollment_toJson(&enrollment);
-    printf("%s\n", json);
+    INDIVIDUAL_ENROLLMENT* enrollment;
+    enrollment = individualEnrollment_create_tpm(registrationId, endorsementKey);
 
     PROVISIONING_SERVICE_CLIENT_HANDLE prov_sc = prov_sc_create_from_connection_string(connectionString);
     prov_sc_create_or_update_individual_enrollment(prov_sc, &enrollment);
 
+    individualEnrollment_destroy(enrollment);
+    prov_sc_destroy(prov_sc);
     return result;
 }

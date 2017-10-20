@@ -38,6 +38,8 @@ typedef struct PROVISIONING_SERVICE_CLIENT_TAG
     char* access_key;
 
     HTTP_CONNECTION_STATE http_state;
+    char* response;
+
 
 } PROV_SERVICE_CLIENT;
 
@@ -54,7 +56,7 @@ typedef struct PROVISIONING_SERVICE_CLIENT_TAG
 
 #define UNREFERENCED_PARAMETER(x) x
 
-static const char* CREATE_ENROLLMENT_CONTENT_FMT = "{\"id\":\"%s\",\"desiredIotHub\":\"%s\",\"deviceId\":\"%s\",\"identityAttestationMechanism\":\"%s\",\"identityAttestationEndorsementKey\":\"%s\",\"initialDeviceTwin\":\"\",\"enableEntry\":\"%s\"}";
+//static const char* CREATE_ENROLLMENT_CONTENT_FMT = "{\"id\":\"%s\",\"desiredIotHub\":\"%s\",\"deviceId\":\"%s\",\"identityAttestationMechanism\":\"%s\",\"identityAttestationEndorsementKey\":\"%s\",\"initialDeviceTwin\":\"\",\"enableEntry\":\"%s\"}";
 static const char* ENROLL_GROUP_PROVISION_PATH_FMT = "/enrollmentGroups/%s?api-version=%s";
 static const char* ENROLL_PROVISION_PATH_FMT = "/enrollments/%s?api-version=%s";
 static const char* HEADER_KEY_AUTHORIZATION = "Authorization";
@@ -122,11 +124,22 @@ static void on_http_error(void* callback_ctx, HTTP_CALLBACK_REASON error_result)
 static void on_http_reply_recv(void* callback_ctx, HTTP_CALLBACK_REASON request_result, const unsigned char* content, size_t content_len, unsigned int status_code, HTTP_HEADERS_HANDLE responseHeadersHandle)
 {
     (void)responseHeadersHandle;
-    (void)content;
+    //(void)content;
     (void)content_len;
     if (callback_ctx != NULL)
     {
         PROV_SERVICE_CLIENT* prov_client = (PROV_SERVICE_CLIENT*)callback_ctx;
+        char* content_str = (char*)content;
+
+        if ((prov_client->response = malloc(strlen(content_str) + 1)) == NULL)
+        {
+            LogError("Allocating response failed");
+        }
+        else
+        {
+            strcpy(prov_client->response, content_str);
+        }
+
         if (request_result == HTTP_CALLBACK_REASON_OK)
         {
             if (status_code >= 200 && status_code <= 299)
@@ -345,17 +358,16 @@ void prov_sc_destroy(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client)
         free(prov_client->provisioning_service_uri);
         free(prov_client->key_name);
         free(prov_client->access_key);
+        free(prov_client->response);
         free(prov_client);
     }
 }
 
-int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const INDIVIDUAL_ENROLLMENT* enrollment)
+int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, INDIVIDUAL_ENROLLMENT** enrollment_ptr)
 {
-    //1. establish path
-    //2. construct headers
-    //3. make PUT call
-
     int result;
+    INDIVIDUAL_ENROLLMENT* new_enrollment;
+    INDIVIDUAL_ENROLLMENT* enrollment = *enrollment_ptr;
     HTTP_CLIENT_HANDLE http_client;
 
     http_client = connect_to_service(prov_client);
@@ -381,7 +393,7 @@ int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_H
                 uhttp_client_dowork(http_client);
                 if (prov_client->http_state == HTTP_STATE_CONNECTED)
                 {
-                    char* content = individualEnrollment_toJson(enrollment);
+                    const char* content = individualEnrollment_serialize(enrollment);
                     if (content == NULL)
                     {
                         LogError("Failure creating registration json content");
@@ -396,7 +408,7 @@ int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_H
                     }
                     else
                     {
-                        if (uhttp_client_execute_request(http_client, HTTP_CLIENT_REQUEST_DELETE, STRING_c_str(registration_path), request_headers, NULL, 0, on_http_reply_recv, &prov_client) != HTTP_CLIENT_OK)
+                        if (uhttp_client_execute_request(http_client, HTTP_CLIENT_REQUEST_PUT, STRING_c_str(registration_path), request_headers, (unsigned char*)content, strlen(content), on_http_reply_recv, prov_client) != HTTP_CLIENT_OK)
                         {
                             LogError("Failure executing http request");
                             prov_client->http_state = HTTP_STATE_ERROR;
@@ -407,6 +419,21 @@ int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_H
                             prov_client->http_state = HTTP_STATE_REQUEST_SENT;
                         }
                         HTTPHeaders_Free(request_headers);
+                    }
+                }
+                else if (prov_client->http_state == HTTP_STATE_REQUEST_RECV)
+                {
+                    prov_client->http_state = HTTP_STATE_COMPLETE;
+                    if ((new_enrollment = individualEnrollment_deserialize(prov_client->response)) == NULL)
+                    {
+                        LogError("Failure constructing new enrollment structure from json response");
+                        result = __LINE__;
+                    }
+                    else
+                    {
+                        //Free the user submitted enrollment, and replace the pointer reference to a new enrollment from the provisioning service
+                        individualEnrollment_destroy(enrollment);
+                        *enrollment_ptr = new_enrollment;
                     }
                 }
                 else if (prov_client->http_state == HTTP_STATE_ERROR)
@@ -421,6 +448,73 @@ int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_H
 
 
 
+int prov_sc_get_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, INDIVIDUAL_ENROLLMENT* enrollment)
+{
+    UNREFERENCED_PARAMETER(prov_client);
+    UNREFERENCED_PARAMETER(id);
+    UNREFERENCED_PARAMETER(enrollment);
+
+    //int result;
+    //HTTP_CLIENT_HANDLE http_client;
+
+    //http_client = connect_to_service(prov_client);
+    //if (http_client == NULL)
+    //{
+    //    LogError("Failed connecting to service");
+    //    result = __LINE__;
+    //}
+    //else
+    //{
+    //    STRING_HANDLE registration_path;
+    //    if ((registration_path = construct_registration_path(id, ENROLL_PROVISION_PATH_FMT)) == NULL)
+    //    {
+    //        LogError("Failed constructing provisioning path");
+    //        result = __LINE__;
+    //    }
+    //    else
+    //    {
+    //        HTTP_HEADERS_HANDLE request_headers;
+    //        result = 0;
+    //        do
+    //        {
+    //            uhttp_client_dowork(http_client);
+    //            if (prov_client->http_state == HTTP_STATE_CONNECTED)
+    //            {
+    //                //char* content = individualEnrollment_toJson(enrollment);
+    //                //if (content == NULL)
+    //                //{
+    //                //    LogError("Failure creating registration json content");
+    //                //    prov_client->http_state = HTTP_STATE_ERROR;
+    //                //    result = __LINE__;
+    //                //}
+    //                else if ((request_headers = construct_http_headers(prov_client)) == NULL)
+    //                {
+    //                    LogError("Failure creating registration json content");
+    //                    prov_client->http_state = HTTP_STATE_ERROR;
+    //                    result = __LINE__;
+    //                }
+    //                else
+    //                {
+    //                    if (uhttp_client_execute_request(http_client, HTTP_CLIENT_REQUEST_PUT, STRING_c_str(registration_path), request_headers, NULL, 0, on_http_reply_recv, prov_client) != HTTP_CLIENT_OK)
+    //                    {
+    //                        LogError("Failure executing http request");
+    //                        prov_client->http_state = HTTP_STATE_ERROR;
+    //                        result = __LINE__;
+    //                    }
+    //                    else
+    //                    {
+    //                        prov_client->http_state = HTTP_STATE_REQUEST_SENT;
+    //                    }
+    //                    HTTPHeaders_Free(request_headers);
+    //                }
+    //            }
+    //        }
+    //    }
+    //}
+
+
+    return 0;
+}
 
 
 
@@ -436,8 +530,7 @@ int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_H
 
 
 
-
-int prov_sc_delete_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const INDIVIDUAL_ENROLLMENT* enrollment)
+int prov_sc_delete_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, INDIVIDUAL_ENROLLMENT* enrollment)
 {
     UNREFERENCED_PARAMETER(prov_client);
     UNREFERENCED_PARAMETER(enrollment);
@@ -451,13 +544,7 @@ int prov_sc_delete_individual_enrollment_by_id(PROVISIONING_SERVICE_CLIENT_HANDL
     return 0;
 }
 
-int prov_sc_get_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, INDIVIDUAL_ENROLLMENT* enrollment)
-{
-    UNREFERENCED_PARAMETER(prov_client);
-    UNREFERENCED_PARAMETER(id);
-    UNREFERENCED_PARAMETER(enrollment);
-    return 0;
-}
+
 
 int prov_sc_delete_device_registration_status(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id)
 {
@@ -474,7 +561,7 @@ int prov_sc_get_device_registration_status(PROVISIONING_SERVICE_CLIENT_HANDLE pr
     return 0;
 }
 
-int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, const ENROLLMENT_GROUP* enrollment_group)
+int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, ENROLLMENT_GROUP* enrollment_group)
 {
     UNREFERENCED_PARAMETER(prov_client);
     UNREFERENCED_PARAMETER(id);
@@ -482,7 +569,7 @@ int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE
     return 0;
 }
 
-int prov_sc_delete_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const ENROLLMENT_GROUP* enrollment_group)
+int prov_sc_delete_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, ENROLLMENT_GROUP* enrollment_group)
 {
     UNREFERENCED_PARAMETER(prov_client);
     UNREFERENCED_PARAMETER(enrollment_group);
