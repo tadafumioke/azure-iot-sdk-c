@@ -141,7 +141,7 @@ extern "C" {
 
     MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT*, individualEnrollment_create_tpm, const char*, reg_id, const char*, endorsement_key);
 
-    MOCKABLE_FUNCTION(, void, individualEnrollment_destroy, INDIVIDUAL_ENROLLMENT*, enrollment);
+    MOCKABLE_FUNCTION(, void, individualEnrollment_destroy, INDIVIDUAL_ENROLLMENT**, enrollment_ptr);
 
     MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT*, individualEnrollment_deserialize, const char*, json);
 

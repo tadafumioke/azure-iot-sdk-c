@@ -432,7 +432,7 @@ int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_H
                     else
                     {
                         //Free the user submitted enrollment, and replace the pointer reference to a new enrollment from the provisioning service
-                        individualEnrollment_destroy(enrollment);
+                        individualEnrollment_destroy(&enrollment);
                         *enrollment_ptr = new_enrollment;
                     }
                 }
@@ -454,65 +454,65 @@ int prov_sc_get_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_cl
     UNREFERENCED_PARAMETER(id);
     UNREFERENCED_PARAMETER(enrollment);
 
-    //int result;
-    //HTTP_CLIENT_HANDLE http_client;
-
-    //http_client = connect_to_service(prov_client);
-    //if (http_client == NULL)
-    //{
-    //    LogError("Failed connecting to service");
-    //    result = __LINE__;
-    //}
-    //else
-    //{
-    //    STRING_HANDLE registration_path;
-    //    if ((registration_path = construct_registration_path(id, ENROLL_PROVISION_PATH_FMT)) == NULL)
-    //    {
-    //        LogError("Failed constructing provisioning path");
-    //        result = __LINE__;
-    //    }
-    //    else
-    //    {
-    //        HTTP_HEADERS_HANDLE request_headers;
-    //        result = 0;
-    //        do
-    //        {
-    //            uhttp_client_dowork(http_client);
-    //            if (prov_client->http_state == HTTP_STATE_CONNECTED)
-    //            {
-    //                //char* content = individualEnrollment_toJson(enrollment);
-    //                //if (content == NULL)
-    //                //{
-    //                //    LogError("Failure creating registration json content");
-    //                //    prov_client->http_state = HTTP_STATE_ERROR;
-    //                //    result = __LINE__;
-    //                //}
-    //                else if ((request_headers = construct_http_headers(prov_client)) == NULL)
-    //                {
-    //                    LogError("Failure creating registration json content");
-    //                    prov_client->http_state = HTTP_STATE_ERROR;
-    //                    result = __LINE__;
-    //                }
-    //                else
-    //                {
-    //                    if (uhttp_client_execute_request(http_client, HTTP_CLIENT_REQUEST_PUT, STRING_c_str(registration_path), request_headers, NULL, 0, on_http_reply_recv, prov_client) != HTTP_CLIENT_OK)
-    //                    {
-    //                        LogError("Failure executing http request");
-    //                        prov_client->http_state = HTTP_STATE_ERROR;
-    //                        result = __LINE__;
-    //                    }
-    //                    else
-    //                    {
-    //                        prov_client->http_state = HTTP_STATE_REQUEST_SENT;
-    //                    }
-    //                    HTTPHeaders_Free(request_headers);
-    //                }
-    //            }
-    //        }
-    //    }
-    //}
-
-
+//    int result;
+//    HTTP_CLIENT_HANDLE http_client;
+//
+//    http_client = connect_to_service(prov_client);
+//    if (http_client == NULL)
+//    {
+//       LogError("Failed connecting to service");
+//       result = __LINE__;
+//    }
+//    else
+//    {
+//       STRING_HANDLE registration_path;
+//       if ((registration_path = construct_registration_path(id, ENROLL_PROVISION_PATH_FMT)) == NULL)
+//       {
+//           LogError("Failed constructing provisioning path");
+//           result = __LINE__;
+//       }
+//       else
+//       {
+//           HTTP_HEADERS_HANDLE request_headers;
+//           result = 0;
+//           do
+//           {
+//               uhttp_client_dowork(http_client);
+//               if (prov_client->http_state == HTTP_STATE_CONNECTED)
+//               {
+//                   char* content = individualEnrollment_serialize(enrollment);
+//                   if (content == NULL)
+//                   {
+//                      LogError("Failure creating registration json content");
+//                      prov_client->http_state = HTTP_STATE_ERROR;
+//                      result = __LINE__;
+//                   }
+//                   else if ((request_headers = construct_http_headers(prov_client)) == NULL)
+//                   {
+//                       LogError("Failure creating registration json content");
+//                       prov_client->http_state = HTTP_STATE_ERROR;
+//                       result = __LINE__;
+//                   }
+//                   else
+//                   {
+//                       if (uhttp_client_execute_request(http_client, HTTP_CLIENT_REQUEST_PUT, STRING_c_str(registration_path), request_headers, NULL, 0, on_http_reply_recv, prov_client) != HTTP_CLIENT_OK)
+//                       {
+//                           LogError("Failure executing http request");
+//                           prov_client->http_state = HTTP_STATE_ERROR;
+//                           result = __LINE__;
+//                       }
+//                       else
+//                       {
+//                           prov_client->http_state = HTTP_STATE_REQUEST_SENT;
+//                       }
+//                       HTTPHeaders_Free(request_headers);
+//                   }
+//               }
+//           }
+//       }
+//    }
+//
+//
     return 0;
 }
 

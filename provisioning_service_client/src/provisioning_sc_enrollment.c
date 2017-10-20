@@ -146,11 +146,14 @@ static X509_ATTESTATION* x509Attestation_fromJson(JSON_Object * root_object)
     return new_x509Att;
 }
 
-static void x509Attestation_destroy(X509_ATTESTATION* x509_att)
+static void x509Attestation_destroy(X509_ATTESTATION** x509_att_ptr)
 {
-    LogError("Unimplemented");
-
+    X509_ATTESTATION* x509_att = *x509_att_ptr;
     free(x509_att);
+    x509_att = NULL;
+    *x509_att_ptr = x509_att;
+
+    LogError("Unimplemented");
 }
 
 static JSON_Value* tpmAttestation_toJson(const TPM_ATTESTATION* tpm_att)
@@ -195,10 +198,13 @@ static TPM_ATTESTATION* tpmAttestation_fromJson(JSON_Object * root_object)
     return new_tpmAtt;
 }
 
-static void tpmAttestation_destroy(TPM_ATTESTATION* tpm_att)
+static void tpmAttestation_destroy(TPM_ATTESTATION** tpm_att_ptr)
 {
-    //free(tpm_att->endorsement_key);
+    TPM_ATTESTATION* tpm_att = *tpm_att_ptr;
+    free(tpm_att->endorsement_key);
     free(tpm_att);
+    tpm_att = NULL;
+    *tpm_att_ptr = tpm_att;
 }
 
 static JSON_Value* attestationMechanism_toJson(const ATTESTATION_MECHANISM* att_mech)
@@ -263,17 +269,20 @@ static ATTESTATION_MECHANISM* attestationMechanism_fromJson(JSON_Object* root_ob
     return new_attMech;
 }
 
-static void attestationMechanism_destroy(ATTESTATION_MECHANISM* att_mech)
+static void attestationMechanism_destroy(ATTESTATION_MECHANISM** att_mech_ptr)
 {
+    ATTESTATION_MECHANISM* att_mech = *att_mech_ptr;
     if (att_mech->type == ATTESTATION_TYPE_TPM)
     {
-        tpmAttestation_destroy(att_mech->attestation.tpm);
+        tpmAttestation_destroy(&(att_mech->attestation.tpm));
     }
     else if (att_mech->type == ATTESTATION_TYPE_X509)
     {
-        x509Attestation_destroy(att_mech->attestation.x509);
+        x509Attestation_destroy(&(att_mech->attestation.x509));
     }
     free(att_mech);
+    att_mech = NULL;
+    *att_mech_ptr = att_mech;
 }
 
 static JSON_Value* individualEnrollment_toJson(const INDIVIDUAL_ENROLLMENT* enrollment)
@@ -370,6 +379,7 @@ INDIVIDUAL_ENROLLMENT* individualEnrollment_create(const char* reg_id)
     else if ((att_mech = malloc(sizeof(ATTESTATION_MECHANISM))) == NULL)
     {
         LogError("Allocation of attestation mechanism failed");
+        free(new_enrollment);
         new_enrollment = NULL;
     }
     else
@@ -377,9 +387,16 @@ INDIVIDUAL_ENROLLMENT* individualEnrollment_create(const char* reg_id)
         memset(new_enrollment, 0, sizeof(*new_enrollment));
         memset(att_mech, 0, sizeof(*att_mech));
 
-        new_enrollment->registration_id = (char*)reg_id;
-        new_enrollment->attestation_mechanism = att_mech;
-        new_enrollment->provisioning_status = PROVISIONING_STATUS_ENABLED;
+        if ((new_enrollment->registration_id = copy_string(reg_id)) == NULL)
+        {
+            LogError("Allocation of registration id failed");
+            individualEnrollment_destroy(&new_enrollment);
+        }
+        else
+        {
+            new_enrollment->attestation_mechanism = att_mech;
+            new_enrollment->provisioning_status = PROVISIONING_STATUS_ENABLED;
+        }
     }
 
     return new_enrollment;
@@ -387,19 +404,41 @@ INDIVIDUAL_ENROLLMENT* individualEnrollment_create(const char* reg_id)
 
 INDIVIDUAL_ENROLLMENT* individualEnrollment_create_tpm(const char* reg_id, const char* endorsement_key)
 {
-    INDIVIDUAL_ENROLLMENT* new_enrollment = individualEnrollment_create(reg_id);
+    TPM_ATTESTATION* tpm_attestation = NULL;
+    INDIVIDUAL_ENROLLMENT* new_enrollment = NULL;
+    
+    if ((new_enrollment = individualEnrollment_create(reg_id)) == NULL)
+    {
+        LogError("Allocation of individual enrollment failed");
+    }
+    else if ((tpm_attestation = malloc(sizeof(TPM_ATTESTATION))) == NULL)
+    {
+        LogError("Allocation of TPM attestation failed");
+        individualEnrollment_destroy(&new_enrollment);
+    }
+    else
+    {
+        memset(tpm_attestation, 0, sizeof(*tpm_attestation));
 
-    TPM_ATTESTATION *tpm_attestation = malloc(sizeof(TPM_ATTESTATION));
-
-    tpm_attestation->endorsement_key = (char*)endorsement_key;
-    new_enrollment->attestation_mechanism->type = ATTESTATION_TYPE_TPM;
-    new_enrollment->attestation_mechanism->attestation.tpm = tpm_attestation;
+        if ((tpm_attestation->endorsement_key = copy_string(endorsement_key)) == NULL)
+        {
+            LogError("Allocation of endorsement key failed");
+            individualEnrollment_destroy(&new_enrollment);
+        }
+        else
+        {
+            new_enrollment->attestation_mechanism->type = ATTESTATION_TYPE_TPM;
+            new_enrollment->attestation_mechanism->attestation.tpm = tpm_attestation;
+        }
+    }
 
     return new_enrollment;
 }
 
-void individualEnrollment_destroy(INDIVIDUAL_ENROLLMENT* enrollment)
+void individualEnrollment_destroy(INDIVIDUAL_ENROLLMENT** enrollment_ptr)
 {
+    INDIVIDUAL_ENROLLMENT* enrollment = *enrollment_ptr;
+
     //free dynamically allocated fields
     free(enrollment->registration_id);
     free(enrollment->device_id);
@@ -410,13 +449,14 @@ void individualEnrollment_destroy(INDIVIDUAL_ENROLLMENT* enrollment)
     //free nested structures
     if (enrollment->attestation_mechanism != NULL)
     {
-        attestationMechanism_destroy(enrollment->attestation_mechanism);
+        attestationMechanism_destroy(&(enrollment->attestation_mechanism));
     }
 
     //free twin state and reg status
 
     free(enrollment);
-
+    enrollment = NULL;
+    *enrollment_ptr = enrollment;
 }
 
 const char* individualEnrollment_serialize(const INDIVIDUAL_ENROLLMENT* enrollment)
@@ -440,24 +480,25 @@ const char* individualEnrollment_serialize(const INDIVIDUAL_ENROLLMENT* enrollme
     }
     if (root_value != NULL)
     {
-        json_value_free(root_value);
+        json_value_free(root_value); 
+        root_value = NULL;
     }
 
     return result;
 }
 
-INDIVIDUAL_ENROLLMENT* individualEnrollment_deserialize(const char* json)
+INDIVIDUAL_ENROLLMENT* individualEnrollment_deserialize(const char* json_string)
 {
     INDIVIDUAL_ENROLLMENT* new_enrollment = NULL;
     JSON_Value* root_value = NULL;
     JSON_Object* root_object = NULL;
 
-    if (json == NULL)
+    if (json_string == NULL)
     {
-        LogError("json is NULL");
+        LogError("json string is NULL");
         new_enrollment = NULL;
     }
-    else if ((root_value = json_parse_string(json)) == NULL)
+    else if ((root_value = json_parse_string(json_string)) == NULL)
     {
         LogError("json_parse_string failed");
         new_enrollment = NULL;
@@ -470,8 +511,9 @@ INDIVIDUAL_ENROLLMENT* individualEnrollment_deserialize(const char* json)
     else
     {
         new_enrollment = individualEnrollment_fromJson(root_object);
-        json_value_free(root_value);
+        json_value_free(root_value); //implicitly frees root_object
+        root_value = NULL;
+        root_object = NULL;
     }
     return new_enrollment;
 }
-
