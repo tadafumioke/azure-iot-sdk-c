@@ -146,13 +146,9 @@ static X509_ATTESTATION* x509Attestation_fromJson(JSON_Object * root_object)
     return new_x509Att;
 }
 
-static void x509Attestation_destroy(X509_ATTESTATION** x509_att_ptr)
+static void x509Attestation_free(X509_ATTESTATION* x509_att)
 {
-    X509_ATTESTATION* x509_att = *x509_att_ptr;
     free(x509_att);
-    x509_att = NULL;
-    *x509_att_ptr = x509_att;
-
     LogError("Unimplemented");
 }
 
@@ -198,13 +194,10 @@ static TPM_ATTESTATION* tpmAttestation_fromJson(JSON_Object * root_object)
     return new_tpmAtt;
 }
 
-static void tpmAttestation_destroy(TPM_ATTESTATION** tpm_att_ptr)
+static void tpmAttestation_free(TPM_ATTESTATION* tpm_att)
 {
-    TPM_ATTESTATION* tpm_att = *tpm_att_ptr;
     free(tpm_att->endorsement_key);
     free(tpm_att);
-    tpm_att = NULL;
-    *tpm_att_ptr = tpm_att;
 }
 
 static JSON_Value* attestationMechanism_toJson(const ATTESTATION_MECHANISM* att_mech)
@@ -269,20 +262,17 @@ static ATTESTATION_MECHANISM* attestationMechanism_fromJson(JSON_Object* root_ob
     return new_attMech;
 }
 
-static void attestationMechanism_destroy(ATTESTATION_MECHANISM** att_mech_ptr)
+static void attestationMechanism_free(ATTESTATION_MECHANISM* att_mech)
 {
-    ATTESTATION_MECHANISM* att_mech = *att_mech_ptr;
     if (att_mech->type == ATTESTATION_TYPE_TPM)
     {
-        tpmAttestation_destroy(&(att_mech->attestation.tpm));
+        tpmAttestation_free(att_mech->attestation.tpm);
     }
     else if (att_mech->type == ATTESTATION_TYPE_X509)
     {
-        x509Attestation_destroy(&(att_mech->attestation.x509));
+        x509Attestation_free(att_mech->attestation.x509);
     }
     free(att_mech);
-    att_mech = NULL;
-    *att_mech_ptr = att_mech;
 }
 
 static JSON_Value* individualEnrollment_toJson(const INDIVIDUAL_ENROLLMENT* enrollment)
@@ -390,7 +380,7 @@ INDIVIDUAL_ENROLLMENT* individualEnrollment_create(const char* reg_id)
         if ((new_enrollment->registration_id = copy_string(reg_id)) == NULL)
         {
             LogError("Allocation of registration id failed");
-            individualEnrollment_destroy(&new_enrollment);
+            individualEnrollment_free(new_enrollment);
         }
         else
         {
@@ -414,7 +404,7 @@ INDIVIDUAL_ENROLLMENT* individualEnrollment_create_tpm(const char* reg_id, const
     else if ((tpm_attestation = malloc(sizeof(TPM_ATTESTATION))) == NULL)
     {
         LogError("Allocation of TPM attestation failed");
-        individualEnrollment_destroy(&new_enrollment);
+        individualEnrollment_free(new_enrollment);
     }
     else
     {
@@ -423,7 +413,7 @@ INDIVIDUAL_ENROLLMENT* individualEnrollment_create_tpm(const char* reg_id, const
         if ((tpm_attestation->endorsement_key = copy_string(endorsement_key)) == NULL)
         {
             LogError("Allocation of endorsement key failed");
-            individualEnrollment_destroy(&new_enrollment);
+            individualEnrollment_free(new_enrollment);
         }
         else
         {
@@ -435,10 +425,8 @@ INDIVIDUAL_ENROLLMENT* individualEnrollment_create_tpm(const char* reg_id, const
     return new_enrollment;
 }
 
-void individualEnrollment_destroy(INDIVIDUAL_ENROLLMENT** enrollment_ptr)
+void individualEnrollment_free(INDIVIDUAL_ENROLLMENT* enrollment)
 {
-    INDIVIDUAL_ENROLLMENT* enrollment = *enrollment_ptr;
-
     //free dynamically allocated fields
     free(enrollment->registration_id);
     free(enrollment->device_id);
@@ -449,14 +437,16 @@ void individualEnrollment_destroy(INDIVIDUAL_ENROLLMENT** enrollment_ptr)
     //free nested structures
     if (enrollment->attestation_mechanism != NULL)
     {
-        attestationMechanism_destroy(&(enrollment->attestation_mechanism));
+        attestationMechanism_free(enrollment->attestation_mechanism);
+    }
+    if (enrollment->registration_status != NULL)
+    {
+        LogError("must implmenet");
     }
 
-    //free twin state and reg status
+    //free twin state
 
     free(enrollment);
-    enrollment = NULL;
-    *enrollment_ptr = enrollment;
 }
 
 const char* individualEnrollment_serialize(const INDIVIDUAL_ENROLLMENT* enrollment)

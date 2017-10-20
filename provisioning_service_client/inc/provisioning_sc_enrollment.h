@@ -116,7 +116,7 @@ extern "C" {
     {
         char* registration_id; //read only
         char* device_id;
-        //DEVICE_REGISTRATION_STATUS* registration_status;
+        DEVICE_REGISTRATION_STATUS* registration_status;
         ATTESTATION_MECHANISM* attestation_mechanism;
         //TWIN_STATE* initial_twin_state;
         char* etag;
@@ -141,7 +141,7 @@ extern "C" {
 
     MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT*, individualEnrollment_create_tpm, const char*, reg_id, const char*, endorsement_key);
 
-    MOCKABLE_FUNCTION(, void, individualEnrollment_destroy, INDIVIDUAL_ENROLLMENT**, enrollment_ptr);
+    MOCKABLE_FUNCTION(, void, individualEnrollment_free, INDIVIDUAL_ENROLLMENT*, enrollment);
 
     MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT*, individualEnrollment_deserialize, const char*, json);
 

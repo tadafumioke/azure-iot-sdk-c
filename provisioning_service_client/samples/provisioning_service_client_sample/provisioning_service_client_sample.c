@@ -33,7 +33,7 @@ int main()
     PROVISIONING_SERVICE_CLIENT_HANDLE prov_sc = prov_sc_create_from_connection_string(connectionString);
     prov_sc_create_or_update_individual_enrollment(prov_sc, &enrollment);
 
-    individualEnrollment_destroy(&enrollment);
+    individualEnrollment_free(enrollment);
     prov_sc_destroy(prov_sc);
     return result;
 }
