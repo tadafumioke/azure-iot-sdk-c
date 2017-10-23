@@ -23,6 +23,7 @@ int main()
     const char* endorsementKey = "[Endorsement Key]";
 
     INDIVIDUAL_ENROLLMENT* enrollment;
+    INDIVIDUAL_ENROLLMENT* enrollment2;
     enrollment = individualEnrollment_create_tpm(registrationId, endorsementKey);
     individualEnrollment_setDeviceId(enrollment, deviceId);
 
@@ -32,6 +33,7 @@ int main()
     prov_sc_delete_individual_enrollment(prov_sc, enrollment);
 
     prov_sc_create_or_update_individual_enrollment(prov_sc, &enrollment);
+    prov_sc_get_individual_enrollment(prov_sc, enrollment->registration_id, &enrollment2);
     prov_sc_delete_individual_enrollment_by_param(prov_sc, enrollment->registration_id, "*");
 
 
