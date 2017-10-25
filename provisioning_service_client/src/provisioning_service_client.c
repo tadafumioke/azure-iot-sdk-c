@@ -339,6 +339,8 @@ static int rest_call(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, HTTP_CLIENT
     return result;
 }
 
+//Exposed functions below
+
 PROVISIONING_SERVICE_CLIENT_HANDLE prov_sc_create_from_connection_string(const char* conn_string)
 {
     PROV_SERVICE_CLIENT* result;
@@ -431,14 +433,14 @@ void prov_sc_destroy(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client)
     }
 }
 
-int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, INDIVIDUAL_ENROLLMENT** enrollment_ptr)
+int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, INDIVIDUAL_ENROLLMENT_HANDLE* enrollment_ptr)
 {
     int result = 0;
     HTTP_HEADERS_HANDLE request_headers;
     STRING_HANDLE registration_path;
 
-    INDIVIDUAL_ENROLLMENT* new_enrollment;
-    INDIVIDUAL_ENROLLMENT* enrollment = *enrollment_ptr;
+    INDIVIDUAL_ENROLLMENT_HANDLE new_enrollment;
+    INDIVIDUAL_ENROLLMENT_HANDLE enrollment = *enrollment_ptr;
 
     const char* content = individualEnrollment_serialize(enrollment);
     if (content == NULL)
@@ -446,7 +448,7 @@ int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_H
         LogError("Failure serializing enrollment");
         result = __LINE__;
     }
-    else if ((registration_path = construct_registration_path(enrollment->registration_id, INDV_ENROLL_PROVISION_PATH_FMT)) == NULL)
+    else if ((registration_path = construct_registration_path(individualEnrollment_getRegistrationId(enrollment), INDV_ENROLL_PROVISION_PATH_FMT)) == NULL)
     {
         LogError("Failed constructing provisioning path");
         result = __LINE__;
@@ -469,7 +471,7 @@ int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_H
             }
 
             //Free the user submitted enrollment, and replace the pointer reference to a new enrollment from the provisioning service
-            individualEnrollment_free(enrollment);
+            individualEnrollment_destroy(enrollment);
             *enrollment_ptr = new_enrollment;
         }
 
@@ -480,13 +482,25 @@ int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_H
     return result;
 }
 
-int prov_sc_delete_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, INDIVIDUAL_ENROLLMENT* enrollment)
+int prov_sc_delete_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, INDIVIDUAL_ENROLLMENT_HANDLE enrollment)
+{
+    int result;
+
+    result = prov_sc_delete_individual_enrollment_by_param(prov_client, individualEnrollment_getRegistrationId(enrollment), individualEnrollment_getEtag(enrollment));
+    individualEnrollment_destroy(enrollment);
+
+    return result;
+}
+
+int prov_sc_delete_individual_enrollment_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* reg_id, const char* etag)
 {
     int result = 0;
     HTTP_HEADERS_HANDLE request_headers;
     STRING_HANDLE registration_path;
 
-    if ((registration_path = construct_registration_path(enrollment->registration_id, INDV_ENROLL_PROVISION_PATH_FMT)) == NULL)
+    UNREFERENCED_PARAMETER(etag);
+
+    if ((registration_path = construct_registration_path(reg_id, INDV_ENROLL_PROVISION_PATH_FMT)) == NULL)
     {
         LogError("Failed constructing provisioning path");
         result = __LINE__;
@@ -506,24 +520,12 @@ int prov_sc_delete_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov
     return result;
 }
 
-int prov_sc_delete_individual_enrollment_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* reg_id, const char* etag)
-{
-    int result;
-
-    INDIVIDUAL_ENROLLMENT* enrollment = individualEnrollment_create(reg_id);
-    individualEnrollment_setEtag(enrollment, etag);
-    result = prov_sc_delete_individual_enrollment(prov_client, enrollment);
-    individualEnrollment_free(enrollment);
-
-    return result;
-}
-
-int prov_sc_get_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, INDIVIDUAL_ENROLLMENT** enrollment_ptr)
+int prov_sc_get_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, INDIVIDUAL_ENROLLMENT_HANDLE* enrollment_ptr)
 {
     int result = 0;
     HTTP_HEADERS_HANDLE request_headers;
     STRING_HANDLE registration_path;
-    INDIVIDUAL_ENROLLMENT* enrollment = *enrollment_ptr;
+    INDIVIDUAL_ENROLLMENT_HANDLE enrollment = *enrollment_ptr;
 
     if ((registration_path = construct_registration_path(id, INDV_ENROLL_PROVISION_PATH_FMT)) == NULL)
     {
@@ -563,7 +565,7 @@ int prov_sc_delete_device_registration_status(PROVISIONING_SERVICE_CLIENT_HANDLE
     return 0;
 }
 
-int prov_sc_get_device_registration_status(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, DEVICE_REGISTRATION_STATUS** reg_status_ptr)
+int prov_sc_get_device_registration_status(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, DEVICE_REGISTRATION_STATUS_HANDLE* reg_status_ptr)
 {
     UNREFERENCED_PARAMETER(prov_client);
     UNREFERENCED_PARAMETER(id);
@@ -571,14 +573,14 @@ int prov_sc_get_device_registration_status(PROVISIONING_SERVICE_CLIENT_HANDLE pr
     return 0;
 }
 
-int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, ENROLLMENT_GROUP** enrollment_ptr)
+int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, ENROLLMENT_GROUP_HANDLE* enrollment_ptr)
 {
     int result = 0;
     HTTP_HEADERS_HANDLE request_headers;
     STRING_HANDLE registration_path;
 
-    ENROLLMENT_GROUP* new_enrollment;
-    ENROLLMENT_GROUP* enrollment = *enrollment_ptr;
+    ENROLLMENT_GROUP_HANDLE new_enrollment;
+    ENROLLMENT_GROUP_HANDLE enrollment = *enrollment_ptr;
 
     const char* content = enrollmentGroup_serialize(enrollment);
     if (content == NULL)
@@ -586,7 +588,7 @@ int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE
         LogError("Failure serializing enrollment");
         result = __LINE__;
     }
-    else if ((registration_path = construct_registration_path(enrollment->group_name, ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
+    else if ((registration_path = construct_registration_path(enrollmentGroup_getGroupName(enrollment), ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
     {
         LogError("Failed constructing provisioning path");
         result = __LINE__;
@@ -609,7 +611,7 @@ int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE
             }
 
             //Free the user submitted enrollment, and replace the pointer reference to a new enrollment from the provisioning service
-            enrollmentGroup_free(enrollment);
+            enrollmentGroup_destroy(enrollment);
             *enrollment_ptr = new_enrollment;
         }
 
@@ -620,13 +622,25 @@ int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE
     return result;
 }
 
-int prov_sc_delete_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, ENROLLMENT_GROUP* enrollment)
+int prov_sc_delete_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, ENROLLMENT_GROUP_HANDLE enrollment)
+{
+    int result;
+
+    result =  prov_sc_delete_enrollment_group_by_param(prov_client, enrollmentGroup_getGroupName(enrollment), enrollmentGroup_getEtag(enrollment));
+    enrollmentGroup_destroy(enrollment);
+
+    return result;
+}
+
+int prov_sc_delete_enrollment_group_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_name, const char* etag)
 {
     int result = 0;
     HTTP_HEADERS_HANDLE request_headers;
     STRING_HANDLE registration_path;
 
-    if ((registration_path = construct_registration_path(enrollment->group_name, ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
+    UNREFERENCED_PARAMETER(etag);
+
+    if ((registration_path = construct_registration_path(group_name, ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
     {
         LogError("Failed constructing provisioning path");
         result = __LINE__;
@@ -646,24 +660,12 @@ int prov_sc_delete_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_clie
     return result;
 }
 
-int prov_sc_delete_enrollment_group_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_name, const char* etag)
-{
-    int result;
-
-    ENROLLMENT_GROUP* enrollment = enrollmentGroup_create(group_name);
-    enrollmentGroup_setEtag(enrollment, etag);
-    result = prov_sc_delete_enrollment_group(prov_client, enrollment);
-    enrollmentGroup_free(enrollment);
-
-    return result;
-}
-
-int prov_sc_get_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_name, ENROLLMENT_GROUP** enrollment_ptr)
+int prov_sc_get_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_name, ENROLLMENT_GROUP_HANDLE* enrollment_ptr)
 {
     int result = 0;
     HTTP_HEADERS_HANDLE request_headers;
     STRING_HANDLE registration_path;
-    ENROLLMENT_GROUP* enrollment = *enrollment_ptr;
+    ENROLLMENT_GROUP_HANDLE enrollment = *enrollment_ptr;
 
     if ((registration_path = construct_registration_path(group_name, ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
     {

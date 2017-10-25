@@ -47,7 +47,7 @@ extern "C" {
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
-    MOCKABLE_FUNCTION(, int, prov_sc_create_or_update_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, INDIVIDUAL_ENROLLMENT**, enrollment_ptr);
+    MOCKABLE_FUNCTION(, int, prov_sc_create_or_update_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, INDIVIDUAL_ENROLLMENT_HANDLE*, enrollment_ptr);
   
     /** @brief  Deletes a individual device enrollment record on the Provisioning Service.
     *
@@ -56,7 +56,7 @@ extern "C" {
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
-    MOCKABLE_FUNCTION(, int, prov_sc_delete_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, INDIVIDUAL_ENROLLMENT*, enrollment);
+    MOCKABLE_FUNCTION(, int, prov_sc_delete_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, INDIVIDUAL_ENROLLMENT_HANDLE, enrollment);
 
 
     /** @brief  Deletes an individual device enrollment record on the Provisioning Service.
@@ -77,7 +77,7 @@ extern "C" {
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
-    MOCKABLE_FUNCTION(, int, prov_sc_get_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, id, INDIVIDUAL_ENROLLMENT**, enrollment_ptr);
+    MOCKABLE_FUNCTION(, int, prov_sc_get_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, id, INDIVIDUAL_ENROLLMENT_HANDLE*, enrollment_ptr);
 
     /** @brief  Creates or updates a device enrollment group record on the Provisioning Service.
     *
@@ -86,7 +86,7 @@ extern "C" {
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
-    MOCKABLE_FUNCTION(, int, prov_sc_create_or_update_enrollment_group, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, ENROLLMENT_GROUP**, enrollment_ptr);
+    MOCKABLE_FUNCTION(, int, prov_sc_create_or_update_enrollment_group, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, ENROLLMENT_GROUP_HANDLE*, enrollment_ptr);
 
     /** @brief  Deletes a device enrollment group record on the Provisioning Service.
     * @param    prov_client     The handle used for connecting to the Provisioning Service.
@@ -94,7 +94,7 @@ extern "C" {
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
-    MOCKABLE_FUNCTION(, int, prov_sc_delete_enrollment_group, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, ENROLLMENT_GROUP*, enrollment);
+    MOCKABLE_FUNCTION(, int, prov_sc_delete_enrollment_group, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, ENROLLMENT_GROUP_HANDLE, enrollment);
 
     /** @brief  Deletes a device enrollment group record on the Provisioning Service.
     * @param    prov_client     The handle used for connecting to the Provisioning Service.
@@ -113,7 +113,7 @@ extern "C" {
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
-    MOCKABLE_FUNCTION(, int, prov_sc_get_enrollment_group, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, group_name, ENROLLMENT_GROUP**, enrollment_ptr);
+    MOCKABLE_FUNCTION(, int, prov_sc_get_enrollment_group, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, group_name, ENROLLMENT_GROUP_HANDLE*, enrollment_ptr);
 
      /** @brief  Deletes a device registration status on the Provisioning Service.
     *
@@ -132,7 +132,7 @@ extern "C" {
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
-    MOCKABLE_FUNCTION(, int, prov_sc_get_device_registration_status, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, id, DEVICE_REGISTRATION_STATUS**, reg_status_ptr);
+    MOCKABLE_FUNCTION(, int, prov_sc_get_device_registration_status, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, id, DEVICE_REGISTRATION_STATUS_HANDLE*, reg_status_ptr);
 
 #ifdef __cplusplus
 }
