@@ -12,12 +12,14 @@ extern "C" {
 #endif /* __cplusplus */
 
     #define REGISTRATION_STATUS_VALUES \
-    REG_STATUS_UNASSIGNED, \
-    REG_STATUS_ASSIGNING, \
-    REG_STATUS_ASSIGNED, \
-    REG_STATUS_REGISTRATION_FAILED, \
-    REG_STATUS_REGISTRATION_DISABLED \
+    REGISTRATION_STATUS_NONE, \
+    REGISTRATION_STATUS_UNASSIGNED, \
+    REGISTRATION_STATUS_ASSIGNING, \
+    REGISTRATION_STATUS_ASSIGNED, \
+    REGISTRATION_STATUS_FAILED, \
+    REGISTRATION_STATUS_DISABLED \
 
+    //Note: REGISTRATION_STATUS_NONE is invalid, indicating error
     DEFINE_ENUM(REGISTRATION_STATUS, REGISTRATION_STATUS_VALUES);
 
     #define ATTESTATION_TYPE_VALUES \
@@ -27,6 +29,14 @@ extern "C" {
 
     //Note: ATTESTATION_TYPE_NONE is invalid, indicating error
     DEFINE_ENUM(ATTESTATION_TYPE, ATTESTATION_TYPE_VALUES);
+
+    #define CERTIFICATE_TYPE_VALUES \
+    CERTIFICATE_TYPE_NONE, \
+    CERTIFICATE_TYPE_CLIENT, \
+    CERTIFICATE_TYPE_SIGNING \
+
+    //Note: CERTIFICATE_TYPE_NONE is invalid, indicating error
+    DEFINE_ENUM(CERTIFICATE_TYPE, CERTIFICATE_TYPE_VALUES);
 
     #define PROVISIONING_STATUS_VALUES \
     PROVISIONING_STATUS_NONE, \
@@ -48,15 +58,15 @@ extern "C" {
         char* sha1_thumbprint;
         char* sha256_thumbprint;
         char* issuer_name;
-        time_t not_before_utc;
-        time_t not_after_utc;
+        char* not_before_utc;
+        char* not_after_utc;
         char* serial_number;
         int version;
     } X509_CERTIFICATE_INFO;
 
     typedef struct X509_CERTIFICATE_WITH_INFO_TAG
     {
-        void* certificate;
+        char* certificate;
         X509_CERTIFICATE_INFO* info;
     } X509_CERTIFICATE_WITH_INFO;
 
@@ -68,8 +78,11 @@ extern "C" {
 
     typedef struct X509_ATTESTATION_TAG
     {
-        X509_CERTIFICATES* client_certificates;
-        X509_CERTIFICATES* signing_certificates;
+        CERTIFICATE_TYPE type;
+        union {
+            X509_CERTIFICATES* client_certificates;
+            X509_CERTIFICATES* signing_certificates;
+        } certificates;
     } X509_ATTESTATION;
 
     typedef struct ATTESTATION_MECHANISM_TAG
@@ -83,7 +96,7 @@ extern "C" {
 
     typedef struct METADATA_TAG
     {
-        time_t last_updated;
+        char* last_updated;
         int last_updated_version;
     } METADATA;
 
@@ -103,7 +116,6 @@ extern "C" {
     {
         char* registration_id;
         char* created_date_time_utc;
-        char* assigned_hub;
         char* device_id;
         REGISTRATION_STATUS status;
         char* updated_date_time_utc;
@@ -127,13 +139,13 @@ extern "C" {
 
     typedef struct ENROLLMENT_GROUP_TAG
     {
-        char* enrollment_group_id;
+        char* group_name;
         ATTESTATION_MECHANISM* attestation_mechanism;
         //TWIN_STATE* initial_twin_state;
         char* etag;
         PROVISIONING_STATUS provisioning_status;
-        const time_t created_date_time_utc;
-        time_t updated_date_time_utc;
+        char* created_date_time_utc;
+        char* updated_date_time_utc;
     } ENROLLMENT_GROUP;
 
 
@@ -141,15 +153,29 @@ extern "C" {
 
     MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT*, individualEnrollment_create_tpm, const char*, reg_id, const char*, endorsement_key);
 
+    MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT*, individualEnrollment_create_x509, const char*, reg_id, const char*, primary_cert, const char*, secondary_cert);
+
     MOCKABLE_FUNCTION(, void, individualEnrollment_free, INDIVIDUAL_ENROLLMENT*, enrollment);
 
     MOCKABLE_FUNCTION(, int, individualEnrollment_setDeviceId, INDIVIDUAL_ENROLLMENT*, enrollment, const char*, device_id);
 
     MOCKABLE_FUNCTION(, int, individualEnrollment_setEtag, INDIVIDUAL_ENROLLMENT*, enrollment, const char*, etag);
 
-    MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT*, individualEnrollment_deserialize, const char*, json);
-
     MOCKABLE_FUNCTION(, const char*, individualEnrollment_serialize, const INDIVIDUAL_ENROLLMENT*, enrollment);
+
+    MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT*, individualEnrollment_deserialize, const char*, json_string);
+
+    MOCKABLE_FUNCTION(, ENROLLMENT_GROUP*, enrollmentGroup_create, const char*, group_name);
+
+    MOCKABLE_FUNCTION(, ENROLLMENT_GROUP*, enrollmentGroup_create_x509, const char*, group_name, const char*, primary_cert, const char*, secondary_cert);
+
+    MOCKABLE_FUNCTION(, void, enrollmentGroup_free, ENROLLMENT_GROUP*, enrollment);
+
+    MOCKABLE_FUNCTION(, int, enrollmentGroup_setEtag, ENROLLMENT_GROUP*, enrollment, const char*, etag);
+
+    MOCKABLE_FUNCTION(, const char*, enrollmentGroup_serialize, const ENROLLMENT_GROUP*, enrollment);
+
+    MOCKABLE_FUNCTION(, ENROLLMENT_GROUP*, enrollmentGroup_deserialize, const char*, json_string);
 
 #ifdef __cplusplus
 }

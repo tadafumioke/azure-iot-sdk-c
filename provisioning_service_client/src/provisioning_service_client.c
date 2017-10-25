@@ -58,7 +58,7 @@ typedef struct PROVISIONING_SERVICE_CLIENT_TAG
 
 //static const char* CREATE_ENROLLMENT_CONTENT_FMT = "{\"id\":\"%s\",\"desiredIotHub\":\"%s\",\"deviceId\":\"%s\",\"identityAttestationMechanism\":\"%s\",\"identityAttestationEndorsementKey\":\"%s\",\"initialDeviceTwin\":\"\",\"enableEntry\":\"%s\"}";
 static const char* ENROLL_GROUP_PROVISION_PATH_FMT = "/enrollmentGroups/%s?api-version=%s";
-static const char* ENROLL_PROVISION_PATH_FMT = "/enrollments/%s?api-version=%s";
+static const char* INDV_ENROLL_PROVISION_PATH_FMT = "/enrollments/%s?api-version=%s";
 static const char* HEADER_KEY_AUTHORIZATION = "Authorization";
 static const char* PROVISIONING_SERVICE_API_VERSION = "2017-08-31-preview";
 
@@ -446,7 +446,7 @@ int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_H
         LogError("Failure serializing enrollment");
         result = __LINE__;
     }
-    else if ((registration_path = construct_registration_path(enrollment->registration_id, ENROLL_PROVISION_PATH_FMT)) == NULL)
+    else if ((registration_path = construct_registration_path(enrollment->registration_id, INDV_ENROLL_PROVISION_PATH_FMT)) == NULL)
     {
         LogError("Failed constructing provisioning path");
         result = __LINE__;
@@ -486,7 +486,7 @@ int prov_sc_delete_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov
     HTTP_HEADERS_HANDLE request_headers;
     STRING_HANDLE registration_path;
 
-    if ((registration_path = construct_registration_path(enrollment->registration_id, ENROLL_PROVISION_PATH_FMT)) == NULL)
+    if ((registration_path = construct_registration_path(enrollment->registration_id, INDV_ENROLL_PROVISION_PATH_FMT)) == NULL)
     {
         LogError("Failed constructing provisioning path");
         result = __LINE__;
@@ -525,7 +525,7 @@ int prov_sc_get_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_cl
     STRING_HANDLE registration_path;
     INDIVIDUAL_ENROLLMENT* enrollment = *enrollment_ptr;
 
-    if ((registration_path = construct_registration_path(id, ENROLL_PROVISION_PATH_FMT)) == NULL)
+    if ((registration_path = construct_registration_path(id, INDV_ENROLL_PROVISION_PATH_FMT)) == NULL)
     {
         LogError("Failed constructing provisioning path");
         result = __LINE__;
@@ -571,33 +571,127 @@ int prov_sc_get_device_registration_status(PROVISIONING_SERVICE_CLIENT_HANDLE pr
     return 0;
 }
 
-int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, ENROLLMENT_GROUP** enrollment_group_ptr)
+int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, ENROLLMENT_GROUP** enrollment_ptr)
 {
-    UNREFERENCED_PARAMETER(prov_client);
-    UNREFERENCED_PARAMETER(id);
-    UNREFERENCED_PARAMETER(enrollment_group_ptr);
-    return 0;
+    int result = 0;
+    HTTP_HEADERS_HANDLE request_headers;
+    STRING_HANDLE registration_path;
+
+    ENROLLMENT_GROUP* new_enrollment;
+    ENROLLMENT_GROUP* enrollment = *enrollment_ptr;
+
+    const char* content = enrollmentGroup_serialize(enrollment);
+    if (content == NULL)
+    {
+        LogError("Failure serializing enrollment");
+        result = __LINE__;
+    }
+    else if ((registration_path = construct_registration_path(enrollment->group_name, ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
+    {
+        LogError("Failed constructing provisioning path");
+        result = __LINE__;
+    }
+    else if ((request_headers = construct_http_headers(prov_client)) == NULL)
+    {
+        LogError("Failure creating registration json content");
+        result = __LINE__;
+    }
+    else
+    {
+        result = rest_call(prov_client, HTTP_CLIENT_REQUEST_PUT, STRING_c_str(registration_path), request_headers, content);
+
+        if (result == 0)
+        {
+            if ((new_enrollment = enrollmentGroup_deserialize(prov_client->response)) == NULL)
+            {
+                LogError("Failure constructing new enrollment structure from json response");
+                result = __LINE__;
+            }
+
+            //Free the user submitted enrollment, and replace the pointer reference to a new enrollment from the provisioning service
+            enrollmentGroup_free(enrollment);
+            *enrollment_ptr = new_enrollment;
+        }
+
+        free(prov_client->response);
+        prov_client->response = NULL;
+        HTTPHeaders_Free(request_headers);
+    }
+    return result;
 }
 
-int prov_sc_delete_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, ENROLLMENT_GROUP* enrollment_group)
+int prov_sc_delete_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, ENROLLMENT_GROUP* enrollment)
 {
-    UNREFERENCED_PARAMETER(prov_client);
-    UNREFERENCED_PARAMETER(enrollment_group);
-    return 0;
+    int result = 0;
+    HTTP_HEADERS_HANDLE request_headers;
+    STRING_HANDLE registration_path;
+
+    if ((registration_path = construct_registration_path(enrollment->group_name, ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
+    {
+        LogError("Failed constructing provisioning path");
+        result = __LINE__;
+    }
+    else if ((request_headers = construct_http_headers(prov_client)) == NULL)
+    {
+        LogError("Failure creating registration json content");
+        result = __LINE__;
+    }
+    else
+    {
+        result = rest_call(prov_client, HTTP_CLIENT_REQUEST_DELETE, STRING_c_str(registration_path), request_headers, NULL);
+        free(prov_client->response);
+        prov_client->response = NULL;
+        HTTPHeaders_Free(request_headers);
+    }
+    return result;
 }
 
-int prov_sc_delete_enrollment_group_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, const char* etag)
+int prov_sc_delete_enrollment_group_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_name, const char* etag)
 {
-    UNREFERENCED_PARAMETER(prov_client);
-    UNREFERENCED_PARAMETER(id);
-    UNREFERENCED_PARAMETER(etag);
-    return 0;
+    int result;
+
+    ENROLLMENT_GROUP* enrollment = enrollmentGroup_create(group_name);
+    enrollmentGroup_setEtag(enrollment, etag);
+    result = prov_sc_delete_enrollment_group(prov_client, enrollment);
+    enrollmentGroup_free(enrollment);
+
+    return result;
 }
 
-int prov_sc_get_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, ENROLLMENT_GROUP** enrollment_group_ptr)
+int prov_sc_get_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_name, ENROLLMENT_GROUP** enrollment_ptr)
 {
-    UNREFERENCED_PARAMETER(prov_client);
-    UNREFERENCED_PARAMETER(id);
-    UNREFERENCED_PARAMETER(enrollment_group_ptr);
-    return 0;
+    int result = 0;
+    HTTP_HEADERS_HANDLE request_headers;
+    STRING_HANDLE registration_path;
+    ENROLLMENT_GROUP* enrollment = *enrollment_ptr;
+
+    if ((registration_path = construct_registration_path(group_name, ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
+    {
+        LogError("Failed constructing provisioning path");
+        result = __LINE__;
+    }
+    else if ((request_headers = construct_http_headers(prov_client)) == NULL)
+    {
+        LogError("Failure creating registration json content");
+        result = __LINE__;
+    }
+    else
+    {
+        result = rest_call(prov_client, HTTP_CLIENT_REQUEST_GET, STRING_c_str(registration_path), request_headers, NULL);
+
+        if (result == 0)
+        {
+            if ((enrollment = enrollmentGroup_deserialize(prov_client->response)) == NULL)
+            {
+                LogError("Failure constructing new enrollment structure from json response");
+                result = __LINE__;
+            }
+            *enrollment_ptr = enrollment;
+        }
+
+        free(prov_client->response);
+        prov_client->response = NULL;
+        HTTPHeaders_Free(request_headers);
+    }
+    return result;
 }
