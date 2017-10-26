@@ -100,7 +100,7 @@ typedef struct INDIVIDUAL_ENROLLMENT_TAG
 {
     char* registration_id; //read only
     char* device_id;
-    DEVICE_REGISTRATION_STATUS* registration_status;
+    DEVICE_REGISTRATION_STATUS* registration_status; //read only
     ATTESTATION_MECHANISM* attestation_mechanism;
     //TWIN_STATE* initial_twin_state;
     char* etag;
@@ -111,13 +111,13 @@ typedef struct INDIVIDUAL_ENROLLMENT_TAG
 
 typedef struct ENROLLMENT_GROUP_TAG
 {
-    char* group_name;
+    char* group_name; //read only
     ATTESTATION_MECHANISM* attestation_mechanism;
     //TWIN_STATE* initial_twin_state;
     char* etag;
     PROVISIONING_STATUS provisioning_status;
-    char* created_date_time_utc;
-    char* updated_date_time_utc;
+    char* created_date_time_utc; //read only
+    char* updated_date_time_utc; //read only
 } ENROLLMENT_GROUP;
 
 DEFINE_ENUM_STRINGS(ATTESTATION_TYPE, ATTESTATION_TYPE_VALUES)
