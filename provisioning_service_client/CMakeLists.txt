@@ -12,12 +12,16 @@ compileAsC99()
 
 set(provisioning_service_client_c_files
 ./src/provisioning_service_client.c
+./src/provisioning_sc_query.c
+./src/provisioning_sc_bulk_operation.c
 ./src/provisioning_sc_enrollment.c
 ../deps/parson/parson.c
 )
 
 set(provisioning_service_client_h_files
 ./inc/provisioning_service_client.h
+./inc/provisioning_sc_query.h
+./inc/provisioning_sc_bulk_operation.h
 ./inc/provisioning_sc_enrollment.h
 ../deps/parson/parson.h
 )

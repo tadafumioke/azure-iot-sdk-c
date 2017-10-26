@@ -8,18 +8,12 @@
 #include "azure_c_shared_utility/umock_c_prod.h"
 
 #include "provisioning_sc_enrollment.h"
+#include "provisioning_sc_query.h"
+#include "provisioning_sc_bulk_operation.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-
-    #define BULK_OPERATION_MODE_VALUES \
-        BULK_CREATE, \
-        BULK_UPDATE, \
-        BULK_UPDATE_IF_MATCH_ETAG, \
-        BULK_DELETE
-
-    DEFINE_ENUM(BULK_OPERATION_MODE, BULK_OPERATION_MODE_VALUES);
 
     /** @brief  Handle to hide struct and use it in consequent APIs
     */
@@ -78,6 +72,26 @@ extern "C" {
     */
     MOCKABLE_FUNCTION(, int, prov_sc_get_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, id, INDIVIDUAL_ENROLLMENT_HANDLE*, enrollment_ptr);
 
+    /** @brief  Performs a query on individual device enrollment records from the Provisioning Service.
+    *
+    * @param    prov_client             The handle used for connecting to the Provisioning Service.
+    * @param    query_specification     A description of the query to be made.
+    *
+    * @return   A non-NULL handle for accessing the results of the query, and NULL on failure.
+    */
+    MOCKABLE_FUNCTION(, QUERY_RESULT_HANDLE, prov_sc_query_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, query_specification);
+
+    /** @brief  Performs a bulk operation on individual device enrollment records from the Provisioning Service.
+    *
+    * @param    prov_client             The handle used for connecting to the Provisioning Service.
+    * @param    mode                    The operation to be executed.
+    * @param    enrollment_list         An array of enrollments for the given operation to be executed on.
+    * @param    list_len                The number of enrollments in the list.
+    *
+    * @return   A non-NULL handle for accessing the results of the bulk operation, and NULL on failure.
+    */
+    MOCKABLE_FUNCTION(, BULK_OPERATION_RESULT_HANDLE, prov_sc_bulk_op_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, BULK_OPERATION_MODE, mode, INDIVIDUAL_ENROLLMENT_HANDLE*, enrollment_list, size_t, list_len);
+
     /** @brief  Creates or updates a device enrollment group record on the Provisioning Service.
     *
     * @param    prov_client         The handle used for connecting to the Provisioning Service.
@@ -114,6 +128,15 @@ extern "C" {
     */
     MOCKABLE_FUNCTION(, int, prov_sc_get_enrollment_group, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, group_name, ENROLLMENT_GROUP_HANDLE*, enrollment_ptr);
 
+    /** @brief  Performs a query on device enrollment group records from the Provisioning Service.
+    *
+    * @param    prov_client             The handle used for connecting to the Provisioning Service.
+    * @param    query_specification     A description of the query to be made.
+    *
+    * @return   A non-NULL handle for accessing the results of the query, and NULL on failure.
+    */
+    MOCKABLE_FUNCTION(, QUERY_RESULT_HANDLE, prov_sc_query_enrollment_group, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, query_specification);
+
      /** @brief  Deletes a device registration status on the Provisioning Service.
     *
     * @param    prov_client     The handle used for connecting to the Provisioning Service.
@@ -132,6 +155,15 @@ extern "C" {
     * @return   0 upon success, a non-zero number upon failure.
     */
     MOCKABLE_FUNCTION(, int, prov_sc_get_device_registration_status, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, id, DEVICE_REGISTRATION_STATUS_HANDLE*, reg_status_ptr);
+
+    /** @brief  Performs a query on device registration status records from the Provisioning Service.
+    *
+    * @param    prov_client             The handle used for connecting to the Provisioning Service.
+    * @param    query_specification     A description of the query to be made.
+    *
+    * @return   A non-NULL handle for accessing the results of the query, and NULL on failure.
+    */
+    MOCKABLE_FUNCTION(, QUERY_RESULT_HANDLE, prov_sc_query_device_registration_status, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, query_specification);
 
 #ifdef __cplusplus
 }
