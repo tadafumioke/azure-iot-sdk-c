@@ -7,7 +7,12 @@
 
 #include "provisioning_sc_query.h"
 
-typedef struct QUERY_RESULT_TAG
+typedef struct PROVISIONING_QUERY_TAG
+{
+    int dummy;
+} PROVISIONING_QUERY;
+
+typedef struct PROVISIONING_QUERY_RESULT_TAG
 {
     char* continuation_token;
-} QUERY_RESULT;
+} PROVISIONING_QUERY_RESULT;

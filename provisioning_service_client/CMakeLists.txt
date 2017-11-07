@@ -23,6 +23,7 @@ set(provisioning_service_client_h_files
 ./inc/provisioning_sc_query.h
 ./inc/provisioning_sc_bulk_operation.h
 ./inc/provisioning_sc_enrollment.h
+./inc/provisioning_sc_enrollment_private.h
 ../deps/parson/parson.h
 )
 

@@ -16,8 +16,8 @@
 
 #include "azure_uhttp_c/uhttp.h"
 
-
 #include "provisioning_service_client.h"
+#include "provisioning_sc_enrollment_private.h"
 
 typedef enum HTTP_CONNECTION_STATE_TAG
 {
@@ -442,7 +442,7 @@ int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_H
     INDIVIDUAL_ENROLLMENT_HANDLE new_enrollment;
     INDIVIDUAL_ENROLLMENT_HANDLE enrollment = *enrollment_ptr;
 
-    const char* content = individualEnrollment_serialize(enrollment);
+    const char* content = individualEnrollment_serializeToJson(enrollment);
     if (content == NULL)
     {
         LogError("Failure serializing enrollment");
@@ -464,7 +464,7 @@ int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_H
 
         if (result == 0)
         {
-            if ((new_enrollment = individualEnrollment_deserialize(prov_client->response)) == NULL)
+            if ((new_enrollment = individualEnrollment_deserializeFromJson(prov_client->response)) == NULL)
             {
                 LogError("Failure constructing new enrollment structure from json response");
                 result = __LINE__;
@@ -484,12 +484,7 @@ int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_H
 
 int prov_sc_delete_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, INDIVIDUAL_ENROLLMENT_HANDLE enrollment)
 {
-    int result;
-
-    result = prov_sc_delete_individual_enrollment_by_param(prov_client, individualEnrollment_getRegistrationId(enrollment), individualEnrollment_getEtag(enrollment));
-    individualEnrollment_destroy(enrollment);
-
-    return result;
+    return prov_sc_delete_individual_enrollment_by_param(prov_client, individualEnrollment_getRegistrationId(enrollment), individualEnrollment_getEtag(enrollment));
 }
 
 int prov_sc_delete_individual_enrollment_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* reg_id, const char* etag)
@@ -543,7 +538,7 @@ int prov_sc_get_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_cl
 
         if (result == 0)
         {
-            if ((enrollment = individualEnrollment_deserialize(prov_client->response)) == NULL)
+            if ((enrollment = individualEnrollment_deserializeFromJson(prov_client->response)) == NULL)
             {
                 LogError("Failure constructing new enrollment structure from json response");
                 result = __LINE__;
@@ -582,13 +577,13 @@ int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE
     ENROLLMENT_GROUP_HANDLE new_enrollment;
     ENROLLMENT_GROUP_HANDLE enrollment = *enrollment_ptr;
 
-    const char* content = enrollmentGroup_serialize(enrollment);
+    const char* content = enrollmentGroup_serializeToJson(enrollment);
     if (content == NULL)
     {
         LogError("Failure serializing enrollment");
         result = __LINE__;
     }
-    else if ((registration_path = construct_registration_path(enrollmentGroup_getGroupName(enrollment), ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
+    else if ((registration_path = construct_registration_path(enrollmentGroup_getGroupId(enrollment), ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
     {
         LogError("Failed constructing provisioning path");
         result = __LINE__;
@@ -604,7 +599,7 @@ int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE
 
         if (result == 0)
         {
-            if ((new_enrollment = enrollmentGroup_deserialize(prov_client->response)) == NULL)
+            if ((new_enrollment = enrollmentGroup_deserializeFromJson(prov_client->response)) == NULL)
             {
                 LogError("Failure constructing new enrollment structure from json response");
                 result = __LINE__;
@@ -624,15 +619,10 @@ int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE
 
 int prov_sc_delete_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, ENROLLMENT_GROUP_HANDLE enrollment)
 {
-    int result;
-
-    result =  prov_sc_delete_enrollment_group_by_param(prov_client, enrollmentGroup_getGroupName(enrollment), enrollmentGroup_getEtag(enrollment));
-    enrollmentGroup_destroy(enrollment);
-
-    return result;
+    return prov_sc_delete_enrollment_group_by_param(prov_client, enrollmentGroup_getGroupId(enrollment), enrollmentGroup_getEtag(enrollment));
 }
 
-int prov_sc_delete_enrollment_group_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_name, const char* etag)
+int prov_sc_delete_enrollment_group_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_id, const char* etag)
 {
     int result = 0;
     HTTP_HEADERS_HANDLE request_headers;
@@ -640,7 +630,7 @@ int prov_sc_delete_enrollment_group_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE 
 
     UNREFERENCED_PARAMETER(etag);
 
-    if ((registration_path = construct_registration_path(group_name, ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
+    if ((registration_path = construct_registration_path(group_id, ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
     {
         LogError("Failed constructing provisioning path");
         result = __LINE__;
@@ -660,14 +650,14 @@ int prov_sc_delete_enrollment_group_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE 
     return result;
 }
 
-int prov_sc_get_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_name, ENROLLMENT_GROUP_HANDLE* enrollment_ptr)
+int prov_sc_get_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_id, ENROLLMENT_GROUP_HANDLE* enrollment_ptr)
 {
     int result = 0;
     HTTP_HEADERS_HANDLE request_headers;
     STRING_HANDLE registration_path;
     ENROLLMENT_GROUP_HANDLE enrollment = *enrollment_ptr;
 
-    if ((registration_path = construct_registration_path(group_name, ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
+    if ((registration_path = construct_registration_path(group_id, ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
     {
         LogError("Failed constructing provisioning path");
         result = __LINE__;
@@ -683,7 +673,7 @@ int prov_sc_get_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client,
 
         if (result == 0)
         {
-            if ((enrollment = enrollmentGroup_deserialize(prov_client->response)) == NULL)
+            if ((enrollment = enrollmentGroup_deserializeFromJson(prov_client->response)) == NULL)
             {
                 LogError("Failure constructing new enrollment structure from json response");
                 result = __LINE__;

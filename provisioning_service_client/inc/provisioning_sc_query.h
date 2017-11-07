@@ -8,7 +8,15 @@
 extern "C" {
 #endif /* __cplusplus */
 
-    typedef struct QUERY_RESULT* QUERY_RESULT_HANDLE;
+    //typedef struct PROVISIONING_QUERY_SPECIFICATION* PROVISIONING_QUERY_SPECIFICATION_HANDLE;
+    
+    typedef struct PROVISIONING_QUERY_SPECIFICATION_TAG
+    {
+        int dummy;
+    } PROVISIONING_QUERY_SPECIFICATION;
+    
+    typedef struct PROVISIONING_QUERY* PROVISIONING_QUERY_HANDLE;
+    typedef struct PROVISIONING_QUERY_RESULT* PROVISIONING_QUERY_RESULT_HANDLE;
 
 #ifdef __cplusplus
 }
