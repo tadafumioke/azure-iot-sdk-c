@@ -46,7 +46,7 @@ extern "C" {
     /** @brief  Deletes a individual device enrollment record on the Provisioning Service.
     *
     * @param    prov_client    The handle used for connecting to the Provisioning Service.
-    * @param    enrollment     The handle for the target individual enrollment.
+    * @param    enrollment     The handle for the target individual enrollment. Will be matched based on registration id and etag.
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
@@ -56,7 +56,7 @@ extern "C" {
     *
     * @param    prov_client     The handle used for connecting to the Provisioning Service.
     * @param    reg_id          The registration id of the target individual enrollment.
-    * @param    etag            The etag of the target individual enrollment. If given as "*", will match any etag.
+    * @param    etag            The etag of the target individual enrollment. If given as "*", will match any etag. If given as NULL, will be ignored.
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
@@ -65,12 +65,12 @@ extern "C" {
     /** @breif  Retreives an individual device enrollment record from the Provisioning Service.
     *
     * @param    prov_client     The handle used for connecting to the Provisioning Service.
-    * @param    id              The registration id of the target individual enrollment.
+    * @param    reg_id          The registration id of the target individual enrollment.
     * @param    enrollment      Pointer to a handle for an individual enrollment, to be filled with retreived data.
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
-    MOCKABLE_FUNCTION(, int, prov_sc_get_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, id, INDIVIDUAL_ENROLLMENT_HANDLE*, enrollment_ptr);
+    MOCKABLE_FUNCTION(, int, prov_sc_get_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, reg_id, INDIVIDUAL_ENROLLMENT_HANDLE*, enrollment_ptr);
 
     /** @brief Creates a Provisioning Service query for individual device enrollment records.
     *
@@ -150,11 +150,11 @@ extern "C" {
     *
     * @param    prov_client     A handle used for connecting to the Provisioning Service.
     * @param    id              The registration id of the target registration status.
-    * @param    reg_status      A pointer to a handle for a registration status, to be filled with retreived data.
+    * @param    reg_state       A pointer to a handle for a registration state, to be filled with retreived data.
     *
     * @return   0 upon success, a non-zero number upon failure.
     */
-    MOCKABLE_FUNCTION(, int, prov_sc_get_device_registration_status, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, id, DEVICE_REGISTRATION_STATUS_HANDLE*, reg_status_ptr);
+    MOCKABLE_FUNCTION(, int, prov_sc_get_device_registration_status, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, id, DEVICE_REGISTRATION_STATE_HANDLE*, reg_state_ptr);
 
     /** @brief  Creates a Provisioning Service query for device registration status records.
     *

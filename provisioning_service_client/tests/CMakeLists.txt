@@ -6,3 +6,4 @@ cmake_minimum_required(VERSION 2.8.11)
 #this is CMakeLists for provisioning service client tests folder
 add_unittest_directory(provisioning_sc_enrollment_ut)
 add_unittest_directory(provisioning_sc_enrollment_private_ut)
+add_unittest_directory(provisioning_service_client_ut)

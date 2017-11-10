@@ -957,7 +957,7 @@ static JSON_Value* attestationMechanism_toJson(const ATTESTATION_MECHANISM* att_
     }
 
     //Set data
-    else if (((attestationType_toJson(att_mech->type)) == NULL) || (json_object_set_string(root_object, ATTESTATION_MECHANISM_JSON_KEY_TYPE, at_str) != JSONSuccess))
+    else if (((at_str = attestationType_toJson(att_mech->type)) == NULL) || (json_object_set_string(root_object, ATTESTATION_MECHANISM_JSON_KEY_TYPE, at_str) != JSONSuccess))
     {
         LogError("Failed to set '%s' in JSON string representation of Attestation Mechanism", ATTESTATION_MECHANISM_JSON_KEY_TYPE);
         json_value_free(root_value);
@@ -1540,9 +1540,10 @@ void individualEnrollment_destroy(INDIVIDUAL_ENROLLMENT_HANDLE handle)
     individualEnrollment_free(enrollment);
 }
 
-const char* individualEnrollment_serializeToJson(const INDIVIDUAL_ENROLLMENT_HANDLE handle)
+char* individualEnrollment_serializeToJson(const INDIVIDUAL_ENROLLMENT_HANDLE handle)
 {
     char* result = NULL;
+    char* serialized_string = NULL;
     JSON_Value* root_value = NULL;
     INDIVIDUAL_ENROLLMENT* enrollment = (INDIVIDUAL_ENROLLMENT*)handle;
 
@@ -1554,15 +1555,21 @@ const char* individualEnrollment_serializeToJson(const INDIVIDUAL_ENROLLMENT_HAN
     {
         LogError("Creating json object failed");
     }
-    else if ((result = json_serialize_to_string(root_value)) == NULL)
+    else if ((serialized_string = json_serialize_to_string(root_value)) == NULL)
     {
         LogError("Failed to serialize to JSON");
+    }
+    else if (copy_string(&result, serialized_string) != 0)
+    {
+        LogError("Failed to copy serialized string");
     }
     if (root_value != NULL)
     {
         json_value_free(root_value); 
         root_value = NULL;
     }
+    json_free_serialized_string(serialized_string);
+    serialized_string = NULL;
 
     return result;
 }
@@ -1645,11 +1652,12 @@ void enrollmentGroup_destroy(ENROLLMENT_GROUP_HANDLE handle)
     enrollmentGroup_free(enrollment);
 }
 
-const char* enrollmentGroup_serializeToJson(const ENROLLMENT_GROUP_HANDLE handle)
+char* enrollmentGroup_serializeToJson(ENROLLMENT_GROUP_HANDLE handle)
 {
-    ENROLLMENT_GROUP* enrollment = (ENROLLMENT_GROUP*)handle;
     char* result = NULL;
+    char* serialized_string = NULL;
     JSON_Value* root_value = NULL;
+    ENROLLMENT_GROUP* enrollment = (ENROLLMENT_GROUP*)handle;
 
     if (enrollment == NULL)
     {
@@ -1659,15 +1667,21 @@ const char* enrollmentGroup_serializeToJson(const ENROLLMENT_GROUP_HANDLE handle
     {
         LogError("Creating json object failed");
     }
-    else if ((result = json_serialize_to_string(root_value)) == NULL)
+    else if ((serialized_string = json_serialize_to_string(root_value)) == NULL)
     {
         LogError("Serializing to JSON failed");
+    }
+    else if (copy_string(&result, serialized_string) != 0)
+    {
+        LogError("Failed to copy serialized string");
     }
     if (root_value != NULL)
     {
         json_value_free(root_value);
         root_value = NULL;
     }
+    json_free_serialized_string(serialized_string);
+    serialized_string = NULL;
 
     return result;
 }

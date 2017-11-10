@@ -17,7 +17,7 @@ extern "C" {
     *
     * @return   A non-NULL string containing the serialized JSON String, and NULL on failure.
     */
-    MOCKABLE_FUNCTION(, const char*, individualEnrollment_serializeToJson, const INDIVIDUAL_ENROLLMENT_HANDLE, handle);
+    MOCKABLE_FUNCTION(, char*, individualEnrollment_serializeToJson, const INDIVIDUAL_ENROLLMENT_HANDLE, handle);
     
     /** @brief  Deserializes a JSON String representation of an Individual Enrollment.
     *
@@ -33,7 +33,7 @@ extern "C" {
     *
     * @return   A non-NULL string containing the serialized JSON String, and NULL on failure.
     */
-    MOCKABLE_FUNCTION(, const char*, enrollmentGroup_serializeToJson, const ENROLLMENT_GROUP_HANDLE, handle);
+    MOCKABLE_FUNCTION(, char*, enrollmentGroup_serializeToJson, const ENROLLMENT_GROUP_HANDLE, handle);
     
     /** @brief  Deserializes a JSON String representation of an Enrollment Group.
     *
