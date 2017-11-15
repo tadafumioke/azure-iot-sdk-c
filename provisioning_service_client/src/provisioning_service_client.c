@@ -13,6 +13,8 @@
 #include "azure_c_shared_utility/urlencode.h"
 #include "azure_c_shared_utility/connection_string_parser.h"
 #include "azure_c_shared_utility/tlsio.h"
+#include "azure_c_shared_utility/http_proxy_io.h"
+
 
 #include "azure_uhttp_c/uhttp.h"
 
@@ -33,15 +35,29 @@ typedef enum HTTP_CONNECTION_STATE_TAG
 //consider substructure representing SharedAccessSignature?
 typedef struct PROVISIONING_SERVICE_CLIENT_TAG
 {
+    //Connection details
     char* provisioning_service_uri;
     char* key_name;
     char* access_key;
 
+    //Connection data
     HTTP_CONNECTION_STATE http_state;
     char* response;
 
+    //Connection options
+    TRACING_STATUS tracing;
+    HTTP_PROXY_OPTIONS* proxy_options;
+    char* certificate;
 
 } PROV_SERVICE_CLIENT;
+
+typedef struct HANDLE_FUNCTION_VECTOR_TAG
+{
+    char* (*serializeToJson)(void*);
+    void* (*deserializeFromJson)(char*);
+    const char* (*getId)(void*);
+    void (*destroy)(void*);
+} HANDLE_FUNCTION_VECTOR;
 
 #define UNREFERENCED_PARAMETER(x) x
 
@@ -49,21 +65,22 @@ typedef struct PROVISIONING_SERVICE_CLIENT_TAG
 #define IOTHUBSHAREDACESSKEYNAME "SharedAccessKeyName"
 #define IOTHUBSHAREDACESSKEY "SharedAccessKey"
 
+#define PROVISIONING_SERVICE_API_VERSION    "2017-08-31-preview"
+#define ENROLL_GROUP_PROVISION_PATH_FMT     "/enrollmentGroups/%s?api-version=%s"
+#define INDV_ENROLL_PROVISION_PATH_FMT      "/enrollments/%s?api-version=%s"
+#define HEADER_KEY_AUTHORIZATION            "Authorization"
+#define HEADER_KEY_IF_MATCH                 "If-Match"
+#define HEADER_KEY_USER_AGENT               "UserAgent"
+#define HEADER_KEY_ACCEPT                   "Accept"
+#define HEADER_KEY_CONTENT_TYPE             "Content-Type"
+#define HEADER_VALUE_USER_AGENT             "iothub_dps_prov_client/1.0"
+#define HEADER_VALUE_ACCEPT                 "application/json"
+#define HEADER_VALUE_CONTENT_TYPE           "application/json; charset=utf-8"
+
 #define DEFAULT_HTTPS_PORT          443
 #define UID_LENGTH                  37
 #define SAS_TOKEN_DEFAULT_LIFETIME  3600
 #define EPOCH_TIME_T_VALUE          (time_t)0
-
-#define UNREFERENCED_PARAMETER(x) x
-
-static const char* ENROLL_GROUP_PROVISION_PATH_FMT = "/enrollmentGroups/%s?api-version=%s";
-static const char* INDV_ENROLL_PROVISION_PATH_FMT = "/enrollments/%s?api-version=%s";
-static const char* HEADER_KEY_AUTHORIZATION = "Authorization";
-static const char* HEADER_KEY_IF_MATCH = "If-Match";
-static const char* HEADER_KEY_USER_AGENT = "UserAgent";
-static const char* HEADER_KEY_ACCEPT = "Accept";
-static const char* HEADER_KEY_CONTENT_TYPE = "Content-Type";
-static const char* PROVISIONING_SERVICE_API_VERSION = "2017-08-31-preview";
 
 static size_t string_length(const char* value)
 {
@@ -79,6 +96,30 @@ static size_t string_length(const char* value)
     return result;
 }
 
+static int mallocAndStrcpy_overwrite(char** dest, char* source)
+{
+    int result = 0;
+    char* temp = NULL;
+
+    if (dest == NULL || source == NULL)
+    {
+        LogError("Invalid input");
+        result = __FAILURE__;
+    }
+    else if (mallocAndStrcpy_s(&temp, source) != 0)
+    {
+        LogError("Failed to copy value from source");
+        result = __FAILURE__;
+    }
+    else
+    {
+        free(*dest);
+        *dest = temp;
+    }
+
+    return result;
+}
+
 static const char* retrieve_json_string(const char* value)
 {
     const char* result;
@@ -91,6 +132,28 @@ static const char* retrieve_json_string(const char* value)
         result = "";
     }
     return result;
+}
+
+static HANDLE_FUNCTION_VECTOR getVector_individualEnrollment()
+{
+    HANDLE_FUNCTION_VECTOR vector;
+    vector.serializeToJson = individualEnrollment_serializeToJson;
+    vector.deserializeFromJson = individualEnrollment_deserializeFromJson;
+    vector.getId = individualEnrollment_getRegistrationId;
+    vector.destroy = individualEnrollment_destroy;
+
+    return vector;
+}
+
+static HANDLE_FUNCTION_VECTOR getVector_enrollmentGroup()
+{
+    HANDLE_FUNCTION_VECTOR vector;
+    vector.serializeToJson = enrollmentGroup_serializeToJson;
+    vector.deserializeFromJson = enrollmentGroup_deserializeFromJson;
+    vector.getId = enrollmentGroup_getGroupId;
+    vector.destroy = enrollmentGroup_destroy;
+
+    return vector;
 }
 
 static void on_http_connected(void* callback_ctx, HTTP_CALLBACK_REASON connect_result)
@@ -127,12 +190,11 @@ static void on_http_error(void* callback_ctx, HTTP_CALLBACK_REASON error_result)
 static void on_http_reply_recv(void* callback_ctx, HTTP_CALLBACK_REASON request_result, const unsigned char* content, size_t content_len, unsigned int status_code, HTTP_HEADERS_HANDLE responseHeadersHandle)
 {
     (void)responseHeadersHandle;
-    //(void)content;
     (void)content_len;
     if (callback_ctx != NULL)
     {
         PROV_SERVICE_CLIENT* prov_client = (PROV_SERVICE_CLIENT*)callback_ctx;
-        char* content_str = (char*)content;
+        const char* content_str = (const char*)content;
 
         //if there is a json response
         if (content != NULL)
@@ -171,7 +233,7 @@ static void on_http_reply_recv(void* callback_ctx, HTTP_CALLBACK_REASON request_
     }
 }
 
-static HTTP_HEADERS_HANDLE construct_http_headers(const PROV_SERVICE_CLIENT* prov_client, const char* etag)
+static HTTP_HEADERS_HANDLE construct_http_headers(const PROV_SERVICE_CLIENT* prov_client, const char* etag, HTTP_CLIENT_REQUEST_TYPE request)
 {
     HTTP_HEADERS_HANDLE result;
     if ((result = HTTPHeaders_Alloc()) == NULL)
@@ -191,11 +253,11 @@ static HTTP_HEADERS_HANDLE construct_http_headers(const PROV_SERVICE_CLIENT* pro
         }
         else
         {
-            if ((HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_USER_AGENT, "iothub_dps_prov_client/1.0") != HTTP_HEADERS_OK) ||
-                (HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_ACCEPT, "application/json") != HTTP_HEADERS_OK) ||
-                (HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_CONTENT_TYPE, "application/json; charset=utf-8") != HTTP_HEADERS_OK) ||
-                (HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_AUTHORIZATION, STRING_c_str(sas_token)) != HTTP_HEADERS_OK) ||
-                ((etag!= NULL) && (HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_IF_MATCH, etag) != HTTP_HEADERS_OK)))
+            if ((HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_USER_AGENT, HEADER_VALUE_USER_AGENT) != HTTP_HEADERS_OK) ||
+                (HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_ACCEPT, HEADER_VALUE_ACCEPT) != HTTP_HEADERS_OK) ||
+                ((request != HTTP_CLIENT_REQUEST_DELETE) && (HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_CONTENT_TYPE, HEADER_VALUE_CONTENT_TYPE) != HTTP_HEADERS_OK)) ||
+                ((request != HTTP_CLIENT_REQUEST_DELETE) && (HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_AUTHORIZATION, STRING_c_str(sas_token)) != HTTP_HEADERS_OK)) ||
+                ((etag != NULL) && (HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_IF_MATCH, etag) != HTTP_HEADERS_OK)))
             {
                 LogError("failure adding header value");
                 HTTPHeaders_Free(result);
@@ -239,23 +301,25 @@ static HTTP_CLIENT_HANDLE connect_to_service(PROV_SERVICE_CLIENT* prov_client)
 
     // Create uhttp
     TLSIO_CONFIG tls_io_config;
-    //HTTP_PROXY_IO_CONFIG http_proxy;
+    HTTP_PROXY_IO_CONFIG http_proxy;
     memset(&tls_io_config, 0, sizeof(TLSIO_CONFIG));
     tls_io_config.hostname = prov_client->provisioning_service_uri;
     tls_io_config.port = DEFAULT_HTTPS_PORT;
 
-    // // Setup proxy
-    // if (prov_client->proxy_hostname != NULL)
-    // {
-    //     memset(&http_proxy, 0, sizeof(HTTP_PROXY_IO_CONFIG));
-    //     http_proxy.hostname = prov_client->provisioning_service_uri;
-    //     http_proxy.port = 443;
-    //     http_proxy.proxy_hostname = prov_client->provisioning_service_uri;
-    //     http_proxy.proxy_port = DEFAULT_HTTPS_PORT;
+     // Setup proxy
+     if (prov_client->proxy_options != NULL)
+     {
+         memset(&http_proxy, 0, sizeof(HTTP_PROXY_IO_CONFIG));
+         http_proxy.hostname = prov_client->provisioning_service_uri;
+         http_proxy.port = DEFAULT_HTTPS_PORT;
+         http_proxy.proxy_hostname = prov_client->proxy_options->host_address;
+         http_proxy.proxy_port = prov_client->proxy_options->port;
+         http_proxy.username = prov_client->proxy_options->username;
+         http_proxy.password = prov_client->proxy_options->password;
 
-    //     tls_io_config.underlying_io_interface = http_proxy_io_get_interface_description();
-    //     tls_io_config.underlying_io_parameters = &http_proxy;
-    // }
+         tls_io_config.underlying_io_interface = http_proxy_io_get_interface_description();
+         tls_io_config.underlying_io_parameters = &http_proxy;
+     }
 
     const IO_INTERFACE_DESCRIPTION* interface_desc = platform_get_default_tlsio();
     if (interface_desc == NULL)
@@ -267,13 +331,13 @@ static HTTP_CLIENT_HANDLE connect_to_service(PROV_SERVICE_CLIENT* prov_client)
     {
         LogError("Failed creating http object");
     }
-    // else if (prov_client->certificates && uhttp_client_set_trusted_cert(result, prov_client->certificates) != HTTP_CLIENT_OK)
-    // {
-    //     LogError("Failed setting trusted cert");
-    //     uhttp_client_destroy(result);
-    //     result = NULL;
-    // }
-    else if (uhttp_client_set_trace(result, true, true) != HTTP_CLIENT_OK)
+    else if (prov_client->certificate != NULL && uhttp_client_set_trusted_cert(result, prov_client->certificate) != HTTP_CLIENT_OK)
+    {
+         LogError("Failed setting trusted cert");
+         uhttp_client_destroy(result);
+         result = NULL;
+     }
+    else if (prov_client->tracing == TRACING_STATUS_ON && uhttp_client_set_trace(result, true, true) != HTTP_CLIENT_OK)
     {
         LogError("Failed setting trace");
         uhttp_client_destroy(result);
@@ -294,61 +358,234 @@ static int rest_call(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, HTTP_CLIENT
     int content_len;
     HTTP_CLIENT_HANDLE http_client;
 
-    if ((registration_path == NULL) || (request_headers == NULL))
+    if (content == NULL)
     {
-        LogError("something");
-        result = __LINE__;
+        content_len = 0;
     }
     else
     {
-        if (content == NULL)
-        {
-            content_len = 0;
-        }
-        else
-        {
-            content_len = strlen(content);
-        }
+        content_len = strlen(content);
+    }
 
-        http_client = connect_to_service(prov_client);
-        if (http_client == NULL)
+    http_client = connect_to_service(prov_client);
+    if (http_client == NULL)
+    {
+        LogError("Failed connecting to service");
+        result = __FAILURE__;
+    }
+    else
+    {
+        result = 0;
+        do
         {
-            LogError("Failed connecting to service");
-            result = __LINE__;
-        }
-        else
-        {
-            result = 0;
-            do
+            uhttp_client_dowork(http_client);
+            if (prov_client->http_state == HTTP_STATE_CONNECTED)
             {
-                uhttp_client_dowork(http_client);
-                if (prov_client->http_state == HTTP_STATE_CONNECTED)
+                if (uhttp_client_execute_request(http_client, operation, registration_path, request_headers, (unsigned char*)content, content_len, on_http_reply_recv, prov_client) != HTTP_CLIENT_OK)
                 {
-                    if (uhttp_client_execute_request(http_client, operation, registration_path, request_headers, (unsigned char*)content, content_len, on_http_reply_recv, prov_client) != HTTP_CLIENT_OK)
-                    {
-                        LogError("Failure executing http request");
-                        prov_client->http_state = HTTP_STATE_ERROR;
-                        result = __LINE__;
-                    }
-                    else
-                    {
-                        prov_client->http_state = HTTP_STATE_REQUEST_SENT;
-                    }
+                    LogError("Failure executing http request");
+                    prov_client->http_state = HTTP_STATE_ERROR;
+                    result = __FAILURE__;
                 }
-                else if (prov_client->http_state == HTTP_STATE_REQUEST_RECV)
+                else
                 {
-                    prov_client->http_state = HTTP_STATE_COMPLETE;
+                    prov_client->http_state = HTTP_STATE_REQUEST_SENT;
                 }
-                else if (prov_client->http_state == HTTP_STATE_ERROR)
-                {
-                    result = __LINE__;
-                }
-            } while (prov_client->http_state != HTTP_STATE_COMPLETE && prov_client->http_state != HTTP_STATE_ERROR);
-        }
+            }
+            else if (prov_client->http_state == HTTP_STATE_REQUEST_RECV)
+            {
+                prov_client->http_state = HTTP_STATE_COMPLETE;
+            }
+            else if (prov_client->http_state == HTTP_STATE_ERROR)
+            {
+                result = __FAILURE__;
+            }
+        } while (prov_client->http_state != HTTP_STATE_COMPLETE && prov_client->http_state != HTTP_STATE_ERROR);
+
         uhttp_client_close(http_client, NULL, NULL);
         uhttp_client_destroy(http_client);
     }
+
     prov_client->http_state = HTTP_STATE_DISCONNECTED;
+    return result;
+}
+
+static int prov_sc_create_or_update_record(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, void** handle_ptr, HANDLE_FUNCTION_VECTOR vector, const char* path_format)
+{
+    int result = 0;
+    void* handle;
+
+    if (prov_client == NULL)
+    {
+        LogError("Invalid Provisioning Client Handle");
+        result = __FAILURE__;
+    }
+    else if ((handle_ptr == NULL) || ((handle = *handle_ptr) == NULL))
+    {
+        LogError("Invalid handle");
+        result = __FAILURE__;
+    }
+    else
+    {
+        char* content;
+        if ((content = vector.serializeToJson(handle)) == NULL)
+        {
+            LogError("Failure serializing enrollment");
+            result = __FAILURE__;
+        }
+        else
+        {
+            STRING_HANDLE registration_path;
+            if ((registration_path = construct_registration_path(vector.getId(handle), path_format)) == NULL)
+            {
+                LogError("Failed constructing provisioning path");
+                result = __FAILURE__;
+            }
+            else
+            {
+                HTTP_HEADERS_HANDLE request_headers;
+                if ((request_headers = construct_http_headers(prov_client, NULL, HTTP_CLIENT_REQUEST_PUT)) == NULL)
+                {
+                    LogError("Failure creating registration json content");
+                    result = __FAILURE__;
+                }
+                else
+                {
+                    result = rest_call(prov_client, HTTP_CLIENT_REQUEST_PUT, STRING_c_str(registration_path), request_headers, content);
+
+                    if (result == 0)
+                    {
+                        INDIVIDUAL_ENROLLMENT_HANDLE new_handle;
+                        if ((new_handle = vector.deserializeFromJson(prov_client->response)) == NULL)
+                        {
+                            LogError("Failure constructing new enrollment structure from json response");
+                            result = __FAILURE__;
+                        }
+
+                        //Free the user submitted enrollment, and replace the pointer reference to a new enrollment from the provisioning service
+                        vector.destroy(handle);
+                        *handle_ptr = new_handle;
+                    }
+                    else
+                    {
+                        LogError("Rest call failed");
+                    }
+
+                    free(prov_client->response);
+                    prov_client->response = NULL;
+                }
+                HTTPHeaders_Free(request_headers);
+            }
+            STRING_delete(registration_path);
+        }
+        free(content);
+    }
+
+    return result;
+}
+
+static int prov_sc_delete_record_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, const char* etag)
+{
+    int result = 0;
+
+    if (prov_client == NULL)
+    {
+        LogError("Invalid Provisioning Client Handle");
+        result = __FAILURE__;
+    }
+    else if (id == NULL)
+    {
+        LogError("Invalid Id");
+        result = __FAILURE__;
+    }
+    else
+    {
+        STRING_HANDLE registration_path;
+        if ((registration_path = construct_registration_path(id, INDV_ENROLL_PROVISION_PATH_FMT)) == NULL)
+        {
+            LogError("Failed constructing provisioning path");
+            result = __FAILURE__;
+        }
+        else
+        {
+            HTTP_HEADERS_HANDLE request_headers;
+            if ((request_headers = construct_http_headers(prov_client, etag, HTTP_CLIENT_REQUEST_DELETE)) == NULL)
+            {
+                LogError("Failure creating registration json content");
+                result = __FAILURE__;
+            }
+            else
+            {
+                result = rest_call(prov_client, HTTP_CLIENT_REQUEST_DELETE, STRING_c_str(registration_path), request_headers, NULL);
+                free(prov_client->response);
+                prov_client->response = NULL;
+            }
+            HTTPHeaders_Free(request_headers);
+        }
+        STRING_delete(registration_path);
+    }
+
+    return result;
+}
+
+static int prov_sc_get_record(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, void** handle_ptr, HANDLE_FUNCTION_VECTOR vector, const char* path_format)
+{
+    int result = 0;
+
+    if (prov_client == NULL)
+    {
+        LogError("Invalid Provisioning Client Handle");
+        result = __FAILURE__;
+    }
+    else if (id == NULL)
+    {
+        LogError("Invalid id");
+        result = __FAILURE__;
+    }
+    else if (handle_ptr == NULL)
+    {
+        LogError("Invalid handle");
+        result = __FAILURE__;
+    }
+    else
+    {
+        STRING_HANDLE registration_path;
+        if ((registration_path = construct_registration_path(id, path_format)) == NULL)
+        {
+            LogError("Failed constructing provisioning path");
+            result = __FAILURE__;
+        }
+        else
+        {
+            HTTP_HEADERS_HANDLE request_headers;
+            if ((request_headers = construct_http_headers(prov_client, NULL, HTTP_CLIENT_REQUEST_GET)) == NULL)
+            {
+                LogError("Failure creating registration json content");
+                result = __FAILURE__;
+            }
+            else
+            {
+                result = rest_call(prov_client, HTTP_CLIENT_REQUEST_GET, STRING_c_str(registration_path), request_headers, NULL);
+
+                if (result == 0)
+                {
+                    void* handle;
+                    if ((handle = vector.deserializeFromJson(prov_client->response)) == NULL)
+                    {
+                        LogError("Failure constructing new enrollment structure from json response");
+                        result = __FAILURE__;
+                    }
+                    *handle_ptr = handle;
+                }
+
+                free(prov_client->response);
+                prov_client->response = NULL;
+            }
+            HTTPHeaders_Free(request_headers);
+        }
+        STRING_delete(registration_path);
+    }
+
     return result;
 }
 
@@ -362,6 +599,7 @@ void prov_sc_destroy(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client)
         free(prov_client->key_name);
         free(prov_client->access_key);
         free(prov_client->response);
+        free(prov_client->certificate);
         free(prov_client);
     }
 }
@@ -443,198 +681,104 @@ PROVISIONING_SERVICE_CLIENT_HANDLE prov_sc_create_from_connection_string(const c
                         prov_sc_destroy(result);
                         result = NULL;
                     }
+                    else
+                    {
+                        result->tracing = TRACING_STATUS_OFF;
+                    }
                 }
+                Map_Destroy(connection_string_values_map);
             }
-            Map_Destroy(connection_string_values_map);
         }
         STRING_delete(cs_string);
     }
     return result;
 }
 
-int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, INDIVIDUAL_ENROLLMENT_HANDLE* enrollment_ptr)
+void prov_sc_set_trace(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, TRACING_STATUS status)
+{
+    if (prov_client != NULL)
+    {
+        prov_client->tracing = status;
+    }
+}
+
+int prov_sc_set_certificate(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* certificate)
 {
     int result = 0;
-    HTTP_HEADERS_HANDLE request_headers;
-    STRING_HANDLE registration_path;
-    char* content;
-
-    INDIVIDUAL_ENROLLMENT_HANDLE new_enrollment;
-    INDIVIDUAL_ENROLLMENT_HANDLE enrollment;
 
     if (prov_client == NULL)
     {
-        LogError("Invalid Provisioning Client Handle");
-        result = __LINE__;
+        LogError("Invalid prov_client");
+        result = __FAILURE__;
     }
-    else if ((enrollment_ptr == NULL) || ((enrollment = *enrollment_ptr) == NULL))
+    else if (certificate == NULL)
     {
-        LogError("Invalid Enrollment");
-        result = __LINE__;
+        free(prov_client->certificate);
+        prov_client->certificate = NULL;
     }
-    else
+    else if (mallocAndStrcpy_overwrite(&prov_client->certificate, (char*)certificate) != 0)
     {
-        if ((content = (char*)individualEnrollment_serializeToJson(enrollment)) == NULL)
-        {
-            LogError("Failure serializing enrollment");
-            result = __LINE__;
-        }
-        else
-        {
-            if ((registration_path = construct_registration_path(individualEnrollment_getRegistrationId(enrollment), INDV_ENROLL_PROVISION_PATH_FMT)) == NULL)
-            {
-                LogError("Failed constructing provisioning path");
-                result = __LINE__;
-            }
-            else
-            {
-                if ((request_headers = construct_http_headers(prov_client, NULL)) == NULL)
-                {
-                    LogError("Failure creating registration json content");
-                    result = __LINE__;
-                }
-                else
-                {
-                    result = rest_call(prov_client, HTTP_CLIENT_REQUEST_PUT, STRING_c_str(registration_path), request_headers, content);
-
-                    if (result == 0)
-                    {
-                        if ((new_enrollment = individualEnrollment_deserializeFromJson(prov_client->response)) == NULL)
-                        {
-                            LogError("Failure constructing new enrollment structure from json response");
-                            result = __LINE__;
-                        }
-
-                        //Free the user submitted enrollment, and replace the pointer reference to a new enrollment from the provisioning service
-                        individualEnrollment_destroy(enrollment);
-                        *enrollment_ptr = new_enrollment;
-                    }
-                    else
-                    {
-                        LogError("Rest call failed");
-                    }
-
-                    free(prov_client->response);
-                    prov_client->response = NULL;
-                }
-                HTTPHeaders_Free(request_headers);
-            }
-            STRING_delete(registration_path);
-        }
-        free(content);
+        LogError("Failed allocating memory for certificate");
+        result = __FAILURE__;
     }
 
     return result;
+}
+
+int prov_sc_set_proxy(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, HTTP_PROXY_OPTIONS* proxy_options)
+{
+    int result = 0;
+
+    if (prov_client == NULL)
+    {
+        LogError("Invalid prov_client");
+        result = __FAILURE__;
+    }
+    else if (proxy_options == NULL)
+    {
+        LogError("Invalid proxy options");
+        result = __FAILURE__;
+    }
+    else
+    {
+        if (proxy_options->host_address == NULL)
+        {
+            LogError("Null host address in proxy options");
+            result = __FAILURE__;
+        }
+        else if (((proxy_options->username == NULL) || (proxy_options->password == NULL))
+            && (proxy_options->username != proxy_options->password))
+        {
+            LogError("Only one of username and password for proxy settings was NULL");
+            result = __FAILURE__;
+        }
+        else
+        {
+            prov_client->proxy_options = proxy_options;
+        }
+    }
+
+    return result;
+}
+
+int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, INDIVIDUAL_ENROLLMENT_HANDLE* enrollment_ptr)
+{
+    return prov_sc_create_or_update_record(prov_client, enrollment_ptr, getVector_individualEnrollment(), INDV_ENROLL_PROVISION_PATH_FMT);
 }
 
 int prov_sc_delete_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, INDIVIDUAL_ENROLLMENT_HANDLE enrollment)
 {
-    return prov_sc_delete_individual_enrollment_by_param(prov_client, individualEnrollment_getRegistrationId(enrollment), individualEnrollment_getEtag(enrollment));
+    return prov_sc_delete_record_by_param(prov_client, individualEnrollment_getRegistrationId(enrollment), individualEnrollment_getEtag(enrollment));
 }
 
 int prov_sc_delete_individual_enrollment_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* reg_id, const char* etag)
 {
-    int result = 0;
-    HTTP_HEADERS_HANDLE request_headers;
-    STRING_HANDLE registration_path;
-
-    if (prov_client == NULL)
-    {
-        LogError("Invalid Provisioning Client Handle");
-        result = __LINE__;
-    }
-    else if (reg_id == NULL)
-    {
-        LogError("Invalid Registration Id");
-        result = __LINE__;
-    }
-    else
-    {
-        if ((registration_path = construct_registration_path(reg_id, INDV_ENROLL_PROVISION_PATH_FMT)) == NULL)
-        {
-            LogError("Failed constructing provisioning path");
-            result = __LINE__;
-        }
-        else
-        {
-            if ((request_headers = construct_http_headers(prov_client, etag)) == NULL)
-            {
-                LogError("Failure creating registration json content");
-                result = __LINE__;
-            }
-            else
-            {
-                result = rest_call(prov_client, HTTP_CLIENT_REQUEST_DELETE, STRING_c_str(registration_path), request_headers, NULL);
-                free(prov_client->response);
-                prov_client->response = NULL;
-            }
-            HTTPHeaders_Free(request_headers);
-        }
-        STRING_delete(registration_path);
-    }
-
-    return result;
+    return prov_sc_delete_record_by_param(prov_client, reg_id, etag);
 }
 
 int prov_sc_get_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* reg_id, INDIVIDUAL_ENROLLMENT_HANDLE* enrollment_ptr)
 {
-    int result = 0;
-    HTTP_HEADERS_HANDLE request_headers;
-    STRING_HANDLE registration_path;
-    INDIVIDUAL_ENROLLMENT_HANDLE enrollment;
-
-    if (prov_client == NULL)
-    {
-        LogError("Invalid Provisioning Client Handle");
-        result = __LINE__;
-    }
-    else if (reg_id == NULL)
-    {
-        LogError("Invalid registration id");
-        result = __LINE__;
-    }
-    else if (enrollment_ptr == NULL)
-    {
-        LogError("Invalid enrollment pointer");
-        result = __LINE__;
-    }
-    else
-    {
-        if ((registration_path = construct_registration_path(reg_id, INDV_ENROLL_PROVISION_PATH_FMT)) == NULL)
-        {
-            LogError("Failed constructing provisioning path");
-            result = __LINE__;
-        }
-        else
-        {
-            if ((request_headers = construct_http_headers(prov_client, NULL)) == NULL)
-            {
-                LogError("Failure creating registration json content");
-                result = __LINE__;
-            }
-            else
-            {
-                result = rest_call(prov_client, HTTP_CLIENT_REQUEST_GET, STRING_c_str(registration_path), request_headers, NULL);
-
-                if (result == 0)
-                {
-                    if ((enrollment = individualEnrollment_deserializeFromJson(prov_client->response)) == NULL)
-                    {
-                        LogError("Failure constructing new enrollment structure from json response");
-                        result = __LINE__;
-                    }
-                    *enrollment_ptr = enrollment;
-                }
-
-                free(prov_client->response);
-                prov_client->response = NULL;
-            }
-            HTTPHeaders_Free(request_headers);
-        }
-        STRING_delete(registration_path);
-    }
-
-    return result;
+    return prov_sc_get_record(prov_client, reg_id, enrollment_ptr, getVector_individualEnrollment(), INDV_ENROLL_PROVISION_PATH_FMT);
 }
 
 int prov_sc_delete_device_registration_state(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id)
@@ -656,185 +800,20 @@ int prov_sc_get_device_registration_state(PROVISIONING_SERVICE_CLIENT_HANDLE pro
 
 int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, ENROLLMENT_GROUP_HANDLE* enrollment_ptr)
 {
-    int result = 0;
-    HTTP_HEADERS_HANDLE request_headers;
-    STRING_HANDLE registration_path;
-    char* content;
-
-    ENROLLMENT_GROUP_HANDLE new_enrollment;
-    ENROLLMENT_GROUP_HANDLE enrollment;
-
-    if (prov_client == NULL)
-    {
-        LogError("Invalid Provisioning Client Handle");
-        result = __LINE__;
-    }
-    else if ((enrollment_ptr == NULL) || ((enrollment = *enrollment_ptr) == NULL))
-    {
-        LogError("Invalid Enrollment");
-        result = __LINE__;
-    }
-    else
-    {
-        if ((content = (char*)enrollmentGroup_serializeToJson(enrollment)) == NULL)
-        {
-            LogError("Failure serializing enrollment");
-            result = __LINE__;
-        }
-        else
-        {
-            if ((registration_path = construct_registration_path(enrollmentGroup_getGroupId(enrollment), ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
-            {
-                LogError("Failed constructing provisioning path");
-                result = __LINE__;
-            }
-            else
-            {
-                if ((request_headers = construct_http_headers(prov_client, NULL)) == NULL)
-                {
-                    LogError("Failure creating registration json content");
-                    result = __LINE__;
-                }
-                else
-                {
-                    result = rest_call(prov_client, HTTP_CLIENT_REQUEST_PUT, STRING_c_str(registration_path), request_headers, content);
-
-                    if (result == 0)
-                    {
-                        if ((new_enrollment = enrollmentGroup_deserializeFromJson(prov_client->response)) == NULL)
-                        {
-                            LogError("Failure constructing new enrollment structure from json response");
-                            result = __LINE__;
-                        }
-
-                        //Free the user submitted enrollment, and replace the pointer reference to a new enrollment from the provisioning service
-                        enrollmentGroup_destroy(enrollment);
-                        *enrollment_ptr = new_enrollment;
-                    }
-                    else
-                    {
-                        LogError("Rest call failed");
-                    }
-
-                    free(prov_client->response);
-                    prov_client->response = NULL;
-                }
-                HTTPHeaders_Free(request_headers);
-            }
-            STRING_delete(registration_path);
-        }
-        free(content);
-    }
-
-    return result;
+    return prov_sc_create_or_update_record(prov_client, enrollment_ptr, getVector_enrollmentGroup(), ENROLL_GROUP_PROVISION_PATH_FMT);
 }
 
 int prov_sc_delete_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, ENROLLMENT_GROUP_HANDLE enrollment)
 {
-    return prov_sc_delete_enrollment_group_by_param(prov_client, enrollmentGroup_getGroupId(enrollment), enrollmentGroup_getEtag(enrollment));
+    return prov_sc_delete_record_by_param(prov_client, enrollmentGroup_getGroupId(enrollment), enrollmentGroup_getEtag(enrollment));
 }
 
 int prov_sc_delete_enrollment_group_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_id, const char* etag)
 {
-    int result = 0;
-    HTTP_HEADERS_HANDLE request_headers;
-    STRING_HANDLE registration_path;
-
-    if (prov_client == NULL)
-    {
-        LogError("Invalid Provisioning Client Handle");
-        result = __LINE__;
-    }
-    else if (group_id == NULL)
-    {
-        LogError("Invalid Registration Id");
-        result = __LINE__;
-    }
-    else
-    {
-        if ((registration_path = construct_registration_path(group_id, ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
-        {
-            LogError("Failed constructing provisioning path");
-            result = __LINE__;
-        }
-        else
-        {
-            if ((request_headers = construct_http_headers(prov_client, etag)) == NULL)
-            {
-                LogError("Failure creating registration json content");
-                result = __LINE__;
-            }
-            else
-            {
-                result = rest_call(prov_client, HTTP_CLIENT_REQUEST_DELETE, STRING_c_str(registration_path), request_headers, NULL);
-                free(prov_client->response);
-                prov_client->response = NULL;
-            }
-            HTTPHeaders_Free(request_headers);
-        }
-        STRING_delete(registration_path);
-    }
-
-    return result;
+    return prov_sc_delete_record_by_param(prov_client, group_id, etag);
 }
 
 int prov_sc_get_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_id, ENROLLMENT_GROUP_HANDLE* enrollment_ptr)
 {
-    int result = 0;
-    HTTP_HEADERS_HANDLE request_headers;
-    STRING_HANDLE registration_path;
-    ENROLLMENT_GROUP_HANDLE enrollment;
-
-    if (prov_client == NULL)
-    {
-        LogError("Invalid Provisioning Client Handle");
-        result = __LINE__;
-    }
-    else if (group_id == NULL)
-    {
-        LogError("Invalid registration id");
-        result = __LINE__;
-    }
-    else if (enrollment_ptr == NULL)
-    {
-        LogError("Invalid enrollment pointer");
-        result = __LINE__;
-    }
-    else
-    {
-        if ((registration_path = construct_registration_path(group_id, ENROLL_GROUP_PROVISION_PATH_FMT)) == NULL)
-        {
-            LogError("Failed constructing provisioning path");
-            result = __LINE__;
-        }
-        else
-        {
-            if ((request_headers = construct_http_headers(prov_client, NULL)) == NULL)
-            {
-                LogError("Failure creating registration json content");
-                result = __LINE__;
-            }
-            else
-            {
-                result = rest_call(prov_client, HTTP_CLIENT_REQUEST_GET, STRING_c_str(registration_path), request_headers, NULL);
-
-                if (result == 0)
-                {
-                    if ((enrollment = enrollmentGroup_deserializeFromJson(prov_client->response)) == NULL)
-                    {
-                        LogError("Failure constructing new enrollment structure from json response");
-                        result = __LINE__;
-                    }
-                    *enrollment_ptr = enrollment;
-                }
-
-                free(prov_client->response);
-                prov_client->response = NULL;
-            }
-            HTTPHeaders_Free(request_headers);
-        }
-        STRING_delete(registration_path);
-    }
-
-    return result;
+    return prov_sc_get_record(prov_client, group_id, enrollment_ptr, getVector_enrollmentGroup(), ENROLL_GROUP_PROVISION_PATH_FMT);
 }

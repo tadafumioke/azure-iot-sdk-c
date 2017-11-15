@@ -6,6 +6,7 @@
 
 #include "azure_c_shared_utility/macro_utils.h"
 #include "azure_c_shared_utility/umock_c_prod.h"
+#include "azure_c_shared_utility/shared_util_options.h"
 
 #include "provisioning_sc_enrollment.h"
 #include "provisioning_sc_query.h"
@@ -14,6 +15,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
+    #define TRACING_STATUS_VALUES \
+            TRACING_STATUS_ON,\
+            TRACING_STATUS_OFF
+    DEFINE_ENUM(TRACING_STATUS, TRACING_STATUS_VALUES);
 
     /** @brief  Handle to hide struct and use it in consequent APIs
     */
@@ -33,6 +39,31 @@ extern "C" {
     * @param    prov_client     The handle created by a call to the create function.
     */
     MOCKABLE_FUNCTION(, void, prov_sc_destroy, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client);
+
+    /** @brief  Sets tracing/logging of http communications on or off.
+    *
+    * @param    prov_client     The handle for the connection that should be traced.
+    * @param    status          The tracing status to set.
+    */
+    MOCKABLE_FUNCTION(, void, prov_sc_set_trace, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, TRACING_STATUS, status);
+
+    /** @brief  Set the trusted certificate for HTTP communication with the Provisioning Service.
+    *
+    * @param    prov_client     The handle used for connecting to the Provisioning Service.
+    * @param    certificate     The trusted certificate to be used for HTTP connections. If given as NULL, will clear a previously set certificate.
+    *
+    * @return   0 upon success, a non-zero number upon failure.
+    */
+    MOCKABLE_FUNCTION(, int, prov_sc_set_certificate, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, certificate);
+
+    /** @brief  Set the proxy options for HTTP communication with the Provisioning Service.
+    *
+    * @param    prov_client     The handle used for connecting to the Provisioning Service.
+    * @param    proxy_options   A struct containing the desired proxy settings
+    *
+    * @return   0 upon success, a non-zero number upon failure.
+    */
+    MOCKABLE_FUNCTION(, int, prov_sc_set_proxy, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, HTTP_PROXY_OPTIONS*, proxy_options);
 
     /** @brief Creates or updates an individual device enrollment record on the Provisioning Service, reflecting the changes in the given struct.
     *

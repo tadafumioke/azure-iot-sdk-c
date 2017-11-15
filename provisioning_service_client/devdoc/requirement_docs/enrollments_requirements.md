@@ -48,7 +48,8 @@ DEFINE_ENUM(PROVISIONING_STATUS, PROVISIONING_STATUS_VALUES);
 ```c
 //Attestation Mechanism
 ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithTpm(const char* endorsement_key);
-ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509(const char* primary_cert, const char* secondary_cert);
+ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509ClientCert(const char* primary_cert, const char* secondary_cert);
+ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509SigningCert(const char* primary_cert, const char* secondary_cert);
 void attestationMechanism_destroy(ATTESTATION_MECHANISM_HANDLE att_handle);
 TPM_ATTESTATION_HANDLE attestationMechanism_getTpmAttestation(ATTESTATION_MECHANISM_HANDLE att_handle);
 X509_ATTESTATION_HANDLE attestationMechanism_getX509Attestation(ATTESTATION_MECHANISM_HANDLE att_handle);
@@ -72,7 +73,7 @@ ATTESTATION_TYPE attestationMechanism_getType(ATTESTATION_MECHANISM_HANDLE att_h
 const char* individualEnrollment_getRegistrationId(INDIVIDUAL_ENROLLMENT_HANDLE handle);
 const char* individualEnrollment_getDeviceId(INDIVIDUAL_ENROLLMENT_HANDLE handle);
 int individualEnrollment_setDeviceId(INDIVIDUAL_ENROLLMENT_HANDLE handle, const char* device_id);
-DEVICE_REGISTRATION_STATE_HANDLE individualEnrollment_getDeviceRegistrationStatus(INDIVIDUAL_ENROLLMENT_HANDLE handle);
+DEVICE_REGISTRATION_STATE_HANDLE individualEnrollment_getDeviceRegistrationState(INDIVIDUAL_ENROLLMENT_HANDLE handle);
 const char* individualEnrollment_getEtag(INDIVIDUAL_ENROLLMENT_HANDLE handle);
 int individualEnrollment_setEtag(INDIVIDUAL_ENROLLMENT_HANDLE handle, const char* etag);
 PROVISIONING_STATUS individualEnrollment_getProvisioningStatus(INDIVIDUAL_ENROLLMENT_HANDLE handle);
@@ -88,7 +89,7 @@ int enrollmentGroup_setEtag(ENROLLMENT_GROUP_HANDLE handle, const char* etag);
 PROVISIONING_STATUS enrollmentGroup_getProvisioningStatus(ENROLLMENT_GROUP_HANDLE handle);
 int enrollmentGroup_setProvisioningStatus(ENROLLMENT_GROUP_HANDLE handle, PROVISIONING_STATUS prov_status);
 
-//Device Registration Status
+//Device Registration State
 const char* deviceRegistrationState_getRegistrationId(DEVICE_REGISTRATION_STATE_HANDLE handle);
 const char* deviceRegistrationState_getCreatedDateTime(DEVICE_REGISTRATION_STATE_HANDLE handle);
 const char* deviceRegistrationState_getDeviceId(DEVICE_REGISTRATION_STATE_HANDLE handle);
@@ -128,21 +129,38 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithTpm(const char* endo
 **SRS_ENROLLMENTS_22_004: [** Upon successful creation of the new `ATTESTATION_MECHANISM_HANDLE`, `attestationMechanism_createWithTpm` shall return it **]**
 
 
-## attestationMechanism_createWithX509
+## attestationMechanism_createWithX509ClientCert
 
 ```c
-ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509(const char* primary_cert, const char* secondary_cert);
+ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509ClientCert(const char* primary_cert, const char* secondary_cert);
 ```
 
-**SRS_ENROLLMENTS_22_005: [** If `primary_cert` is NULL, `attestationMechanism_createWithX509` shall fail and return NULL **]**
+**SRS_ENROLLMENTS_22_005: [** If `primary_cert` is NULL, `attestationMechanism_createWithX509ClientCert` shall fail and return NULL **]**
 
-**SRS_ENROLLMENTS_22_006: [** If allocating memory for the new attestation mechanism fails, `attestationMechanism_createWithX509` shall fail and return NULL **]**
+**SRS_ENROLLMENTS_22_006: [** If allocating memory for the new attestation mechanism fails, `attestationMechanism_createWithX509ClientCert` shall fail and return NULL **]**
 
-**SRS_ENROLLMENTS_22_007: [** If setting initial values within the new attestation mechanism fails, `attestationMechanism_createWithX509` shall fail and return NULL **]**
+**SRS_ENROLLMENTS_22_007: [** If setting initial values within the new attestation mechanism fails, `attestationMechanism_createWithX509ClientCert` shall fail and return NULL **]**
 
-**SRS_ENROLLMENTS_22_008: [** Upon successful creation of the new `ATTESTATION_MECHANISM_HANDLE`, `attestationMechanism_createWithX509` shall return it **]**
+**SRS_ENROLLMENTS_22_008: [** Upon successful creation of the new `ATTESTATION_MECHANISM_HANDLE`, `attestationMechanism_createWithX509ClientCert` shall return it **]**
 
 **SRS_ENROLLMENTS_22_040: [** The new `ATTESTATION_MECHANISM_HANDLE` will have one certificate if it was only given `primary_cert` and two certificates if it was also given `secondary_cert`**]**
+
+
+## attestationMechanism_createWithX509SigningCert
+
+```c
+ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509SigningCert(const char* primary_cert, const char* secondary_cert);
+```
+
+**SRS_ENROLLMENTS_22_043: [** If `primary_cert` is NULL, `attestationMechanism_createWithX509SigningCert` shall fail and return NULL **]**
+
+**SRS_ENROLLMENTS_22_044: [** If allocating memory for the new attestation mechanism fails, `attestationMechanism_createWithX509SigningCert` shall fail and return NULL **]**
+
+**SRS_ENROLLMENTS_22_045: [** If setting initial values within the new attestation mechanism fails, `attestationMechanism_createWithX509SigningCert` shall fail and return NULL **]**
+
+**SRS_ENROLLMENTS_22_046: [** Upon successful creation of the new `ATTESTATION_MECHANISM_HANDLE`, `attestationMechanism_createWithX509SigningCert` shall return it **]**
+
+**SRS_ENROLLMENTS_22_047: [** The new `ATTESTATION_MECHANISM_HANDLE` will have one certificate if it was only given `primary_cert` and two certificates if it was also given `secondary_cert`**]**
 
 
 ## attestationMechanism_destroy

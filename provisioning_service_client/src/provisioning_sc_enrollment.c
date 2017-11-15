@@ -7,6 +7,7 @@
 #include "azure_c_shared_utility/gballoc.h"
 
 #include "provisioning_sc_enrollment.h"
+#include "provisioning_sc_json_const.h"
 #include "parson.h"
 
 #define UNREFERENCED_PARAMETER(x) x
@@ -101,7 +102,7 @@ typedef struct INDIVIDUAL_ENROLLMENT_TAG
 {
     char* registration_id; //read only
     char* device_id;
-    DEVICE_REGISTRATION_STATE* registration_status; //read only
+    DEVICE_REGISTRATION_STATE* registration_state; //read only
     ATTESTATION_MECHANISM* attestation_mechanism;
     //TWIN_STATE* initial_twin_state;
     char* etag;
@@ -126,69 +127,6 @@ DEFINE_ENUM_STRINGS(CERTIFICATE_TYPE, CERTIFICATE_TYPE_VALUES)
 DEFINE_ENUM_STRINGS(PROVISIONING_STATUS, PROVISIONING_STATUS_VALUES)
 DEFINE_ENUM_STRINGS(REGISTRATION_STATUS, REGISTRATION_STATUS_VALUES)
 
-static void* ENROLLMENT_JSON_DEFUALT_VALUE_NULL = NULL;
-
-static const char* ATTESTATION_TYPE_JSON_VALUE_TPM = "tpm";
-static const char* ATTESTATION_TYPE_JSON_VALUE_X509 = "x509";
-
-static const char* PROVISIONING_STATUS_JSON_VALUE_ENABLED = "enabled";
-static const char* PROVISIONING_STATUS_JSON_VALUE_DISABLED = "disabled";
-
-static const char* REGISTRATION_STATUS_JSON_VALUE_UNASSIGNED = "unassigned";
-static const char* REGISTRATION_STATUS_JSON_VALUE_ASSIGNING = "assigning";
-static const char* REGISTRATION_STATUS_JSON_VALUE_ASSIGNED = "assigned";
-static const char* REGISTRATION_STATUS_JSON_VALUE_FAILED = "failed";
-static const char* REGISTRATION_STATUS_JSON_VALUE_DISABLED = "disabled";
-
-static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_ID = "registrationId";
-static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_DEVICE_ID = "deviceId";
-static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_STATE = "registrationState";
-static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_ATTESTATION = "attestation";
-static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_ETAG = "etag";
-static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_PROV_STATUS = "provisioningStatus";
-static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_CREATED_TIME = "createdDateTimeUtc";
-static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_UPDATED_TIME = "lastUpdatedDateTimeUtc";
-
-static const char* ENROLLMENT_GROUP_JSON_KEY_GROUP_ID = "enrollmentGroupId";
-static const char* ENROLLMENT_GROUP_JSON_KEY_ATTESTATION = "attestation";
-static const char* ENROLLMENT_GROUP_JSON_KEY_ETAG = "etag";
-static const char* ENROLLMENT_GROUP_JSON_KEY_PROV_STATUS = "provisioningStatus";
-static const char* ENROLLMENT_GROUP_JSON_KEY_CREATED_TIME = "createdDateTimeUtc";
-static const char* ENROLLMENT_GROUP_JSON_KEY_UPDATED_TIME = "lastUpdatedDateTimeUtc";
-
-static const char* DEVICE_REGISTRATION_STATE_JSON_KEY_REG_ID = "registrationId";
-static const char* DEVICE_REGISTRATION_STATE_JSON_KEY_CREATED_TIME = "createdDateTimeUtc";
-static const char* DEVICE_REGISTRATION_STATE_JSON_KEY_DEVICE_ID = "deviceId";
-static const char* DEVICE_REGISTRATION_STATE_JSON_KEY_REG_STATUS = "status";
-static const char* DEVICE_REGISTRATION_STATE_JSON_KEY_UPDATED_TIME = "lastUpdatedDateTimeUtc";
-static const char* DEVICE_REGISTRATION_STATE_JSON_KEY_ERROR_CODE = "errorCode";
-static const char* DEVICE_REGISTRATION_STATE_JSON_KEY_ERROR_MSG = "errorMessage";
-static const char* DEVICE_REGISTRATION_STATE_JSON_KEY_ETAG = "etag";
-
-static const char* ATTESTATION_MECHANISM_JSON_KEY_TYPE = "type";
-static const char* ATTESTATION_MECHANISM_JSON_KEY_TPM = "tpm";
-static const char* ATTESTATION_MECHANISM_JSON_KEY_X509 = "x509";
-
-static const char* TPM_ATTESTATION_JSON_KEY_EK = "endorsementKey";
-static const char* TPM_ATTESTATION_JSON_KEY_SRK = "storageRootKey";
-
-static const char* X509_ATTESTATION_JSON_KEY_CLIENT_CERTS = "clientCertificates";
-static const char* X509_ATTESTATION_JSON_KEY_SIGNING_CERTS = "signingCertificates";
-
-static const char* X509_CERTIFICATES_JSON_KEY_PRIMARY = "primary";
-static const char* X509_CERTIFICATES_JSON_KEY_SECONDARY = "secondary";
-
-static const char* X509_CERTIFICATE_WITH_INFO_JSON_KEY_CERTIFICATE = "certificate";
-static const char* X509_CERTIFICATE_WITH_INFO_JSON_KEY_INFO = "info";
-
-static const char* X509_CERTIFICATE_INFO_JSON_KEY_SUBJECT_NAME = "subjectName";
-static const char* X509_CERTIFICATE_INFO_JSON_KEY_SHA1 = "sha1Thumbprint";
-static const char* X509_CERTIFICATE_INFO_JSON_KEY_SHA256 = "sha256Thumbprint";
-static const char* X509_CERTIFICATE_INFO_JSON_KEY_ISSUER = "issuerName";
-static const char* X509_CERTIFICATE_INFO_JSON_KEY_NOT_BEFORE = "notBeforeUtc";
-static const char* X509_CERTIFICATE_INFO_JSON_KEY_NOT_AFTER = "notAfterUtc";
-static const char* X509_CERTIFICATE_INFO_JSON_KEY_SERIAL_NO = "serialNumber";
-static const char* X509_CERTIFICATE_INFO_JSON_KEY_VERSION = "version";
 
 
 static int copy_string(char** dest, const char* string)
@@ -228,8 +166,13 @@ static int copy_json_string_field(char** dest, JSON_Object* root_object, const c
 
     const char* string = json_object_get_string(root_object, json_key);
     if (string != NULL)
+    {
         if (copy_string(dest, string) != 0)
+        {
             result = __LINE__;
+        }
+    }
+
 
     return result;
 }
@@ -241,17 +184,29 @@ static const REGISTRATION_STATUS registrationStatus_fromJson(const char* str_rep
     if (str_rep != NULL)
     {
         if (strcmp(str_rep, REGISTRATION_STATUS_JSON_VALUE_UNASSIGNED) == 0)
+        {
             new_status = REGISTRATION_STATUS_UNASSIGNED;
+        }
         else if (strcmp(str_rep, REGISTRATION_STATUS_JSON_VALUE_ASSIGNING) == 0)
+        {
             new_status = REGISTRATION_STATUS_ASSIGNING;
+        }
         else if (strcmp(str_rep, REGISTRATION_STATUS_JSON_VALUE_ASSIGNED) == 0)
+        {
             new_status = REGISTRATION_STATUS_ASSIGNED;
+        }
         else if (strcmp(str_rep, REGISTRATION_STATUS_JSON_VALUE_FAILED) == 0)
+        {
             new_status = REGISTRATION_STATUS_FAILED;
+        }
         else if (strcmp(str_rep, REGISTRATION_STATUS_JSON_VALUE_DISABLED) == 0)
+        {
             new_status = REGISTRATION_STATUS_DISABLED;
+        }
         else
+        {
             LogError("Could not convert '%s' from JSON", str_rep);
+        }
     }
 
     return new_status;
@@ -261,11 +216,17 @@ static const char* provisioningStatus_toJson(const PROVISIONING_STATUS status)
 {
     const char* result = NULL;
     if (status == PROVISIONING_STATUS_ENABLED)
+    {
         result = PROVISIONING_STATUS_JSON_VALUE_ENABLED;
+    }
     else if (status == PROVISIONING_STATUS_DISABLED)
+    {
         result = PROVISIONING_STATUS_JSON_VALUE_DISABLED;
+    }
     else
+    {
         LogError("Could not convert '%s' to JSON", ENUM_TO_STRING(PROVISIONING_STATUS, status));
+    }
 
     return result;
 }
@@ -277,11 +238,17 @@ static const PROVISIONING_STATUS provisioningStatus_fromJson(const char* str_rep
     if (str_rep != NULL)
     {
         if (strcmp(str_rep, PROVISIONING_STATUS_JSON_VALUE_ENABLED) == 0)
+        {
             new_status = PROVISIONING_STATUS_ENABLED;
+        }
         else if (strcmp(str_rep, PROVISIONING_STATUS_JSON_VALUE_DISABLED) == 0)
+        {
             new_status = PROVISIONING_STATUS_DISABLED;
+        }
         else
+        {
             LogError("Could not convert '%s' from JSON", str_rep);
+        }
     }
 
     return new_status;
@@ -291,11 +258,17 @@ static const char* attestationType_toJson(const ATTESTATION_TYPE type)
 {
     const char* result = NULL;
     if (type == ATTESTATION_TYPE_TPM)
+    {
         result = ATTESTATION_TYPE_JSON_VALUE_TPM;
+    }
     else if (type == ATTESTATION_TYPE_X509)
+    {
         result = ATTESTATION_TYPE_JSON_VALUE_X509;
+    }
     else
+    {
         LogError("Could not convert '%s' to JSON", ENUM_TO_STRING(ATTESTATION_TYPE, type));
+    }
 
     return result;
 }
@@ -307,11 +280,17 @@ static const ATTESTATION_TYPE attestationType_fromJson(const char* str_rep)
     if (str_rep != NULL)
     {
         if (strcmp(str_rep, ATTESTATION_TYPE_JSON_VALUE_TPM) == 0)
+        {
             new_type = ATTESTATION_TYPE_TPM;
+        }
         else if (strcmp(str_rep, ATTESTATION_TYPE_JSON_VALUE_X509) == 0)
+        {
             new_type = ATTESTATION_TYPE_X509;
+        }
         else
+        {
             LogError("Could not convert '%s' from JSON", str_rep);
+        }
     }
 
     return new_type;
@@ -328,8 +307,8 @@ static void x509CertificateInfo_free(X509_CERTIFICATE_INFO* x509_info)
         free(x509_info->not_before_utc);
         free(x509_info->not_after_utc);
         free(x509_info->serial_number);
+        free(x509_info);
     }
-    free(x509_info);
 }
 
 static JSON_Value* x509CertificateInfo_toJson(const X509_CERTIFICATE_INFO* x509_info)
@@ -416,7 +395,7 @@ static X509_CERTIFICATE_INFO* x509CertificateInfo_fromJson(JSON_Object* root_obj
     }
     else
     {
-        memset(new_x509Info, 0, sizeof(*new_x509Info));
+        memset(new_x509Info, 0, sizeof(X509_CERTIFICATE_INFO));
 
         if (copy_json_string_field(&(new_x509Info->subject_name), root_object, X509_CERTIFICATE_INFO_JSON_KEY_SUBJECT_NAME) != 0)
         {
@@ -461,7 +440,9 @@ static X509_CERTIFICATE_INFO* x509CertificateInfo_fromJson(JSON_Object* root_obj
             new_x509Info = NULL;
         }
         else
+        {
             new_x509Info->version = (int)json_object_get_number(root_object, X509_CERTIFICATE_INFO_JSON_KEY_VERSION);
+        }
     }
 
     return new_x509Info;
@@ -513,10 +494,9 @@ static void x509CertificateWithInfo_free(X509_CERTIFICATE_WITH_INFO* x509_certin
     if (x509_certinfo != NULL)
     {
         free(x509_certinfo->certificate);
-        if (x509_certinfo->info != NULL)
-            x509CertificateInfo_free(x509_certinfo->info);
+        x509CertificateInfo_free(x509_certinfo->info);
+        free(x509_certinfo);
     }
-    free(x509_certinfo);
 }
 
 static X509_CERTIFICATE_WITH_INFO* x509CertificateWithInfo_fromJson(JSON_Object* root_object)
@@ -533,7 +513,7 @@ static X509_CERTIFICATE_WITH_INFO* x509CertificateWithInfo_fromJson(JSON_Object*
     }
     else
     {
-        memset(new_x509CertInfo, 0, sizeof(*new_x509CertInfo));
+        memset(new_x509CertInfo, 0, sizeof(X509_CERTIFICATE_WITH_INFO));
         if (copy_json_string_field(&(new_x509CertInfo->certificate), root_object, X509_CERTIFICATE_WITH_INFO_JSON_KEY_CERTIFICATE) != 0)
         {
             LogError("Failed to set '%s' in X509 Certificate With Info", X509_CERTIFICATE_WITH_INFO_JSON_KEY_CERTIFICATE);
@@ -557,9 +537,13 @@ static X509_CERTIFICATE_WITH_INFO* x509CertificateWithInfo_create(const char* ce
     X509_CERTIFICATE_INFO* new_x509CertInfo = NULL;
 
     if (cert == NULL)
+    {
         LogError("certificate is NULL");
+    }
     else if ((new_x509CertWithInfo = malloc(sizeof(X509_CERTIFICATE_WITH_INFO))) == NULL)
+    {
         LogError("Allocating memory for X509 Certificate With Info failed");
+    }
     else if ((new_x509CertInfo = malloc(sizeof(X509_CERTIFICATE_INFO))) == NULL)
     {
         LogError("Allocating memory for X509 Certificate Info failed");
@@ -568,8 +552,8 @@ static X509_CERTIFICATE_WITH_INFO* x509CertificateWithInfo_create(const char* ce
     }
     else
     {
-        memset(new_x509CertWithInfo, 0, sizeof(*new_x509CertWithInfo));
-        memset(new_x509CertInfo, 0, sizeof(*new_x509CertInfo));
+        memset(new_x509CertWithInfo, 0, sizeof(X509_CERTIFICATE_WITH_INFO));
+        memset(new_x509CertInfo, 0, sizeof(X509_CERTIFICATE_INFO));
 
         if (copy_string(&(new_x509CertWithInfo->certificate), cert) != 0)
         {
@@ -595,20 +579,21 @@ static void x509Certificates_free(X509_CERTIFICATES* x509_certs)
     if (x509_certs != NULL)
     {
         if (x509_certs->primary != NULL)
+        {
             x509CertificateWithInfo_free(x509_certs->primary);
+        }
         if (x509_certs->secondary != NULL)
+        {
             x509CertificateWithInfo_free(x509_certs->secondary);
+        }
+        free(x509_certs);
     }
-    free(x509_certs);
 }
 
 static JSON_Value* x509Certificates_toJson(const X509_CERTIFICATES* x509_certs)
 {
     JSON_Value* root_value = NULL;
     JSON_Object* root_object = NULL;
-
-    JSON_Value* cert1_val = NULL;
-    JSON_Value* cert2_val = NULL;
 
     //Setup
     if ((root_value = json_value_init_object()) == NULL)
@@ -625,7 +610,7 @@ static JSON_Value* x509Certificates_toJson(const X509_CERTIFICATES* x509_certs)
     //Set data
     else
     {
-        cert1_val = x509CertificateWithInfo_toJson(x509_certs->primary);
+        JSON_Value* cert1_val = x509CertificateWithInfo_toJson(x509_certs->primary);
         if ((cert1_val == NULL) || (json_object_set_value(root_object, X509_CERTIFICATES_JSON_KEY_PRIMARY, cert1_val) != JSONSuccess))
         {
             LogError("Failed to set '%s' in JSON string representation of X509 Certificates", X509_CERTIFICATES_JSON_KEY_PRIMARY);
@@ -634,7 +619,7 @@ static JSON_Value* x509Certificates_toJson(const X509_CERTIFICATES* x509_certs)
         }
         else if (x509_certs->secondary != NULL)
         {
-            cert2_val = x509CertificateWithInfo_toJson(x509_certs->secondary);
+            JSON_Value* cert2_val = x509CertificateWithInfo_toJson(x509_certs->secondary);
             if ((cert2_val == NULL) || (json_object_set_value(root_object, X509_CERTIFICATES_JSON_KEY_SECONDARY, cert2_val) != JSONSuccess))
             {
                 LogError("Failed to set '%s' in JSON string representation of X509 Certificates", X509_CERTIFICATES_JSON_KEY_SECONDARY);
@@ -644,7 +629,7 @@ static JSON_Value* x509Certificates_toJson(const X509_CERTIFICATES* x509_certs)
         }
     }
 
-return root_value;
+    return root_value;
 }
 
 static X509_CERTIFICATES* x509Certificates_fromJson(JSON_Object* root_object)
@@ -661,7 +646,7 @@ static X509_CERTIFICATES* x509Certificates_fromJson(JSON_Object* root_object)
     }
     else
     {
-        memset(new_x509certs, 0, sizeof(*new_x509certs));
+        memset(new_x509certs, 0, sizeof(X509_CERTIFICATES));
 
         if ((new_x509certs->primary = x509CertificateWithInfo_fromJson(json_object_get_object(root_object, X509_CERTIFICATES_JSON_KEY_PRIMARY))) == NULL)
         {
@@ -686,15 +671,19 @@ static void x509Attestation_free(X509_ATTESTATION* x509_att)
         if (x509_att->type == CERTIFICATE_TYPE_CLIENT)
         {
             if (x509_att->certificates.client_certificates != NULL)
+            {
                 x509Certificates_free(x509_att->certificates.client_certificates);
+            }
         }
         else if (x509_att->type == CERTIFICATE_TYPE_SIGNING)
         {
             if (x509_att->certificates.signing_certificates != NULL)
+            {
                 x509Certificates_free(x509_att->certificates.signing_certificates);
+            }
         }
+        free(x509_att);
     }
-    free(x509_att);
 }
 
 static JSON_Value* x509Attestation_toJson(const X509_ATTESTATION* x509_att)
@@ -702,7 +691,7 @@ static JSON_Value* x509Attestation_toJson(const X509_ATTESTATION* x509_att)
     JSON_Value* root_value = NULL;
     JSON_Object* root_object = NULL;
 
-    JSON_Value* certs_val = NULL;
+
 
     //Setup
     if ((root_value = json_value_init_object()) == NULL)
@@ -719,6 +708,7 @@ static JSON_Value* x509Attestation_toJson(const X509_ATTESTATION* x509_att)
     //Set data
     else
     {
+        JSON_Value* certs_val = NULL;
         if (x509_att->type == CERTIFICATE_TYPE_CLIENT)
         {
             certs_val = x509Certificates_toJson(x509_att->certificates.client_certificates);
@@ -758,7 +748,7 @@ static X509_ATTESTATION* x509Attestation_fromJson(JSON_Object* root_object)
     }
     else
     {
-        memset(new_x509Att, 0, sizeof(*new_x509Att));
+        memset(new_x509Att, 0, sizeof(X509_ATTESTATION));
         if (json_object_has_value(root_object, X509_ATTESTATION_JSON_KEY_CLIENT_CERTS))
         {
             if ((new_x509Att->certificates.client_certificates = x509Certificates_fromJson(json_object_get_object(root_object, X509_ATTESTATION_JSON_KEY_CLIENT_CERTS))) == NULL)
@@ -768,7 +758,9 @@ static X509_ATTESTATION* x509Attestation_fromJson(JSON_Object* root_object)
                 new_x509Att = NULL;
             }
             else
+            {
                 new_x509Att->type = CERTIFICATE_TYPE_CLIENT;
+            }
         }
 
         else if (json_object_has_value(root_object, X509_ATTESTATION_JSON_KEY_SIGNING_CERTS))
@@ -780,7 +772,9 @@ static X509_ATTESTATION* x509Attestation_fromJson(JSON_Object* root_object)
                 new_x509Att = NULL;
             }
             else
+            {
                 new_x509Att->type = CERTIFICATE_TYPE_SIGNING;
+            }
         }
     }
 
@@ -808,14 +802,18 @@ static X509_ATTESTATION* x509Attestation_create(CERTIFICATE_TYPE cert_type, cons
     }
     else
     {
-        memset(new_x509Att, 0, sizeof(*new_x509Att));
-        memset(new_x509Certs, 0, sizeof(*new_x509Certs));
+        memset(new_x509Att, 0, sizeof(X509_ATTESTATION));
+        memset(new_x509Certs, 0, sizeof(X509_CERTIFICATES));
         
         new_x509Att->type = cert_type;
         if (cert_type == CERTIFICATE_TYPE_CLIENT)
+        {
             new_x509Att->certificates.client_certificates = new_x509Certs;
+        }
         else if (cert_type == CERTIFICATE_TYPE_SIGNING)
+        {
             new_x509Att->certificates.signing_certificates = new_x509Certs;
+        }
 
         //Primary Cert is mandatory
         if ((new_x509Certs->primary = x509CertificateWithInfo_create(primary_cert)) == NULL)
@@ -843,8 +841,8 @@ static void tpmAttestation_free(TPM_ATTESTATION* tpm_att)
     {
         free(tpm_att->endorsement_key);
         free(tpm_att->storage_root_key);
+        free(tpm_att);
     }
-    free(tpm_att);
 }
 
 static JSON_Value* tpmAttestation_toJson(const TPM_ATTESTATION* tpm_att)
@@ -895,7 +893,7 @@ static TPM_ATTESTATION* tpmAttestation_fromJson(JSON_Object * root_object)
     }
     else
     {
-        memset(new_tpmAtt, 0, sizeof(*new_tpmAtt));
+        memset(new_tpmAtt, 0, sizeof(TPM_ATTESTATION));
 
         if (copy_json_string_field(&(new_tpmAtt->endorsement_key), root_object, TPM_ATTESTATION_JSON_KEY_EK) != 0)
         {
@@ -920,16 +918,20 @@ static void attestationMechanism_free(ATTESTATION_MECHANISM* att_mech)
         if (att_mech->type == ATTESTATION_TYPE_TPM)
         {
             if (att_mech->attestation.tpm != NULL)
+            {
                 tpmAttestation_free(att_mech->attestation.tpm);
+            }
         }
         else if (att_mech->type == ATTESTATION_TYPE_X509)
         {
             if (att_mech->attestation.x509 != NULL)
+            {
                 x509Attestation_free(att_mech->attestation.x509);
+            }
         }
-    }
 
-    free(att_mech);
+        free(att_mech);
+    }
 }
 
 static JSON_Value* attestationMechanism_toJson(const ATTESTATION_MECHANISM* att_mech)
@@ -1005,7 +1007,7 @@ static ATTESTATION_MECHANISM* attestationMechanism_fromJson(JSON_Object* root_ob
     }
     else
     {
-        memset(new_attMech, 0, sizeof(*new_attMech));
+        memset(new_attMech, 0, sizeof(ATTESTATION_MECHANISM));
 
         if ((new_attMech->type = attestationType_fromJson(json_object_get_string(root_object, ATTESTATION_MECHANISM_JSON_KEY_TYPE))) == ATTESTATION_TYPE_NONE)
         {
@@ -1046,8 +1048,8 @@ static void deviceRegistrationState_free(DEVICE_REGISTRATION_STATE* device_reg_s
         free(device_reg_state->updated_date_time_utc);
         free(device_reg_state->error_message);
         free(device_reg_state->etag);
+        free(device_reg_state);
     }
-    free(device_reg_state);
 }
 
 static DEVICE_REGISTRATION_STATE* deviceRegistrationState_fromJson(JSON_Object* root_object)
@@ -1064,7 +1066,7 @@ static DEVICE_REGISTRATION_STATE* deviceRegistrationState_fromJson(JSON_Object* 
     }
     else
     {
-        memset(new_device_reg_state, 0, sizeof(*new_device_reg_state));
+        memset(new_device_reg_state, 0, sizeof(DEVICE_REGISTRATION_STATE));
 
         if (copy_json_string_field(&(new_device_reg_state->registration_id), root_object, DEVICE_REGISTRATION_STATE_JSON_KEY_REG_ID) != 0)
         {
@@ -1123,13 +1125,10 @@ static void individualEnrollment_free(INDIVIDUAL_ENROLLMENT* enrollment)
         free(enrollment->etag);
         free(enrollment->created_date_time_utc);
         free(enrollment->updated_date_time_utc);
-
-        if (enrollment->attestation_mechanism != NULL)
-            attestationMechanism_free(enrollment->attestation_mechanism);
-        if (enrollment->registration_status != NULL)
-            deviceRegistrationState_free(enrollment->registration_status);
+        attestationMechanism_free(enrollment->attestation_mechanism);
+        deviceRegistrationState_free(enrollment->registration_state);
+        free(enrollment);
     }
-    free(enrollment);
 }
 
 static JSON_Value* individualEnrollment_toJson(const INDIVIDUAL_ENROLLMENT* enrollment)
@@ -1187,7 +1186,7 @@ static JSON_Value* individualEnrollment_toJson(const INDIVIDUAL_ENROLLMENT* enro
         json_value_free(root_value);
         root_value = NULL;
     }
-    //Do not set registration_status, create_date_time_utc or update_date_time_utc as they are READ ONLY
+    //Do not set registration_state, create_date_time_utc or update_date_time_utc as they are READ ONLY
 
     return root_value;
 }
@@ -1206,7 +1205,7 @@ static INDIVIDUAL_ENROLLMENT* individualEnrollment_fromJson(JSON_Object* root_ob
     }
     else
     {
-        memset(new_enrollment, 0, sizeof(*new_enrollment));
+        memset(new_enrollment, 0, sizeof(INDIVIDUAL_ENROLLMENT));
 
         if (copy_json_string_field(&(new_enrollment->registration_id), root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_ID) != 0)
         {
@@ -1220,7 +1219,7 @@ static INDIVIDUAL_ENROLLMENT* individualEnrollment_fromJson(JSON_Object* root_ob
             individualEnrollment_free(new_enrollment);
             new_enrollment = NULL;
         }
-        else if ((json_object_has_value(root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_STATE)) && (new_enrollment->registration_status = deviceRegistrationState_fromJson(json_object_get_object(root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_STATE))) == NULL)
+        else if ((json_object_has_value(root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_STATE)) && (new_enrollment->registration_state = deviceRegistrationState_fromJson(json_object_get_object(root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_STATE))) == NULL)
         {
             LogError("Failed to set '%s' in Individual Enrollment", INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_STATE);
             individualEnrollment_free(new_enrollment);
@@ -1270,8 +1269,8 @@ static void enrollmentGroup_free(ENROLLMENT_GROUP* enrollment)
         free(enrollment->etag);
         free(enrollment->created_date_time_utc);
         free(enrollment->updated_date_time_utc);
+        free(enrollment);
     }
-    free(enrollment);
 }
 
 static JSON_Value* enrollmentGroup_toJson(const ENROLLMENT_GROUP* enrollment)
@@ -1336,7 +1335,7 @@ static ENROLLMENT_GROUP* enrollmentGroup_fromJson(JSON_Object* root_object)
     }
     else
     {
-        memset(new_enrollment, 0, sizeof(*new_enrollment));
+        memset(new_enrollment, 0, sizeof(ENROLLMENT_GROUP));
 
         if (copy_json_string_field(&(new_enrollment->group_id), root_object, ENROLLMENT_GROUP_JSON_KEY_GROUP_ID) != 0)
         {
@@ -1402,8 +1401,8 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithTpm(const char* endo
     }
     else
     {
-        memset(att_mech, 0, sizeof(*att_mech));
-        memset(tpm_attestation, 0, sizeof(*tpm_attestation));
+        memset(att_mech, 0, sizeof(ATTESTATION_MECHANISM));
+        memset(tpm_attestation, 0, sizeof(TPM_ATTESTATION));
 
         att_mech->type = ATTESTATION_TYPE_TPM;
         att_mech->attestation.tpm = tpm_attestation;
@@ -1419,7 +1418,7 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithTpm(const char* endo
     return (ATTESTATION_MECHANISM_HANDLE)att_mech;
 }
 
-ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509(const char* primary_cert, const char* secondary_cert)
+ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509ClientCert(const char* primary_cert, const char* secondary_cert)
 {
     ATTESTATION_MECHANISM* att_mech = NULL;
 
@@ -1433,9 +1432,40 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509(const char* pri
     }
     else
     {
-        memset(att_mech, 0, sizeof(*att_mech));
+        memset(att_mech, 0, sizeof(ATTESTATION_MECHANISM));
 
         if ((att_mech->attestation.x509 = x509Attestation_create(CERTIFICATE_TYPE_CLIENT, primary_cert, secondary_cert)) == NULL)
+        {
+            LogError("Allocation of X509 Attestation failed");
+            attestationMechanism_free(att_mech);
+            att_mech = NULL;
+        }
+        else
+        {
+            att_mech->type = ATTESTATION_TYPE_X509;
+        }
+    }
+
+    return (ATTESTATION_MECHANISM_HANDLE)att_mech;
+}
+
+ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509SigningCert(const char* primary_cert, const char* secondary_cert)
+{
+    ATTESTATION_MECHANISM* att_mech = NULL;
+
+    if (primary_cert == NULL)
+    {
+        LogError("primary_cert is NULL");
+    }
+    else if ((att_mech = malloc(sizeof(ATTESTATION_MECHANISM))) == NULL)
+    {
+        LogError("Allocation of Attestation Mechanism failed");
+    }
+    else
+    {
+        memset(att_mech, 0, sizeof(ATTESTATION_MECHANISM));
+
+        if ((att_mech->attestation.x509 = x509Attestation_create(CERTIFICATE_TYPE_SIGNING, primary_cert, secondary_cert)) == NULL)
         {
             LogError("Allocation of X509 Attestation failed");
             attestationMechanism_free(att_mech);
@@ -1516,7 +1546,7 @@ INDIVIDUAL_ENROLLMENT_HANDLE individualEnrollment_create(const char* reg_id, ATT
     }
     else
     {
-        memset(new_enrollment, 0, sizeof(*new_enrollment));
+        memset(new_enrollment, 0, sizeof(INDIVIDUAL_ENROLLMENT));
 
         if (copy_string(&(new_enrollment->registration_id), reg_id) != 0)
         {
@@ -1628,11 +1658,11 @@ ENROLLMENT_GROUP_HANDLE enrollmentGroup_create(const char* group_id, ATTESTATION
     }
     else
     {
-        memset(new_enrollment, 0, sizeof(*new_enrollment));
+        memset(new_enrollment, 0, sizeof(ENROLLMENT_GROUP));
 
         if (copy_string(&(new_enrollment->group_id), group_id) != 0)
         {
-            LogError("Allocation of group name failed");
+            LogError("Allocation of group id failed");
             enrollmentGroup_free(new_enrollment);
             new_enrollment = NULL;
         }
@@ -1741,9 +1771,13 @@ ATTESTATION_MECHANISM_HANDLE individualEnrollment_getAttestationMechanism(INDIVI
     INDIVIDUAL_ENROLLMENT* enrollment = (INDIVIDUAL_ENROLLMENT*)handle;
 
     if (enrollment == NULL)
+    {
         LogError("enrollment is NULL");
+    }
     else
+    {
         result = enrollment->attestation_mechanism;
+    }
 
     return (ATTESTATION_MECHANISM_HANDLE)result;
 }
@@ -1765,7 +1799,9 @@ int individualEnrollment_setAttestationMechanism(INDIVIDUAL_ENROLLMENT_HANDLE ie
         result = __LINE__;
     }
     else
+    {
         enrollment->attestation_mechanism = attmech;
+    }
 
     return result;
 }
@@ -1777,9 +1813,13 @@ const char* individualEnrollment_getRegistrationId(INDIVIDUAL_ENROLLMENT_HANDLE 
     INDIVIDUAL_ENROLLMENT* enrollment = (INDIVIDUAL_ENROLLMENT*)handle;
 
     if (enrollment == NULL)
+    {
         LogError("enrollment is NULL");
+    }
     else
+    {
         result = enrollment->registration_id;
+    }
 
     return result;
 }
@@ -1790,9 +1830,13 @@ const char* individualEnrollment_getDeviceId(INDIVIDUAL_ENROLLMENT_HANDLE handle
     INDIVIDUAL_ENROLLMENT* enrollment = (INDIVIDUAL_ENROLLMENT*)handle;
 
     if (enrollment == NULL)
+    {
         LogError("enrollment is NULL");
+    }
     else
+    {
         result = enrollment->device_id;
+    }
 
     return result;
 }
@@ -1818,7 +1862,6 @@ int individualEnrollment_setDeviceId(INDIVIDUAL_ENROLLMENT_HANDLE handle, const 
         result = __LINE__;
     }
 
-
     return result;
 }
 
@@ -1828,9 +1871,13 @@ DEVICE_REGISTRATION_STATE_HANDLE individualEnrollment_getDeviceRegistrationState
     INDIVIDUAL_ENROLLMENT* enrollment = (INDIVIDUAL_ENROLLMENT*)handle;
 
     if (enrollment == NULL)
+    {
         LogError("enrollment is NULL");
+    }
     else
-        result = enrollment->registration_status;
+    {
+        result = enrollment->registration_state;
+    }
 
     return (DEVICE_REGISTRATION_STATE_HANDLE)result;
 }
@@ -1841,9 +1888,13 @@ const char* individualEnrollment_getEtag(INDIVIDUAL_ENROLLMENT_HANDLE handle)
     INDIVIDUAL_ENROLLMENT* enrollment = (INDIVIDUAL_ENROLLMENT*)handle;
 
     if (enrollment == NULL)
+    {
         LogError("enrollment is NULL");
+    }
     else
+    {
         result = enrollment->etag;
+    }
 
     return result;
 }
@@ -1878,19 +1929,38 @@ PROVISIONING_STATUS individualEnrollment_getProvisioningStatus(INDIVIDUAL_ENROLL
     INDIVIDUAL_ENROLLMENT* enrollment = (INDIVIDUAL_ENROLLMENT*)handle;
 
     if (enrollment == NULL)
+    {
         LogError("enrollment is NULL");
+    }
     else
+    {
         result = enrollment->provisioning_status;
+    }
 
     return result;
 }
 
 int individualEnrollment_setProvisioningStatus(INDIVIDUAL_ENROLLMENT_HANDLE handle, PROVISIONING_STATUS prov_status)
 {
-    UNREFERENCED_PARAMETER(handle);
-    UNREFERENCED_PARAMETER(prov_status);
-    LogError("Unimplemented");
-    return 1;
+    int result = 0;
+    INDIVIDUAL_ENROLLMENT* enrollment = (INDIVIDUAL_ENROLLMENT*)handle;
+
+    if (enrollment == NULL)
+    {
+        LogError("Invalid handle");
+        result = __LINE__;
+    }
+    else if (prov_status == PROVISIONING_STATUS_NONE)
+    {
+        LogError("Invalid provisioning status");
+        result = __LINE__;
+    }
+    else
+    {
+        enrollment->provisioning_status = prov_status;
+    }
+
+    return result;
 }
 
 const char* individualEnrollment_getCreatedDateTime(INDIVIDUAL_ENROLLMENT_HANDLE handle)
@@ -1899,9 +1969,13 @@ const char* individualEnrollment_getCreatedDateTime(INDIVIDUAL_ENROLLMENT_HANDLE
     INDIVIDUAL_ENROLLMENT* enrollment = (INDIVIDUAL_ENROLLMENT*)handle;
 
     if (enrollment == NULL)
+    {
         LogError("enrollment is NULL");
+    }
     else
+    {
         result = enrollment->created_date_time_utc;
+    }
 
     return result;
 }
@@ -1912,9 +1986,13 @@ const char* individualEnrollment_getUpdatedDateTime(INDIVIDUAL_ENROLLMENT_HANDLE
     INDIVIDUAL_ENROLLMENT* enrollment = (INDIVIDUAL_ENROLLMENT*)handle;
 
     if (enrollment == NULL)
+    {
         LogError("enrollment is NULL");
+    }
     else
+    {
         result = enrollment->updated_date_time_utc;
+    }
 
     return result;
 }
@@ -1927,9 +2005,13 @@ const char* enrollmentGroup_getGroupId(ENROLLMENT_GROUP_HANDLE handle)
     ENROLLMENT_GROUP* enrollment = (ENROLLMENT_GROUP*)handle;
 
     if (enrollment == NULL)
+    {
         LogError("enrollment is NULL");
+    }
     else
+    {
         result = enrollment->group_id;
+    }
 
     return result;
 }
@@ -1940,9 +2022,13 @@ const char* enrollmentGroup_getEtag(ENROLLMENT_GROUP_HANDLE handle)
     ENROLLMENT_GROUP* enrollment = (ENROLLMENT_GROUP*)handle;
 
     if (enrollment == NULL)
+    {
         LogError("enrollment is NULL");
+    }
     else
+    {
         result = enrollment->etag;
+    }
 
     return result;
 }
@@ -1977,19 +2063,38 @@ PROVISIONING_STATUS enrollmentGroup_getProvisioningStatus(ENROLLMENT_GROUP_HANDL
     ENROLLMENT_GROUP* enrollment = (ENROLLMENT_GROUP*)handle;
 
     if (enrollment == NULL)
+    {
         LogError("enrollment is NULL");
+    }
     else
+    {
         result = enrollment->provisioning_status;
+    }
 
     return result;
 }
 
 int enrollmentGroup_setProvisioningStatus(ENROLLMENT_GROUP_HANDLE handle, PROVISIONING_STATUS prov_status)
 {
-    UNREFERENCED_PARAMETER(handle);
-    UNREFERENCED_PARAMETER(prov_status);
-    LogError("Unimplemented");
-    return 1;
+    int result = 0;
+    ENROLLMENT_GROUP* enrollment = (ENROLLMENT_GROUP*)handle;
+
+    if (enrollment == NULL)
+    {
+        LogError("Invalid handle");
+        result = __LINE__;
+    }
+    else if (prov_status == PROVISIONING_STATUS_NONE)
+    {
+        LogError("Invalid provisioning status");
+        result = __LINE__;
+    }
+    else
+    {
+        enrollment->provisioning_status = prov_status;
+    }
+
+    return result;
 }
 
 /* Acessor Functions - Device Registration State */
@@ -2000,9 +2105,13 @@ const char* deviceRegistrationState_getRegistrationId(DEVICE_REGISTRATION_STATE_
     DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
+    {
         LogError("device registration state is NULL");
+    }
     else
+    {
         result = drs->registration_id;
+    }
 
     return result;
 }
@@ -2013,9 +2122,13 @@ const char* deviceRegistrationState_getCreatedDateTime(DEVICE_REGISTRATION_STATE
     DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
+    {
         LogError("device registration state is NULL");
+    }
     else
+    {
         result = drs->created_date_time_utc;
+    }
 
     return result;
 }
@@ -2026,9 +2139,13 @@ const char* deviceRegistrationState_getDeviceId(DEVICE_REGISTRATION_STATE_HANDLE
     DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
+    {
         LogError("device registration state is NULL");
+    }
     else
+    {
         result = drs->device_id;
+    }
 
     return result;
 }
@@ -2039,9 +2156,13 @@ REGISTRATION_STATUS deviceRegistrationState_getRegistrationStatus(DEVICE_REGISTR
     DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
+    {
         LogError("device registration state is NULL");
+    }
     else
+    {
         result = drs->status;
+    }
 
     return result;
 }
@@ -2052,9 +2173,13 @@ const char* deviceRegistrationState_getUpdatedDateTime(DEVICE_REGISTRATION_STATE
     DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
+    {
         LogError("device registration state is NULL");
+    }
     else
+    {
         result = drs->updated_date_time_utc;
+    }
 
     return result;
 }
@@ -2065,9 +2190,13 @@ int deviceRegistrationState_getErrorCode(DEVICE_REGISTRATION_STATE_HANDLE handle
     DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
+    {
         LogError("device registration state is NULL");
+    }
     else
+    {
         result = drs->error_code;
+    }
 
     return result;
 }
@@ -2078,9 +2207,13 @@ const char* deviceRegistrationState_getErrorMessage(DEVICE_REGISTRATION_STATE_HA
     DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
+    {
         LogError("device registration state is NULL");
+    }
     else
+    {
         result = drs->error_message;
+    }
 
     return result;
 }
@@ -2091,9 +2224,13 @@ const char* deviceRegistrationState_getEtag(DEVICE_REGISTRATION_STATE_HANDLE han
     DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
+    {
         LogError("device registration state is NULL");
+    }
     else
+    {
         result = drs->etag;
+    }
 
     return result;
 }
@@ -2121,20 +2258,38 @@ X509_CERTIFICATE_HANDLE x509Attestation_getPrimaryCertificate(X509_ATTESTATION_H
     X509_ATTESTATION* x509_att = (X509_ATTESTATION*)handle;
 
     if (x509_att == NULL)
+    {
         LogError("x509 attestation is NULL");
+    }
     else
+    {
         if (x509_att->type == CERTIFICATE_TYPE_CLIENT)
+        {
             if (x509_att->certificates.client_certificates != NULL)
+            {
                 result = x509_att->certificates.client_certificates->primary;
+            }
             else
+            {
                 LogError("No certificate");
+            }
+        }
         else if (x509_att->type == CERTIFICATE_TYPE_SIGNING)
+        {
             if (x509_att->certificates.signing_certificates != NULL)
+            {
                 result = x509_att->certificates.signing_certificates->primary;
+            }
             else
-                LogError("No certificate");
+            {
+            LogError("No certificate");
+            }
+        }
         else
+        {
             LogError("invalid certificate type");
+        }
+    }
 
     return (X509_CERTIFICATE_HANDLE)result;
 }
@@ -2145,20 +2300,38 @@ X509_CERTIFICATE_HANDLE x509Attestation_getSecondaryCertificate(X509_ATTESTATION
     X509_ATTESTATION* x509_att = (X509_ATTESTATION*)handle;
 
     if (x509_att == NULL)
+    {
         LogError("x509 attestation is NULL");
+    }
     else
+    {
         if (x509_att->type == CERTIFICATE_TYPE_CLIENT)
+        {
             if (x509_att->certificates.client_certificates != NULL)
+            {
                 result = x509_att->certificates.client_certificates->secondary;
+            }
             else
+            {
                 LogError("No certificate");
+            }
+        }
         else if (x509_att->type == CERTIFICATE_TYPE_SIGNING)
+        {
             if (x509_att->certificates.signing_certificates != NULL)
+            {
                 result = x509_att->certificates.signing_certificates->secondary;
+            }
             else
+            {
                 LogError("No certificate");
+            }
+        }
         else
+        {
             LogError("invalid certificate type");
+        }
+    }
 
     return (X509_CERTIFICATE_HANDLE)result;
 }
@@ -2169,9 +2342,13 @@ const char* x509Certificate_getSubjectName(X509_CERTIFICATE_HANDLE handle)
     X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
     if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    {
         LogError("Certificate Info is NULL");
+    }
     else
+    {
         result = x509_certwinfo->info->subject_name;
+    }
 
     return result;
 }
@@ -2182,9 +2359,13 @@ const char* x509Certificate_getSha1Thumbprint(X509_CERTIFICATE_HANDLE handle)
     X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
     if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    {
         LogError("Certificate Info is NULL");
+    }
     else
+    {
         result = x509_certwinfo->info->sha1_thumbprint;
+    }
 
     return result;
 }
@@ -2195,9 +2376,13 @@ const char* x509Certificate_getSha256Thumbprint(X509_CERTIFICATE_HANDLE handle)
     X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
     if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    {
         LogError("Certificate Info is NULL");
+    }
     else
+    {
         result = x509_certwinfo->info->sha256_thumbprint;
+    }
 
     return result;
 }
@@ -2208,9 +2393,13 @@ const char* x509Certificate_getIssuerName(X509_CERTIFICATE_HANDLE handle)
     X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
     if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    {
         LogError("Certificate Info is NULL");
+    }
     else
+    {
         result = x509_certwinfo->info->issuer_name;
+    }
 
     return result;
 }
@@ -2221,9 +2410,13 @@ const char* x509Certificate_getNotBeforeUtc(X509_CERTIFICATE_HANDLE handle)
     X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
     if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    {
         LogError("Certificate Info is NULL");
+    }
     else
+    {
         result = x509_certwinfo->info->not_before_utc;
+    }
 
     return result;
 }
@@ -2234,9 +2427,13 @@ const char* x509Certificate_getNotAfterUtc(X509_CERTIFICATE_HANDLE handle)
     X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
     if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    {
         LogError("Certificate Info is NULL");
+    }
     else
+    {
         result = x509_certwinfo->info->not_after_utc;
+    }
 
     return result;
 }
@@ -2247,9 +2444,13 @@ const char* x509Certificate_getSerialNumber(X509_CERTIFICATE_HANDLE handle)
     X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
     if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    {
         LogError("Certificate Info is NULL");
+    }
     else
+    {
         result = x509_certwinfo->info->serial_number;
+    }
 
     return result;
 }
@@ -2260,9 +2461,13 @@ int x509Certificate_getVersion(X509_CERTIFICATE_HANDLE handle)
     X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
     if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    {
         LogError("Certificate Info is NULL");
+    }
     else
+    {
         result = x509_certwinfo->info->version;
+    }
 
     return result;
 }

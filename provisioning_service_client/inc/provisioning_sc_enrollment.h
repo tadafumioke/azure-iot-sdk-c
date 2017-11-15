@@ -13,13 +13,13 @@ extern "C" {
 
     /** @brief  Handles to hide structs and use them in consequent APIs
     */
-    typedef struct INDIVIDUAL_ENROLLMENT* INDIVIDUAL_ENROLLMENT_HANDLE;
-    typedef struct ENROLLMENT_GROUP* ENROLLMENT_GROUP_HANDLE;
-    typedef struct ATTESTATION_MECHANISM* ATTESTATION_MECHANISM_HANDLE;
-    typedef struct TPM_ATTESTATION* TPM_ATTESTATION_HANDLE;
-    typedef struct X509_ATTESTATION* X509_ATTESTATION_HANDLE;
-    typedef struct X509_CERTIFICATE_WITH_INFO* X509_CERTIFICATE_HANDLE;
-    typedef struct DEVICE_REGISTRATION_STATE* DEVICE_REGISTRATION_STATE_HANDLE;
+    typedef struct INDIVIDUAL_ENROLLMENT_TAG* INDIVIDUAL_ENROLLMENT_HANDLE;
+    typedef struct ENROLLMENT_GROUP_TAG* ENROLLMENT_GROUP_HANDLE;
+    typedef struct ATTESTATION_MECHANISM_TAG* ATTESTATION_MECHANISM_HANDLE;
+    typedef struct TPM_ATTESTATION_TAG* TPM_ATTESTATION_HANDLE;
+    typedef struct X509_ATTESTATION_TAG* X509_ATTESTATION_HANDLE;
+    typedef struct X509_CERTIFICATE_WITH_INFO_TAG* X509_CERTIFICATE_HANDLE;
+    typedef struct DEVICE_REGISTRATION_STATE_TAG* DEVICE_REGISTRATION_STATE_HANDLE;
 
     /** @brief  Enums representing types and states for values within handles
     */
@@ -69,14 +69,25 @@ extern "C" {
     */
     MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWithTpm, const char*, endorsement_key);
 
-    /** @brief  Creates an Attestation Mechanism handle that uses an x509 Attestation for use in consequent APIs.
+    /** @brief  Creates an Attestation Mechanism handle that uses an x509 Attestation with client certificate(s) for use in consequent APIs.
+    *           Please note that an x509 Attestation with a client certificate is NOT VALID when attached to an enrollment group.
     *
     * @param    primary_cert        A primary certificate for use with the x509.
     * @param    secondary_cert      A secondary certificate for use with the x509 (optional - if not using two certs, pass NULL).
     *
-    * @return   A non NULL handle representing an Attestation Mechanism using an X509 Attestation, and NULL on failure.
+    * @return   A non NULL handle representing an Attestation Mechanism using an X509 Attestation with a client certificate, and NULL on failure.
     */
-    MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWithX509, const char*, primary_cert, const char*, secondary_cert);
+    MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWithX509ClientCert, const char*, primary_cert, const char*, secondary_cert);
+
+    /** @brief  Creates an Attestation Mechanism handle that uses an x509 Attestation with signing certificate(s) for use in consequent APIs.
+    *           Please note that an x509 Attestation with a signing certificate is NOT VALID when attached to an individual enrollment.
+    *
+    * @param    primary_cert        A primary certificate for use with the x509.
+    * @param    secondary_cert      A secondary certificate for use with the x509 (optional - if not using two certs, pass NULL).
+    *
+    * @return   A non NULL handle representing an Attestation Mechanism using an X509 Attestation with a signing certificate, and NULL on failure.
+    */
+    MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWithX509SigningCert, const char*, primary_cert, const char*, secondary_cert);
 
     /** @brief  Destroys an Attestation Mechanism handle, freeing all allocated memory. Please note that this also includes any memory
     *           in more specific handles generated from the handle (e.g. TPM_ATTESTATION_HANDLE). Please note further that this will also
@@ -176,7 +187,7 @@ extern "C" {
     MOCKABLE_FUNCTION(, const char*, enrollmentGroup_getCreatedDateTime, ENROLLMENT_GROUP_HANDLE, handle);
     MOCKABLE_FUNCTION(, const char*, enrollmentGroup_getUpdatedDateTime, ENROLLMENT_GROUP_HANDLE, handle);
 
-    /* Device Registration Status Accessor Functions */
+    /* Device Registration State Accessor Functions */
     MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getRegistrationId, DEVICE_REGISTRATION_STATE_HANDLE, handle);
     MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getCreatedDateTime, DEVICE_REGISTRATION_STATE_HANDLE, handle);
     MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getDeviceId, DEVICE_REGISTRATION_STATE_HANDLE, handle);
@@ -200,8 +211,6 @@ extern "C" {
     MOCKABLE_FUNCTION(, const char*, x509Certificate_getNotAfterUtc, X509_CERTIFICATE_HANDLE, handle);
     MOCKABLE_FUNCTION(, const char*, x509Certificate_getSerialNumber, X509_CERTIFICATE_HANDLE, handle);
     MOCKABLE_FUNCTION(, int, x509Certificate_getVersion, X509_CERTIFICATE_HANDLE, handle);
-    
-
 
 #ifdef __cplusplus
 }

@@ -9,6 +9,10 @@ This module is used to perform CRUD operations on the device enrollment records 
 ```c
 PROVISIONING_SERVICE_CLIENT_HANDLE prov_sc_create_from_connection_string(const char* conn_string);
 void prov_sc_destroy(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client);
+void prov_sc_set_trace(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, TRACING_STATUS status);
+int prov_sc_set_certificate(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* certificate);
+int prov_sc_set_proxy(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, HTTP_PROXY_OPTIONS* proxy_options);
+
 int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, const INDIVIDUAL_ENROLLMENT_HANDLE* enrollment_ptr);
 int prov_sc_delete_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, INDIVIDUAL_ENROLLMENT_HANDLE enrollment);
 int prov_sc_delete_individual_enrollment_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* reg_id, const char* etag);
@@ -45,10 +49,55 @@ void prov_sc_destroy(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client);
 **SRS_PROVISIONING_SERVICE_CLIENT_22_005: [** `prov_sc_destroy` shall free all the memory contained inside `prov_client` **]**
 
 
+### prov_sc_set_trace
+
+```c
+void prov_sc_set_trace(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, TRACING_STATUS status);
+```
+
+**SRS_PROVISIONING_SERVICE_CLIENT_22_068: [** If `prov_client` is NULL, `prov_sc_trace_on` shall do nothing **]**
+
+**SRS_PROVISIONING_SERVICE_CLIENT_22_069: [** HTTP tracing for communications using `prov_client` will be set to `status` **]**
+
+
+### prov_sc_set_certificate
+
+```c
+int prov_sc_set_certificate(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* certificate);
+```
+
+**SRS_PROVISIONING_SERVICE_CLIENT_22_058: [** If `prov_client` is NULL, `prov_sc_set_certificate` shall fail and return a non-zero value **]**
+
+**SRS_PROVISIONING_SERVICE_CLIENT_22_059: [** If `certificate` is NULL, any previously set trusted certificate will be cleared **]**
+
+**SRS_PROVISIONING_SERVICE_CLIENT_22_060: [** If `certificate` is not NULL, it will be set as the trusted certificate for `prov_client` **]**
+
+**SRS_PROVISIONING_SERVICE_CLIENT_22_061: [** If allocating the trusted certificate fails, `prov_sc_set_certificate` shall fail and return a non-zero value **]**
+
+**SRS_PROVISIONING_SERVICE_CLIENT_22_062: [** Upon success, `prov_sc_set_certficiate` shall return 0 **]**
+
+
+### prov_sc_set_proxy
+
+```c
+int prov_sc_set_proxy(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, HTTP_PROXY_OPTIONS* proxy_options);
+```
+
+**SRS_PROVISIONING_SERVICE_CLIENT_22_063: [** If `prov_client` or `proxy_options` are NULL, `prov_sc_set_proxy` shall fail and return a non-zero value **]**
+
+**SRS_PROVISIONING_SERVICE_CLIENT_22_064: [** If the host address is NULL in `proxy_options`, `prov_sc_set_proxy` shall fail and return a non-zero value **]**
+
+**SRS_PROVISIONING_SERVICE_CLIENT_22_065: [** If only the username, or only the password is NULL in `proxy_options`, `prov_sc_set_proxy` shall fail and return a non-zero value **]**
+
+**SRS_PROVISIONING_SERVICE_CLIENT_22_066: [** The proxy settings specified in `proxy_options` will be set for use by `prov_client` **]**
+
+**SRS_PROVISIONING_SERVICE_CLIENT_22_067: [** Upon success, `prov_sc_set_proxy` shall return 0 **]**
+
+
 ### prov_sc_create_or_update_individual_enrollment
 
 ```c
-int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, const INDIVIDUAL_ENROLLMENT_HANDLE* enrollment_ptr)
+int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, const INDIVIDUAL_ENROLLMENT_HANDLE* enrollment_ptr);
 ```
 
 **SRS_PROVISIONING_SERVICE_CLIENT_22_006: [** If `prov_client` or `enrollment_ptr` are NULL, `prov_sc_create_or_update_individual_enrollment` shall fail and return a non-zero value **]**
@@ -94,9 +143,6 @@ int prov_sc_delete_individual_enrollment_by_param(PROVISIONING_SERVICE_CLIENT_HA
 **SRS_PROVISIONING_SERVICE_CLIENT_22_049: [** If the 'DELETE' REST call fails, `prov_sc_delete_individual_enrollment_by_param` shall fail and return a non-zero value **]**
 
 **SRS_PROVISIONING_SERVICE_CLIENT_22_050: [** Upon a successful delete, `prov_sc_delete_individual_enrollment_by_param` shall return 0 **]**
-
-
-
 
 
 ### prov_sc_get_individual_enrollment
