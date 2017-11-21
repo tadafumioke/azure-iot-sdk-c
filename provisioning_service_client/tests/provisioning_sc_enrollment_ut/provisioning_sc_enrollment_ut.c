@@ -158,7 +158,6 @@ static void attestationMechanism_createWithX509_expected_calls_OneCert(void)
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
 
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     copy_string_expected_calls();
 }
 
@@ -169,24 +168,14 @@ static void attestationMechanism_createWithX509_expected_calls_TwoCerts(void)
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
 
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     copy_string_expected_calls();
 
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     copy_string_expected_calls();
 }
 
 static void attestationMechanism_free_expected_calls_x509OneCert(void)
 {
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
 
@@ -200,26 +189,26 @@ static void attestationMechanism_free_expected_calls_x509TwoCerts(void)
     //cert 1
     STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
 
     //cert 2
     STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
 
     //rest of structure
     STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
@@ -348,7 +337,6 @@ TEST_FUNCTION(attestationMechanism_createWithClientCertX509_golden_primary_cert)
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     copy_string_expected_calls();
 
     //act
@@ -382,12 +370,11 @@ TEST_FUNCTION(attestationMechanism_createWithX509ClientCert_primary_cert_fail)
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     copy_string_expected_calls();
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 6 };
+    size_t calls_cannot_fail[] = { 5 };
     size_t count = umock_c_negative_tests_call_count();
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
 
@@ -430,10 +417,8 @@ TEST_FUNCTION(attestationMechanism_createWithX509ClientCert_golden_both_certs)
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
 
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     copy_string_expected_calls();
 
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     copy_string_expected_calls();
 
@@ -470,17 +455,15 @@ TEST_FUNCTION(attestationMechanism_createWithX509_both_certs_fail)
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
 
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     copy_string_expected_calls();
 
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
     copy_string_expected_calls();
 
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 6, 10 };
+    size_t calls_cannot_fail[] = { 5, 8 };
     size_t count = umock_c_negative_tests_call_count();
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
 
@@ -1059,7 +1042,7 @@ TEST_FUNCTION(enrollmentGroup_create_fail_x509_one_cert)
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 0, 1, 2, 3, 4, 5, 6, 9 };
+    size_t calls_cannot_fail[] = { 0, 1, 2, 3, 4, 5, 8 };
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
     size_t count = umock_c_negative_tests_call_count();
 
@@ -1116,7 +1099,7 @@ TEST_FUNCTION(enrollmentGroup_create_fail_x509_two_certs)
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13 };
+    size_t calls_cannot_fail[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 11 };
     size_t count = umock_c_negative_tests_call_count();
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
 

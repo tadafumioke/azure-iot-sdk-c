@@ -853,16 +853,9 @@ static X509_CERTIFICATE_WITH_INFO* x509CertificateWithInfo_create(const char* ce
     {
         LogError("Allocating memory for X509 Certificate With Info failed");
     }
-    else if ((new_x509CertInfo = malloc(sizeof(X509_CERTIFICATE_INFO))) == NULL)
-    {
-        LogError("Allocating memory for X509 Certificate Info failed");
-        free(new_x509CertWithInfo);
-        new_x509CertWithInfo = NULL;
-    }
     else
     {
         memset(new_x509CertWithInfo, 0, sizeof(X509_CERTIFICATE_WITH_INFO));
-        memset(new_x509CertInfo, 0, sizeof(X509_CERTIFICATE_INFO));
 
         if (copy_string(&(new_x509CertWithInfo->certificate), cert) != 0)
         {
@@ -872,12 +865,6 @@ static X509_CERTIFICATE_WITH_INFO* x509CertificateWithInfo_create(const char* ce
             x509CertificateInfo_free(new_x509CertInfo);
             new_x509CertInfo = NULL;
         }
-        else
-        {
-            //Note that cert info is allocated but not populated as there is no data yet for it, but accessors still need it to be there
-            new_x509CertWithInfo->info = new_x509CertInfo;
-        }
-
     }
 
     return new_x509CertWithInfo;

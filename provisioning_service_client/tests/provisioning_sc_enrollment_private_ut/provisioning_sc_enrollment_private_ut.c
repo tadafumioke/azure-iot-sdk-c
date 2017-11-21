@@ -209,8 +209,8 @@ static void expected_calls_x509CertificateWithInfo_toJson(testcase tc)
     STRICT_EXPECTED_CALL(json_value_init_object());
     STRICT_EXPECTED_CALL(json_value_get_object(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //certificate - technically optional, but not really
-    expected_calls_x509CertificateInfo_toJson(tc);
-    STRICT_EXPECTED_CALL(json_object_set_value(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //info
+    //expected_calls_x509CertificateInfo_toJson(tc);
+    //STRICT_EXPECTED_CALL(json_object_set_value(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //info
 }
 
 static void expected_calls_x509Certificates_toJson(testcase tc)
@@ -539,7 +539,7 @@ TEST_FUNCTION(individualEnrollment_serializeToJson_X509MinCase_fail)
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 31, 32, 33 };
+    size_t calls_cannot_fail[] = { 20, 21, 22 };
     size_t count = umock_c_negative_tests_call_count();
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
 
@@ -619,7 +619,7 @@ TEST_FUNCTION(enrollmentGroup_serializeToJson_X509MinCase_fail)
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 31, 32, 33 };
+    size_t calls_cannot_fail[] = { 20, 21, 22 };
     size_t count = umock_c_negative_tests_call_count();
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
 

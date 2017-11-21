@@ -9,4 +9,4 @@ function(add_sample_directory whatIsBuilding)
                FOLDER "Provisioning_Service_Client_Samples")
 endfunction()
 
-add_sample_directory(provisioning_individual_enrollment_sample)
+add_sample_directory(prov_sc_individual_enrollment_sample)

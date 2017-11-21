@@ -26,7 +26,6 @@ int main()
     PROVISIONING_SERVICE_CLIENT_HANDLE prov_sc;
     ATTESTATION_MECHANISM_HANDLE am_handle;
     INDIVIDUAL_ENROLLMENT_HANDLE ie_handle;
-    TWIN_STATE_HANDLE ts_handle;
 
     printf("Starting Individual Enrollment sample...\n");
 
@@ -55,8 +54,8 @@ int main()
     }
     else if (individualEnrollment_setDeviceId(ie_handle, deviceId) != 0) //optional - don't call if you don't need it
     {
-        printf("Failed calling individualEnrollment_setDeviceId\n");
-        result = __FAILURE__;
+       printf("Failed calling individualEnrollment_setDeviceId\n");
+       result = __FAILURE__;
     }
 
     /* Create the Individual Enrollment on the Provisioning Service */

@@ -11,7 +11,7 @@ This is a quick tutorial with the steps to create, update, get, and delete an In
 ## How to run the sample on Linux or Windows
 
 1. Clone the [C SDK repository](https://github.com/Azure/azure-iot-sdk-c)
-2. Compile the C SDK using the `-Duse_prov_client=ON` flag, as shown [here][devbox-setup-link]
+2. Compile the C SDK as shown [here][devbox-setup-link], using the `-Duse_prov_client=ON` flag.
 3. Edit `provisioning_individual_enrollment_sample.c` to add your provisioning service information:
     1. Replace the `[Connection String]` with the Provisioning Connection String copied from your Device Provisiong Service on the Portal.
         ```c
@@ -36,21 +36,8 @@ This is a quick tutorial with the steps to create, update, get, and delete an In
             const char* registrationId = "[Registration Id]";
             const char* clientCertificate = "[Client Certificate]";
             ```
-            Note that a certificate should be in the format
-            ```
-            -----BEGIN CERTIFICATE-----
-            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            -----END CERTIFICATE-----
-            ```
+            Note that a certificate format can be just the Base 64 encoding, or can include the `-----BEGIN CERTIFICATE-----` and `-----END CERTIFICATE-----` tags, either works.
+
         3. Replace the TPM Attestation Mechanism in the sample with an X509 Attestation Mechanism.
 
             **Replace**
