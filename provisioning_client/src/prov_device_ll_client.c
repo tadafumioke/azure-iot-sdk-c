@@ -20,11 +20,12 @@
 
 #include "azure_prov_client/prov_auth_client.h"
 #include "azure_prov_client/prov_device_ll_client.h"
+#include "azure_prov_client/prov_client_const.h"
 
 static const char* OPTION_LOG_TRACE = "logtrace";
 
 static const char* JSON_NODE_STATUS = "status";
-static const char* JSON_NODE_REG_STATUS = "registrationStatus";
+static const char* JSON_NODE_REG_STATUS = "registrationState";
 static const char* JSON_NODE_AUTH_KEY = "authenticationKey";
 static const char* JSON_NODE_DEVICE_ID = "deviceId";
 static const char* JSON_NODE_KEY_NAME = "keyName";
@@ -33,22 +34,16 @@ static const char* JSON_NODE_ASSIGNED_HUB = "assignedHub";
 static const char* JSON_NODE_TPM_NODE = "tpm";
 static const char* JSON_NODE_TRACKING_ID = "trackingId";
 
-static const char* PROV_ASSIGNED_STATUS = "assigned";
-static const char* PROV_ASSIGNING_STATUS = "assigning";
-static const char* PROV_UNASSIGNED_STATUS = "unassigned";
 static const char* PROV_FAILED_STATUS = "failed";
 static const char* PROV_BLACKLISTED_STATUS = "blacklisted";
 
-static const char* PROV_API_VERSION = "2017-08-31-preview";
 static const char* SAS_TOKEN_SCOPE_FMT = "%s/registrations/%s";
-
-static const char* PROV_DEVICE_CLIENT_VERSION = "1.1.01";
 
 #define SAS_TOKEN_DEFAULT_LIFETIME  3600
 #define EPOCH_TIME_T_VALUE          (time_t)0
 #define MAX_AUTH_ATTEMPTS           3
-#define PROV_GET_THROTTLE_TIME       2
-#define PROV_DEFAULT_TIMEOUT         60
+#define PROV_GET_THROTTLE_TIME      2
+#define PROV_DEFAULT_TIMEOUT        60
 
 typedef enum CLIENT_STATE_TAG
 {
@@ -389,11 +384,15 @@ static PROV_JSON_INFO* prov_transport_process_json_reply(const char* json_docume
                     }
                 }*/
                 LogError("Unsuccessful json encountered: %s", json_document);
+                free(result);
+                result = NULL;
                 break;
             }
 
             default:
                 LogError("invalid json status specified %d", result->prov_status);
+                free(result);
+                result = NULL;
                 break;
         }
         json_value_free(root_value);
@@ -519,13 +518,13 @@ static void destroy_instance(PROV_INSTANCE_INFO* prov_info)
     free(prov_info);
 }
 
-PROV_DEVICE_LL_HANDLE Prov_Device_LL_Create(const char* uri, const char* scope_id, PROV_DEVICE_TRANSPORT_PROVIDER_FUNCTION protocol)
+PROV_DEVICE_LL_HANDLE Prov_Device_LL_Create(const char* uri, const char* id_scope, PROV_DEVICE_TRANSPORT_PROVIDER_FUNCTION protocol)
 {
     PROV_INSTANCE_INFO* result;
     /* Codes_SRS_PROV_CLIENT_07_001: [If uri is NULL Prov_Device_LL_CreateFromUri shall return NULL.] */
-    if (uri == NULL || scope_id == NULL || protocol == NULL)
+    if (uri == NULL || id_scope == NULL || protocol == NULL)
     {
-        LogError("Invalid parameter specified uri: %p, scope_id: %p, protocol: %p", uri, scope_id, protocol);
+        LogError("Invalid parameter specified uri: %p, id_scope: %p, protocol: %p", uri, id_scope, protocol);
         result = NULL;
     }
     else
@@ -544,11 +543,11 @@ PROV_DEVICE_LL_HANDLE Prov_Device_LL_Create(const char* uri, const char* scope_i
             result->prov_state = CLIENT_STATE_READY;
             result->prov_transport_protocol = protocol();
 
-            /* Codes_SRS_PROV_CLIENT_07_034: [ Prov_Device_LL_Create shall construct a scope_id by base64 encoding the uri. ] */
-            if (mallocAndStrcpy_s(&result->scope_id, scope_id) != 0)
+            /* Codes_SRS_PROV_CLIENT_07_034: [ Prov_Device_LL_Create shall construct a id_scope by base64 encoding the uri. ] */
+            if (mallocAndStrcpy_s(&result->scope_id, id_scope) != 0)
             {
                 /* Codes_SRS_PROV_CLIENT_07_003: [ If any error is encountered, Prov_Device_LL_CreateFromUri shall return NULL. ] */
-                LogError("failed to construct scope_id");
+                LogError("failed to construct id_scope");
                 free(result);
                 result = NULL;
             }

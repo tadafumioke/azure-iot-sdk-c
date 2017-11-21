@@ -4,7 +4,10 @@
 cmake_minimum_required(VERSION 2.8.11)
 project(azure_iot_sdks)
 
-set(IOT_SDK_VERSION 1.1.25)
+include("configs/azure_iot_sdksFunctions.cmake")
+
+getIoTSDKVersion()
+message(STATUS "IoT Client SDK Version = ${IOT_SDK_VERSION}")
 
 if(POLICY CMP0042)
     cmake_policy(SET CMP0042 NEW)
@@ -45,7 +48,7 @@ ENDIF(WIN32)
 set(hsm_type_x509 OFF CACHE BOOL "x509 type of hsm used with the Provisioning client")
 set(hsm_type_sastoken OFF CACHE BOOL "tpm type of hsm used with the Provisioning client")
 set(hsm_type_custom OFF CACHE BOOL "hsm type of custom used with the Provisioning client")
-set(hsm_custom_lib "" CACHE STRING "Custom repo library")
+set(hsm_custom_lib "" CACHE STRING "Full path to custom HSM repo library")
 
 #the following variables are project-wide and can be used with cmake-gui
 option(use_amqp "set use_amqp to ON if amqp is to be used, set to OFF to not use amqp" ON)
@@ -139,14 +142,28 @@ endif()
 
 include("configs/azure_iot_sdksFunctions.cmake")
 
-include("dependencies.cmake")
-
-set_platform_files(${CMAKE_CURRENT_LIST_DIR}/c-utility)
-
-
 if(${run_unittests} OR ${run_e2e_tests})
     include("dependencies-test.cmake")
 endif()
+
+#do not add or build any tests of the dependencies
+set(original_run_e2e_tests ${run_e2e_tests})
+set(original_run_unittests ${run_unittests})
+
+set(run_e2e_tests OFF)
+set(run_unittests OFF)
+
+include("dependencies.cmake")
+
+if (${original_run_e2e_tests} OR ${original_run_unittests})
+    set(SHARED_UTIL_REAL_TEST_FOLDER ${CMAKE_CURRENT_LIST_DIR}/c-utility/tests/real_test_files CACHE INTERNAL "this is what needs to be included when doing test sources" FORCE)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/c-utility/testtools)
+endif()
+
+set_platform_files(${CMAKE_CURRENT_LIST_DIR}/c-utility)
+
+set(run_e2e_tests ${original_run_e2e_tests})
+set(run_unittests ${original_run_unittests})
 
 enable_testing()
 
@@ -257,6 +274,10 @@ add_subdirectory(serializer)
 #add the device_auth sample subdirectory
 if(${use_prov_client} AND NOT ${skip_samples})
     add_subdirectory(./provisioning_client/samples)
+
+    if(NOT "${build_python}" STREQUAL "OFF")
+        add_subdirectory(../provisioning_device_client provisioning_device_client_python)
+    endif()
 endif()
 
 if(NOT "${build_python}" STREQUAL "OFF")

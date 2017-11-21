@@ -25,8 +25,6 @@
 #define AMQP_MAX_SENDER_MSG_SIZE    UINT64_MAX
 #define AMQP_MAX_RECV_MSG_SIZE      65536
 
-static const char* HEADER_KEY_AUTHORIZATION = "Authorization";
-static const char* SAS_TOKEN_KEY_NAME = "registration";
 static const char* AMQP_ADDRESS_FMT = "amqps://%s/%s/registrations/%s";
 static const char* KEY_NAME_VALUE = "registration";
 
@@ -40,10 +38,6 @@ static const char* AMQP_OPERATION_ID = "iotdps-operation-id";
 static const char* AMQP_IOTHUB_URI = "iotdps-assigned-hub";
 static const char* AMQP_DEVICE_ID = "iotdps-device-id";
 static const char* AMQP_AUTH_KEY = "iotdps-auth-key";
-
-static const char* PROV_ASSIGNED_STATUS = "Assigned";
-static const char* PROV_ASSIGNING_STATUS = "Assigning";
-static const char* PROV_UNASSIGNED_STATUS = "Unassigned";
 
 typedef enum AMQP_TRANSPORT_STATE_TAG
 {
@@ -688,6 +682,7 @@ static int create_connection(PROV_TRANSPORT_AMQP_INFO* amqp_info)
     const SASL_MECHANISM_INTERFACE_DESCRIPTION* sasl_interface;
     SASL_TPM_CONFIG_INFO sasl_config;
     sasl_config.registration_id = amqp_info->registration_id;
+    sasl_config.scope_id = amqp_info->scope_id;
     sasl_config.storage_root_key = amqp_info->srk;
     sasl_config.endorsement_key = amqp_info->ek;
     sasl_config.hostname = amqp_info->hostname;
