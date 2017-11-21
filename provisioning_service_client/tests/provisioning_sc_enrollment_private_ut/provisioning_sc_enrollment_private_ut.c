@@ -41,6 +41,8 @@ MOCKABLE_FUNCTION(, JSON_Status, json_object_set_number, JSON_Object*, object, c
 MOCKABLE_FUNCTION(, JSON_Value*, json_value_init_object);
 MOCKABLE_FUNCTION(, void, json_value_free, JSON_Value*, value);
 MOCKABLE_FUNCTION(, JSON_Object*, json_value_get_object, const JSON_Value*, value);
+MOCKABLE_FUNCTION(, void, json_free_serialized_string, char*, string);
+MOCKABLE_FUNCTION(, JSON_Value*, json_object_get_wrapping_value, const JSON_Object*, object);
 
 #undef ENABLE_MOCKS
 
@@ -264,8 +266,11 @@ static void expected_calls_individualEnrollment_toJson(ATTESTATION_TYPE att_type
     STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //reg_id
     if (tc == MAX_CASE)
         STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //dev_id
+
+    
     expected_calls_attestationMechanism_toJson(att_type, tc);
     STRICT_EXPECTED_CALL(json_object_set_value(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //attestation mechanism
+    
     if (tc == MAX_CASE)
         STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //etag
     //call to convert provisioning status has no further calls to specify, but would go here if it did
@@ -277,7 +282,9 @@ static void expected_calls_individualEnrollment_serializeToJson(ATTESTATION_TYPE
 {
     expected_calls_individualEnrollment_toJson(att_type, tc);
     STRICT_EXPECTED_CALL(json_serialize_to_string(IGNORED_PTR_ARG));
+    expected_calls_copy_string();
     STRICT_EXPECTED_CALL(json_value_free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_free_serialized_string(IGNORED_PTR_ARG));
 }
 
 static void expected_calls_enrollmentGroup_toJson(ATTESTATION_TYPE att_type, testcase tc)
@@ -297,7 +304,9 @@ static void expected_calls_enrollmentGroup_serializeToJson(ATTESTATION_TYPE att_
 {
     expected_calls_enrollmentGroup_toJson(att_type, tc);
     STRICT_EXPECTED_CALL(json_serialize_to_string(IGNORED_PTR_ARG));
+    expected_calls_copy_string();
     STRICT_EXPECTED_CALL(json_value_free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_free_serialized_string(IGNORED_PTR_ARG));
 }
 
 static void expected_calls_x509CertificateInfo_fromJson(testcase tc)
@@ -464,7 +473,7 @@ TEST_FUNCTION(individualEnrollment_serializeToJson_TpmMinCase_fail)
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 13 };
+    size_t calls_cannot_fail[] = { 14, 15, 16 };
     size_t count = umock_c_negative_tests_call_count();
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
 
@@ -499,7 +508,7 @@ TEST_FUNCTION(individualEnrollment_serializeToJson_TpmMinCase_fail)
 TEST_FUNCTION(individualEnrollment_serializeToJson_X509MinCase_golden)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, NULL);
+    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
     INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, am);
     umock_c_reset_all_calls();
 
@@ -522,7 +531,7 @@ TEST_FUNCTION(individualEnrollment_serializeToJson_X509MinCase_fail)
     int negativeTestsInitResult = umock_c_negative_tests_init();
     ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
 
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, NULL);
+    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
     INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, am);
     umock_c_reset_all_calls();
 
@@ -530,7 +539,7 @@ TEST_FUNCTION(individualEnrollment_serializeToJson_X509MinCase_fail)
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 30 };
+    size_t calls_cannot_fail[] = { 31, 32, 33 };
     size_t count = umock_c_negative_tests_call_count();
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
 
@@ -579,7 +588,7 @@ TEST_FUNCTION(enrollmentGroup_serializeToJson_error_NULL)
 TEST_FUNCTION(enrollmentGroup_serializeToJson_X509MinCase_golden)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, NULL);
+    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
     ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(TEST_GRPID, am);
     umock_c_reset_all_calls();
 
@@ -602,7 +611,7 @@ TEST_FUNCTION(enrollmentGroup_serializeToJson_X509MinCase_fail)
     int negativeTestsInitResult = umock_c_negative_tests_init();
     ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
 
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, NULL);
+    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
     ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(TEST_GRPID, am);
     umock_c_reset_all_calls();
 
@@ -610,7 +619,7 @@ TEST_FUNCTION(enrollmentGroup_serializeToJson_X509MinCase_fail)
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 30 };
+    size_t calls_cannot_fail[] = { 31, 32, 33 };
     size_t count = umock_c_negative_tests_call_count();
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
 

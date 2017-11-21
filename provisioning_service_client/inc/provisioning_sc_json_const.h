@@ -24,6 +24,7 @@ static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_ID = "registrationId";
 static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_DEVICE_ID = "deviceId";
 static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_STATE = "registrationState";
 static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_ATTESTATION = "attestation";
+static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_INITIAL_TWIN = "initialTwin";
 static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_ETAG = "etag";
 static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_PROV_STATUS = "provisioningStatus";
 static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_CREATED_TIME = "createdDateTimeUtc";
@@ -31,6 +32,7 @@ static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_UPDATED_TIME = "lastUpdatedDat
 
 static const char* ENROLLMENT_GROUP_JSON_KEY_GROUP_ID = "enrollmentGroupId";
 static const char* ENROLLMENT_GROUP_JSON_KEY_ATTESTATION = "attestation";
+static const char* ENROLLMENT_GROUP_JSON_KEY_INITIAL_TWIN = "initialTwin";
 static const char* ENROLLMENT_GROUP_JSON_KEY_ETAG = "etag";
 static const char* ENROLLMENT_GROUP_JSON_KEY_PROV_STATUS = "provisioningStatus";
 static const char* ENROLLMENT_GROUP_JSON_KEY_CREATED_TIME = "createdDateTimeUtc";
@@ -69,6 +71,11 @@ static const char* X509_CERTIFICATE_INFO_JSON_KEY_NOT_BEFORE = "notBeforeUtc";
 static const char* X509_CERTIFICATE_INFO_JSON_KEY_NOT_AFTER = "notAfterUtc";
 static const char* X509_CERTIFICATE_INFO_JSON_KEY_SERIAL_NO = "serialNumber";
 static const char* X509_CERTIFICATE_INFO_JSON_KEY_VERSION = "version";
+
+static const char* TWIN_STATE_JSON_KEY_TAGS = "tags";
+static const char* TWIN_STATE_JSON_KEY_PROPERTIES = "properties";
+
+static const char* TWIN_PROPERTIES_JSON_KEY_DESIRED = "desired";
 
 #ifdef __cplusplus
 }

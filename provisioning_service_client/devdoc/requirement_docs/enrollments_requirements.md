@@ -70,24 +70,35 @@ void enrollmentGroup_destroy(ENROLLMENT_GROUP_HANDLE handle);
 ATTESTATION_TYPE attestationMechanism_getType(ATTESTATION_MECHANISM_HANDLE att_handle);
 
 //Individual Enrollment
+ATTESTATION_MECHANISM_HANDLE individualEnrollment_getAttestationMechanism(INDIVIDUAL_ENROLLMENT_HANDLE handle);
+int individualEnrollment_setAttestationMechanism(INDIVIDUAL_ENROLLMENT_HANDLE ie_handle, ATTESTATION_MECHANISM_HANDLE am_handle);
+TWIN_STATE_HANDLE individualEnrollment_getInitialTwinState, INDIVIDUAL_ENROLLMENT_HANDLE handle);
+int individualEnrollment_setInitialTwinState(INDIVIDUAL_ENROLLMENT_HANDLE ie_handle, TWIN_STATE_HANDLE, ts_handle);
+DEVICE_REGISTRATION_STATE_HANDLE individualEnrollment_getDeviceRegistrationState(INDIVIDUAL_ENROLLMENT_HANDLE handle);
+
 const char* individualEnrollment_getRegistrationId(INDIVIDUAL_ENROLLMENT_HANDLE handle);
 const char* individualEnrollment_getDeviceId(INDIVIDUAL_ENROLLMENT_HANDLE handle);
 int individualEnrollment_setDeviceId(INDIVIDUAL_ENROLLMENT_HANDLE handle, const char* device_id);
-DEVICE_REGISTRATION_STATE_HANDLE individualEnrollment_getDeviceRegistrationState(INDIVIDUAL_ENROLLMENT_HANDLE handle);
 const char* individualEnrollment_getEtag(INDIVIDUAL_ENROLLMENT_HANDLE handle);
 int individualEnrollment_setEtag(INDIVIDUAL_ENROLLMENT_HANDLE handle, const char* etag);
 PROVISIONING_STATUS individualEnrollment_getProvisioningStatus(INDIVIDUAL_ENROLLMENT_HANDLE handle);
 int individualEnrollment_setProvisioningStatus(INDIVIDUAL_ENROLLMENT_HANDLE handle, PROVISIONING_STATUS prov_status);
-PROVISIONING_STATUS individualEnrollment_getProvisioningStatus(INDIVIDUAL_ENROLLMENT_HANDLE handle);
 const char* individualEnrollment_getCreatedDateTime(INDIVIDUAL_ENROLLMENT_HANDLE handle);
 const char* individualEnrollment_getUpdatedDateTime(INDIVIDUAL_ENROLLMENT_HANDLE handle);
 
 //Enrollment Group
+ATTESTATION_MECHANISM_HANDLE enrollmentGroup_getAttestationMechanism(INDIVIDUAL_ENROLLMENT_HANDLE handle);
+int enrollmentGroup_setAttestationMechanism(INDIVIDUAL_ENROLLMENT_HANDLE ie_handle, ATTESTATION_MECHANISM_HANDLE am_handle);
+TWIN_STATE_HANDLE enrollmentGroup_getInitialTwinState, INDIVIDUAL_ENROLLMENT_HANDLE handle);
+int enrollmentGroup_setInitialTwinState(INDIVIDUAL_ENROLLMENT_HANDLE ie_handle, TWIN_STATE_HANDLE, ts_handle);
+
 const char* enrollmentGroup_getGroupId(ENROLLMENT_GROUP_HANDLE handle);
 const char* enrollmentGroup_getEtag(ENROLLMENT_GROUP_HANDLE handle);
 int enrollmentGroup_setEtag(ENROLLMENT_GROUP_HANDLE handle, const char* etag);
 PROVISIONING_STATUS enrollmentGroup_getProvisioningStatus(ENROLLMENT_GROUP_HANDLE handle);
 int enrollmentGroup_setProvisioningStatus(ENROLLMENT_GROUP_HANDLE handle, PROVISIONING_STATUS prov_status);
+const char* enrollmentGroup_getCreatedDateTime(INDIVIDUAL_ENROLLMENT_HANDLE handle);
+const char* enrollmentGroup_getUpdatedDateTime(INDIVIDUAL_ENROLLMENT_HANDLE handle);
 
 //Device Registration State
 const char* deviceRegistrationState_getRegistrationId(DEVICE_REGISTRATION_STATE_HANDLE handle);
@@ -112,6 +123,12 @@ const char* x509Certificate_getNotBeforeUtc(X509_CERTIFICATE_HANDLE handle);
 const char* x509Certificate_getNotAfterUtc(X509_CERTIFICATE_HANDLE handle);
 const char* x509Certificate_getSerialNumber(X509_CERTIFICATE_HANDLE handle);
 int x509Certificate_getVersion(X509_CERTIFICATE_HANDLE handle);
+
+//Twin State
+const char* twinState_getTags(TWIN_STATE_HANDLE handle);
+int twinState_setTags(TWIN_STATE_HANDLE handle, const char* tags);
+const char* twinState_getDesiredProperties(TWIN_STATE_HANDLE handle);
+int twinState_setDesiredProperties(TWIN_STATE_HANDLE handle, const char* desiredProperties);
 ```
 
 ## attestationMechansim_createWithTpm

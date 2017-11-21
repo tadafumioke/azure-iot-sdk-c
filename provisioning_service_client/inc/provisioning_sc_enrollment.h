@@ -20,6 +20,7 @@ extern "C" {
     typedef struct X509_ATTESTATION_TAG* X509_ATTESTATION_HANDLE;
     typedef struct X509_CERTIFICATE_WITH_INFO_TAG* X509_CERTIFICATE_HANDLE;
     typedef struct DEVICE_REGISTRATION_STATE_TAG* DEVICE_REGISTRATION_STATE_HANDLE;
+    typedef struct TWIN_STATE_TAG* TWIN_STATE_HANDLE;
 
     /** @brief  Enums representing types and states for values within handles
     */
@@ -58,6 +59,7 @@ extern "C" {
     * PLEASE NOTE: Attempting to free any of the returned handles manually will result in unexpected behaviour and memory leakage.
     * Please ONLY use given "destroy" functions to free handles when you are done with them.
     */
+
 
     /* Attestation Mechanism Operation Functions */
 
@@ -150,6 +152,26 @@ extern "C" {
     MOCKABLE_FUNCTION(, void, enrollmentGroup_destroy, ENROLLMENT_GROUP_HANDLE, handle);
 
 
+    /* Twin State Operation Functions */
+
+    /** @brief  Creates a Twin State handle for use in consequent APIs.
+    *
+    * @param    tags                    The json string for the tags of the initial Twin State
+    * @param    desired_properties      The json string for the desired properties of the initial Twin State
+    *
+    * @return   A non-NULL handle representing an initial Twin State for use with Provisioning Service, and NULL on failure.
+    */
+    MOCKABLE_FUNCTION(, TWIN_STATE_HANDLE, initialTwinState_create, const char*, tags, const char*, desired_properties);
+
+    /** @brief  Destroys a Twin State handle, freeing all associated memory. Please note that this will also cause any Enrollment 
+    *           that the Twin State has been attached to to have unexpected behvaiours. Do not use this function
+    *           unless the Twin State is unattached.
+    *
+    * @param    handle      The handle of the Twin State to be destroyed
+    */
+    MOCKABLE_FUNCTION(, void, twinState_destroy, TWIN_STATE_HANDLE, handle);
+
+
     /* ACCESSOR FUNCTIONS
     *
     * Use these to retrieve and access properties of handles.
@@ -167,10 +189,13 @@ extern "C" {
     /* Individual Enrollment Accessor Functions */
     MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, individualEnrollment_getAttestationMechanism, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
     MOCKABLE_FUNCTION(, int, individualEnrollment_setAttestationMechanism, INDIVIDUAL_ENROLLMENT_HANDLE, ie_handle, ATTESTATION_MECHANISM_HANDLE, am_handle);
+    MOCKABLE_FUNCTION(, TWIN_STATE_HANDLE, individualEnrollment_getInitialTwinState, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
+    MOCKABLE_FUNCTION(, int, individualEnrollment_setInitialTwinState, INDIVIDUAL_ENROLLMENT_HANDLE, ie_handle, TWIN_STATE_HANDLE, ts_handle);
+    MOCKABLE_FUNCTION(, DEVICE_REGISTRATION_STATE_HANDLE, individualEnrollment_getDeviceRegistrationState, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
+
     MOCKABLE_FUNCTION(, const char*, individualEnrollment_getRegistrationId, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
     MOCKABLE_FUNCTION(, const char*, individualEnrollment_getDeviceId, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
     MOCKABLE_FUNCTION(, int, individualEnrollment_setDeviceId, INDIVIDUAL_ENROLLMENT_HANDLE, handle, const char*, device_id);
-    MOCKABLE_FUNCTION(, DEVICE_REGISTRATION_STATE_HANDLE, individualEnrollment_getDeviceRegistrationState, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
     MOCKABLE_FUNCTION(, const char*, individualEnrollment_getEtag, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
     MOCKABLE_FUNCTION(, int, individualEnrollment_setEtag, INDIVIDUAL_ENROLLMENT_HANDLE, handle, const char*, etag);
     MOCKABLE_FUNCTION(, PROVISIONING_STATUS, individualEnrollment_getProvisioningStatus, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
@@ -179,6 +204,11 @@ extern "C" {
     MOCKABLE_FUNCTION(, const char*, individualEnrollment_getUpdatedDateTime, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
 
     /* Enrollment Group Accessor Functions */
+    MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, enrollmentGroup_getAttestationMechanism, ENROLLMENT_GROUP_HANDLE, handle);
+    MOCKABLE_FUNCTION(, int, enrollmentGroup_setAttestationMechanism, ENROLLMENT_GROUP_HANDLE, eg_handle, ATTESTATION_MECHANISM_HANDLE, am_handle);
+    MOCKABLE_FUNCTION(, TWIN_STATE_HANDLE, enrollmentGroup_getInitialTwinState, ENROLLMENT_GROUP_HANDLE, handle);
+    MOCKABLE_FUNCTION(, int, enrollmentGroup_setInitialTwinState, ENROLLMENT_GROUP_HANDLE, eg_handle, TWIN_STATE_HANDLE, ts_handle);
+
     MOCKABLE_FUNCTION(, const char*, enrollmentGroup_getGroupId, ENROLLMENT_GROUP_HANDLE, handle);
     MOCKABLE_FUNCTION(, const char*, enrollmentGroup_getEtag, ENROLLMENT_GROUP_HANDLE, handle);
     MOCKABLE_FUNCTION(, int, enrollmentGroup_setEtag, ENROLLMENT_GROUP_HANDLE, handle, const char*, etag);
@@ -211,6 +241,12 @@ extern "C" {
     MOCKABLE_FUNCTION(, const char*, x509Certificate_getNotAfterUtc, X509_CERTIFICATE_HANDLE, handle);
     MOCKABLE_FUNCTION(, const char*, x509Certificate_getSerialNumber, X509_CERTIFICATE_HANDLE, handle);
     MOCKABLE_FUNCTION(, int, x509Certificate_getVersion, X509_CERTIFICATE_HANDLE, handle);
+
+    /* Twin State Accessor Functions */
+    MOCKABLE_FUNCTION(, const char*, twinState_getTags, TWIN_STATE_HANDLE, handle);
+    MOCKABLE_FUNCTION(, int, twinState_setTags, TWIN_STATE_HANDLE, handle, const char*, tags);
+    MOCKABLE_FUNCTION(, const char*, twinState_getDesiredProperties, TWIN_STATE_HANDLE, handle);
+    MOCKABLE_FUNCTION(, int, twinState_setDesiredProperties, TWIN_STATE_HANDLE, handle, const char*, desiredProperties);
 
 #ifdef __cplusplus
 }

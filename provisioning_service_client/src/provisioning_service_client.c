@@ -65,7 +65,7 @@ typedef struct HANDLE_FUNCTION_VECTOR_TAG
 #define IOTHUBSHAREDACESSKEYNAME "SharedAccessKeyName"
 #define IOTHUBSHAREDACESSKEY "SharedAccessKey"
 
-#define PROVISIONING_SERVICE_API_VERSION    "2017-08-31-preview"
+#define PROVISIONING_SERVICE_API_VERSION    "2017-11-15"
 #define ENROLL_GROUP_PROVISION_PATH_FMT     "/enrollmentGroups/%s?api-version=%s"
 #define INDV_ENROLL_PROVISION_PATH_FMT      "/enrollments/%s?api-version=%s"
 #define HEADER_KEY_AUTHORIZATION            "Authorization"
@@ -256,7 +256,7 @@ static HTTP_HEADERS_HANDLE construct_http_headers(const PROV_SERVICE_CLIENT* pro
             if ((HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_USER_AGENT, HEADER_VALUE_USER_AGENT) != HTTP_HEADERS_OK) ||
                 (HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_ACCEPT, HEADER_VALUE_ACCEPT) != HTTP_HEADERS_OK) ||
                 ((request != HTTP_CLIENT_REQUEST_DELETE) && (HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_CONTENT_TYPE, HEADER_VALUE_CONTENT_TYPE) != HTTP_HEADERS_OK)) ||
-                ((request != HTTP_CLIENT_REQUEST_DELETE) && (HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_AUTHORIZATION, STRING_c_str(sas_token)) != HTTP_HEADERS_OK)) ||
+                (HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_AUTHORIZATION, STRING_c_str(sas_token)) != HTTP_HEADERS_OK) ||
                 ((etag != NULL) && (HTTPHeaders_AddHeaderNameValuePair(result, HEADER_KEY_IF_MATCH, etag) != HTTP_HEADERS_OK)))
             {
                 LogError("failure adding header value");

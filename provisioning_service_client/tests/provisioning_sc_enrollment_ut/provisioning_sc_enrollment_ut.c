@@ -41,6 +41,8 @@ MOCKABLE_FUNCTION(, JSON_Status, json_object_set_number, JSON_Object*, object, c
 MOCKABLE_FUNCTION(, JSON_Value*, json_value_init_object);
 MOCKABLE_FUNCTION(, void, json_value_free, JSON_Value*, value);
 MOCKABLE_FUNCTION(, JSON_Object*, json_value_get_object, const JSON_Value*, value);
+MOCKABLE_FUNCTION(, void, json_free_serialized_string, char*, string);
+MOCKABLE_FUNCTION(, JSON_Value*, json_object_get_wrapping_value, const JSON_Object*, object);
 
 #undef ENABLE_MOCKS
 
@@ -306,12 +308,12 @@ TEST_FUNCTION(attestationMechanism_createWithTpm_fail)
 }
 
 /* Tests_ENROLLMENTS_22_005: [If primary_cert is NULL, attestationMechanism_createWithX509 shall fail and return NULL] */
-TEST_FUNCTION(attestationMechanism_createWithX509_error_NULL_certs)
+TEST_FUNCTION(attestationMechanism_createWithX509ClientCert_error_NULL_certs)
 {
     //arrange
 
     //act
-    ATTESTATION_MECHANISM_HANDLE handle = attestationMechanism_createWithX509(NULL, NULL);
+    ATTESTATION_MECHANISM_HANDLE handle = attestationMechanism_createWithX509ClientCert(NULL, NULL);
 
     //assert
     ASSERT_IS_NULL(handle);
@@ -322,12 +324,12 @@ TEST_FUNCTION(attestationMechanism_createWithX509_error_NULL_certs)
 }
 
 /* Tests_ENROLLMENTS_22_005: [If primary_cert is NULL, attestationMechanism_createWithX509 shall fail and return NULL] */
-TEST_FUNCTION(attestationMechanism_createWithX509_NULL_primary)
+TEST_FUNCTION(attestationMechanism_createWithX509ClientCert_NULL_primary)
 {
     //arrange
 
     //act
-    ATTESTATION_MECHANISM_HANDLE handle = attestationMechanism_createWithX509(NULL, TEST_CERT2);
+    ATTESTATION_MECHANISM_HANDLE handle = attestationMechanism_createWithX509ClientCert(NULL, TEST_CERT2);
 
     //assert
     ASSERT_IS_NULL(handle);
@@ -339,7 +341,7 @@ TEST_FUNCTION(attestationMechanism_createWithX509_NULL_primary)
 
 /* Tests_ENROLLMENTS_22_008: [ Upon successful creation of the new ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWithX509 shall return it ] */
 /* Tests_ENROLLMENTS_22_040: [The new ATTESTATION_MECHANISM_HANDLE will have one certificate if it was only given primary_cert and two certificates if it was also given secondary_cert] */
-TEST_FUNCTION(attestationMechanism_createWithX509_golden_primary_cert)
+TEST_FUNCTION(attestationMechanism_createWithClientCertX509_golden_primary_cert)
 {
     //arrange
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
@@ -350,7 +352,7 @@ TEST_FUNCTION(attestationMechanism_createWithX509_golden_primary_cert)
     copy_string_expected_calls();
 
     //act
-    ATTESTATION_MECHANISM_HANDLE am_handle = attestationMechanism_createWithX509(TEST_CERT1, NULL);
+    ATTESTATION_MECHANISM_HANDLE am_handle = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
 
     //assert
     ASSERT_IS_NOT_NULL(am_handle);
@@ -370,7 +372,7 @@ TEST_FUNCTION(attestationMechanism_createWithX509_golden_primary_cert)
 
 /* Tests_ENROLLMENTS_22_006: [ If allocating memory for the new attestation mechanism fails, attestationMechanism_createWithX509 shall fail and return NULL ] */
 /* Tests_ENROLLMENTS_22_007: [ If setting initial values within the new attestation mechanism fails, attestationMechanism_createWithX509 shall fail and return NULL ] */
-TEST_FUNCTION(attestationMechanism_createWithX509_primary_cert_fail)
+TEST_FUNCTION(attestationMechanism_createWithX509ClientCert_primary_cert_fail)
 {
     //arrange
     int negativeTestsInitResult = umock_c_negative_tests_init();
@@ -405,7 +407,7 @@ TEST_FUNCTION(attestationMechanism_createWithX509_primary_cert_fail)
         umock_c_negative_tests_fail_call(index);
 
         //act
-        ATTESTATION_MECHANISM_HANDLE handle = attestationMechanism_createWithX509(TEST_CERT1, NULL);
+        ATTESTATION_MECHANISM_HANDLE handle = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
 
         //assert
         ASSERT_IS_NULL_WITH_MSG(handle, tmp_msg);
@@ -420,7 +422,7 @@ TEST_FUNCTION(attestationMechanism_createWithX509_primary_cert_fail)
 
 /* Tests_ENROLLMENTS_22_008: [ Upon successful creation of the new ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWithX509 shall return it ] */
 /* Tests_ENROLLMENTS_22_040: [The new ATTESTATION_MECHANISM_HANDLE will have one certificate if it was only given primary_cert and two certificates if it was also given secondary_cert] */
-TEST_FUNCTION(attestationMechanism_createWithX509_golden_both_certs)
+TEST_FUNCTION(attestationMechanism_createWithX509ClientCert_golden_both_certs)
 {
     //arrange
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
@@ -436,7 +438,7 @@ TEST_FUNCTION(attestationMechanism_createWithX509_golden_both_certs)
     copy_string_expected_calls();
 
     //act
-    ATTESTATION_MECHANISM_HANDLE am_handle = attestationMechanism_createWithX509(TEST_CERT1, TEST_CERT2);
+    ATTESTATION_MECHANISM_HANDLE am_handle = attestationMechanism_createWithX509ClientCert(TEST_CERT1, TEST_CERT2);
 
     //assert
     ASSERT_IS_NOT_NULL(am_handle);
@@ -497,7 +499,7 @@ TEST_FUNCTION(attestationMechanism_createWithX509_both_certs_fail)
         umock_c_negative_tests_reset();
         umock_c_negative_tests_fail_call(index);
 
-        ATTESTATION_MECHANISM_HANDLE handle = attestationMechanism_createWithX509(TEST_CERT1, TEST_CERT2);
+        ATTESTATION_MECHANISM_HANDLE handle = attestationMechanism_createWithX509ClientCert(TEST_CERT1, TEST_CERT2);
 
         //assert
         ASSERT_IS_NULL_WITH_MSG(handle, tmp_msg);
@@ -514,7 +516,6 @@ TEST_FUNCTION(attestationMechanism_createWithX509_both_certs_fail)
 TEST_FUNCTION(attestationMechanism_destroy_NULL)
 {
     //arrange
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
 
     //act
     attestationMechanism_destroy(NULL);
@@ -547,7 +548,7 @@ TEST_FUNCTION(attestationMechanism_destroy_golden_TPM)
 TEST_FUNCTION(attestationMechanism_destroy_golden_x509_one_cert)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am_handle = attestationMechanism_createWithX509(TEST_CERT1, NULL);
+    ATTESTATION_MECHANISM_HANDLE am_handle = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
     umock_c_reset_all_calls();
 
     attestationMechanism_free_expected_calls_x509OneCert();
@@ -565,7 +566,7 @@ TEST_FUNCTION(attestationMechanism_destroy_golden_x509_one_cert)
 TEST_FUNCTION(attestationMechanism_destroy_golden_x509_two_certs)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am_handle = attestationMechanism_createWithX509(TEST_CERT1, TEST_CERT2);
+    ATTESTATION_MECHANISM_HANDLE am_handle = attestationMechanism_createWithX509ClientCert(TEST_CERT1, TEST_CERT2);
     umock_c_reset_all_calls();
 
     attestationMechanism_free_expected_calls_x509TwoCerts();
@@ -599,7 +600,7 @@ TEST_FUNCTION(attestationMechanism_getTpmAttestation_error_NULL_handle)
 TEST_FUNCTION(attestationMechanism_getTpmAttestation_error_X509_handle)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, NULL);
+    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
     umock_c_reset_all_calls();
 
     //act
@@ -673,7 +674,7 @@ TEST_FUNCTION(attestationMechanism_getX509Attestation_error_TPM_handle)
 TEST_FUNCTION(attestationMechanism_getX509Attestation_golden)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, TEST_CERT2);
+    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, TEST_CERT2);
     umock_c_reset_all_calls();
 
     //act
@@ -818,7 +819,7 @@ TEST_FUNCTION(individualEnrollment_create_golden_tpm)
 TEST_FUNCTION(individualEnrollment_create_golden_x509)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, NULL);
+    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
@@ -845,7 +846,6 @@ TEST_FUNCTION(individualEnrollment_create_golden_x509)
 TEST_FUNCTION(individualEnrollment_destroy_error_NULL)
 {
     //arrange
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
 
     //act
     individualEnrollment_destroy(NULL);
@@ -885,7 +885,7 @@ TEST_FUNCTION(individualEnrollment_destroy_golden_TPM_attestation)
 TEST_FUNCTION(individualEnrollment_destroy_golden_X509_attestation_one_cert)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, NULL);
+    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
     INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, am);
     umock_c_reset_all_calls();
 
@@ -910,7 +910,7 @@ TEST_FUNCTION(individualEnrollment_destroy_golden_X509_attestation_one_cert)
 TEST_FUNCTION(individualEnrollment_destroy_golden_X509_attestation_two_certs)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, TEST_CERT2);
+    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, TEST_CERT2);
     INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, am);
     umock_c_reset_all_calls();
 
@@ -935,7 +935,7 @@ TEST_FUNCTION(individualEnrollment_destroy_golden_X509_attestation_two_certs)
 TEST_FUNCTION(enrollmentGroup_create_error_NULL_groupid)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, NULL);
+    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509SigningCert(TEST_CERT1, NULL);
     umock_c_reset_all_calls();
 
     //act
@@ -994,7 +994,7 @@ TEST_FUNCTION(enrollmentGroup_create_error_TPM_attmech)
 TEST_FUNCTION(enrollmentGroup_create_golden_X509_one_cert)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, NULL);
+    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509SigningCert(TEST_CERT1, NULL);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
@@ -1020,7 +1020,7 @@ TEST_FUNCTION(enrollmentGroup_create_golden_X509_one_cert)
 TEST_FUNCTION(enrollmentGroup_create_golden_X509_two_certs)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, TEST_CERT2);
+    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509SigningCert(TEST_CERT1, TEST_CERT2);
     umock_c_reset_all_calls();
 
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
@@ -1081,7 +1081,7 @@ TEST_FUNCTION(enrollmentGroup_create_fail_x509_one_cert)
         umock_c_negative_tests_fail_call(index);
 
         //act
-        ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, NULL); //all calls in here will be skipped so will not fail
+        ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL); //all calls in here will be skipped so will not fail
         INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, am);
 
         //assert
@@ -1138,7 +1138,7 @@ TEST_FUNCTION(enrollmentGroup_create_fail_x509_two_certs)
         umock_c_negative_tests_fail_call(index);
 
         //act
-        ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, TEST_CERT2); //all calls in here will be skipped so will not fail
+        ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509SigningCert(TEST_CERT1, TEST_CERT2); //all calls in here will be skipped so will not fail
         INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, am);
 
         //assert
@@ -1160,7 +1160,6 @@ TEST_FUNCTION(enrollmentGroup_create_fail_x509_two_certs)
 TEST_FUNCTION(enrollmentGroup_destroy_NULL)
 {
     //arrange
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
 
     //act
     enrollmentGroup_destroy(NULL);
@@ -1175,7 +1174,7 @@ TEST_FUNCTION(enrollmentGroup_destroy_NULL)
 TEST_FUNCTION(enrollmentGroup_destroy_x509_one_cert)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, NULL);
+    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509SigningCert(TEST_CERT1, NULL);
     ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(TEST_REGID, am);
     umock_c_reset_all_calls();
 
@@ -1199,7 +1198,7 @@ TEST_FUNCTION(enrollmentGroup_destroy_x509_one_cert)
 TEST_FUNCTION(enrollmentGroup_destroy_x509_two_certs)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509(TEST_CERT1, TEST_CERT2);
+    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509SigningCert(TEST_CERT1, TEST_CERT2);
     ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(TEST_REGID, am);
     umock_c_reset_all_calls();
 
@@ -1226,8 +1225,8 @@ TEST_FUNCTION(attestationMechanism_accessors_get)
 {
     //arrange
     ATTESTATION_MECHANISM_HANDLE tpm = attestationMechanism_createWithTpm(TEST_EK);
-    ATTESTATION_MECHANISM_HANDLE x509one = attestationMechanism_createWithX509(TEST_CERT1, NULL);
-    ATTESTATION_MECHANISM_HANDLE x509two = attestationMechanism_createWithX509(TEST_CERT1, TEST_CERT2);
+    ATTESTATION_MECHANISM_HANDLE x509one = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
+    ATTESTATION_MECHANISM_HANDLE x509two = attestationMechanism_createWithX509ClientCert(TEST_CERT1, TEST_CERT2);
 
     //act
     ATTESTATION_TYPE t1 = attestationMechanism_getType(tpm);

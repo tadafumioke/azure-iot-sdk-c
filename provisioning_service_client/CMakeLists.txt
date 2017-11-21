@@ -24,6 +24,7 @@ set(provisioning_service_client_h_files
 ./inc/provisioning_sc_bulk_operation.h
 ./inc/provisioning_sc_enrollment.h
 ./inc/provisioning_sc_enrollment_private.h
+./inc/provisioning_sc_json_const.h
 ../deps/parson/parson.h
 )
 

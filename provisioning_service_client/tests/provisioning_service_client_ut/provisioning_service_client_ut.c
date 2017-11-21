@@ -1,8 +1,6 @@
 // Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-#include <vld.h>
-
 #ifdef __cplusplus
 #include <cstdlib>
 #include <cstddef>
@@ -588,9 +586,9 @@ static void expected_calls_construct_http_headers(etag_flag etag_flag, HTTP_CLIE
     if (request != HTTP_CLIENT_REQUEST_DELETE)
     {
         STRICT_EXPECTED_CALL(HTTPHeaders_AddHeaderNameValuePair(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG));
-        STRICT_EXPECTED_CALL(STRING_c_str(IGNORED_PTR_ARG)); //does not fail
-        STRICT_EXPECTED_CALL(HTTPHeaders_AddHeaderNameValuePair(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG));
     }
+    STRICT_EXPECTED_CALL(STRING_c_str(IGNORED_PTR_ARG)); //does not fail
+    STRICT_EXPECTED_CALL(HTTPHeaders_AddHeaderNameValuePair(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG));
     if (etag_flag == ETAG)
         STRICT_EXPECTED_CALL(HTTPHeaders_AddHeaderNameValuePair(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(STRING_delete(IGNORED_PTR_ARG)); //does not fail
@@ -1466,7 +1464,7 @@ TEST_FUNCTION(prov_sc_delete_individual_enrollment_FAIL)
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 0, 3, 4, 6, 11, 12, 16, 18, 19, 20, 21, 22, 23 };
+    size_t calls_cannot_fail[] = { 0, 3, 4, 6, 10, 13, 14, 18, 20, 21, 22, 23, 24, 25 };
     size_t count = umock_c_negative_tests_call_count();
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
 
@@ -1612,7 +1610,8 @@ TEST_FUNCTION(prov_sc_delete_individual_enrollment_by_param_FAIL)
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 1, 2, 4, 9, 10, 14, 16, 17, 18, 19, 20, 21 };
+    size_t calls_cannot_fail[] = { 1, 2, 4, 8, 11, 12, 16, 18, 19, 20, 21, 22, 23 };
+
     size_t count = umock_c_negative_tests_call_count();
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
 
@@ -2068,7 +2067,7 @@ TEST_FUNCTION(prov_sc_delete_enrollment_group_FAIL)
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 0, 3, 4, 6, 11, 12, 16, 18, 19, 20, 21, 22, 23 };
+    size_t calls_cannot_fail[] = { 0, 3, 4, 6, 10, 13, 14, 18, 20, 21, 22, 23, 24, 25 };
     size_t count = umock_c_negative_tests_call_count();
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
 
@@ -2214,7 +2213,7 @@ TEST_FUNCTION(prov_sc_delete_enrollment_group_by_param_FAIL)
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 1, 2, 4, 9, 10, 14, 16, 17, 18, 19, 20, 21 };
+    size_t calls_cannot_fail[] = { 1, 2, 4, 8, 11, 12, 16, 18, 19, 20, 21, 22, 23 };
     size_t count = umock_c_negative_tests_call_count();
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
 
