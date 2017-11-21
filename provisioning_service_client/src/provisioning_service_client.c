@@ -484,7 +484,7 @@ static int prov_sc_create_or_update_record(PROVISIONING_SERVICE_CLIENT_HANDLE pr
     return result;
 }
 
-static int prov_sc_delete_record_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, const char* etag)
+static int prov_sc_delete_record_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id, const char* etag, const char* path_format)
 {
     int result = 0;
 
@@ -501,7 +501,7 @@ static int prov_sc_delete_record_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE pro
     else
     {
         STRING_HANDLE registration_path;
-        if ((registration_path = construct_registration_path(id, INDV_ENROLL_PROVISION_PATH_FMT)) == NULL)
+        if ((registration_path = construct_registration_path(id, path_format)) == NULL)
         {
             LogError("Failed constructing provisioning path");
             result = __FAILURE__;
@@ -768,12 +768,12 @@ int prov_sc_create_or_update_individual_enrollment(PROVISIONING_SERVICE_CLIENT_H
 
 int prov_sc_delete_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, INDIVIDUAL_ENROLLMENT_HANDLE enrollment)
 {
-    return prov_sc_delete_record_by_param(prov_client, individualEnrollment_getRegistrationId(enrollment), individualEnrollment_getEtag(enrollment));
+    return prov_sc_delete_record_by_param(prov_client, individualEnrollment_getRegistrationId(enrollment), individualEnrollment_getEtag(enrollment), INDV_ENROLL_PROVISION_PATH_FMT);
 }
 
 int prov_sc_delete_individual_enrollment_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* reg_id, const char* etag)
 {
-    return prov_sc_delete_record_by_param(prov_client, reg_id, etag);
+    return prov_sc_delete_record_by_param(prov_client, reg_id, etag, INDV_ENROLL_PROVISION_PATH_FMT);
 }
 
 int prov_sc_get_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* reg_id, INDIVIDUAL_ENROLLMENT_HANDLE* enrollment_ptr)
@@ -805,12 +805,12 @@ int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE
 
 int prov_sc_delete_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, ENROLLMENT_GROUP_HANDLE enrollment)
 {
-    return prov_sc_delete_record_by_param(prov_client, enrollmentGroup_getGroupId(enrollment), enrollmentGroup_getEtag(enrollment));
+    return prov_sc_delete_record_by_param(prov_client, enrollmentGroup_getGroupId(enrollment), enrollmentGroup_getEtag(enrollment), ENROLL_GROUP_PROVISION_PATH_FMT);
 }
 
 int prov_sc_delete_enrollment_group_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_id, const char* etag)
 {
-    return prov_sc_delete_record_by_param(prov_client, group_id, etag);
+    return prov_sc_delete_record_by_param(prov_client, group_id, etag, ENROLL_GROUP_PROVISION_PATH_FMT);
 }
 
 int prov_sc_get_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_id, ENROLLMENT_GROUP_HANDLE* enrollment_ptr)
