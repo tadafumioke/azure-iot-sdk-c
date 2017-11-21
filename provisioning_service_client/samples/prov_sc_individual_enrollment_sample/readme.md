@@ -10,7 +10,7 @@ This is a quick tutorial with the steps to create, update, get, and delete an In
 
 ## How to run the sample on Linux or Windows
 
-1. Clone the [C SDK repository](https://github.com/Azure/azure-iot-sdk-c)
+1. Clone the [C SDK repository][root-link]
 2. Compile the C SDK as shown [here][devbox-setup-link], using the `-Duse_prov_client=ON` flag.
 3. Edit `provisioning_individual_enrollment_sample.c` to add your provisioning service information:
     1. Replace the `[Connection String]` with the Provisioning Connection String copied from your Device Provisiong Service on the Portal.
@@ -58,8 +58,9 @@ This is a quick tutorial with the steps to create, update, get, and delete an In
             ```
 4. Build as shown [here][devbox-setup-link] and run the sample.
 
+[root-link]: ../../..
 [source-code-link]: ../../src
 [tpm-simulator-link]: https://github.com/Azure/azure-iot-sdk-java/tree/master/provisioning/provisioning-tools/tpm-simulator
 [dice-link]: https://azure.microsoft.com/en-us/blog/azure-iot-supports-new-security-hardware-to-strengthen-iot-security/
-[devbox-setup-link]: ../../../doc/devbox-setup.md
+[devbox-setup-link]: ../../../doc/devbox_setup.md
 [ca-cert-link]: ../../../tools/CACertificates
