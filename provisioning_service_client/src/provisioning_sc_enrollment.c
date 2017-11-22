@@ -539,7 +539,7 @@ static INITIAL_TWIN_PROPERTIES* twinProperties_fromJson(JSON_Object* root_object
     return new_twinProperties;
 }
 
-static void twinState_free(INITIAL_TWIN* twin_state)
+static void initialTwinState_free(INITIAL_TWIN* twin_state)
 {
     if (twin_state != NULL)
     {
@@ -549,7 +549,7 @@ static void twinState_free(INITIAL_TWIN* twin_state)
     }
 }
 
-static JSON_Value* twinState_toJson(INITIAL_TWIN* twin_state)
+static JSON_Value* initialTwinState_toJson(INITIAL_TWIN* twin_state)
 {
     JSON_Value* root_value = NULL;
     JSON_Object* root_object = NULL;
@@ -582,33 +582,33 @@ static JSON_Value* twinState_toJson(INITIAL_TWIN* twin_state)
     return root_value;
 }
 
-static INITIAL_TWIN* twinState_fromJson(JSON_Object* root_object)
+static INITIAL_TWIN* initialTwinState_fromJson(JSON_Object* root_object)
 {
-    INITIAL_TWIN* new_twinState = NULL;
+    INITIAL_TWIN* new_initialTwinState = NULL;
 
-    if ((new_twinState = malloc(sizeof(INITIAL_TWIN))) == NULL)
+    if ((new_initialTwinState = malloc(sizeof(INITIAL_TWIN))) == NULL)
     {
         LogError("Allocation of Twin State failed");
     }
     else
     {
-        memset(new_twinState, 0, sizeof(INITIAL_TWIN));
+        memset(new_initialTwinState, 0, sizeof(INITIAL_TWIN));
 
-        if (json_deserialize_and_get_struct(&(new_twinState->tags), root_object, INITIAL_TWIN_JSON_KEY_TAGS, twinCollection_fromJson, OPTIONAL) != 0)
+        if (json_deserialize_and_get_struct(&(new_initialTwinState->tags), root_object, INITIAL_TWIN_JSON_KEY_TAGS, twinCollection_fromJson, OPTIONAL) != 0)
         {
             LogError("Failed to set '%s' in Twin State", INITIAL_TWIN_JSON_KEY_TAGS);
-            twinState_free(new_twinState);
-            new_twinState = NULL;
+            initialTwinState_free(new_initialTwinState);
+            new_initialTwinState = NULL;
         }
-        else if (json_deserialize_and_get_struct(&(new_twinState->properties), root_object, INITIAL_TWIN_JSON_KEY_PROPERTIES, twinProperties_fromJson, OPTIONAL) != 0)
+        else if (json_deserialize_and_get_struct(&(new_initialTwinState->properties), root_object, INITIAL_TWIN_JSON_KEY_PROPERTIES, twinProperties_fromJson, OPTIONAL) != 0)
         {
             LogError("Failed to set '%s' in Twin State", INITIAL_TWIN_JSON_KEY_PROPERTIES);
-            twinState_free(new_twinState);
-            new_twinState = NULL;
+            initialTwinState_free(new_initialTwinState);
+            new_initialTwinState = NULL;
         }
     }
 
-    return new_twinState;
+    return new_initialTwinState;
 }
 
 static void x509CAReferences_free(X509_CA_REFERENCES* x509_ca_ref)
@@ -1650,7 +1650,7 @@ static void individualEnrollment_free(INDIVIDUAL_ENROLLMENT* enrollment)
         free(enrollment->created_date_time_utc);
         free(enrollment->updated_date_time_utc);
         attestationMechanism_free(enrollment->attestation_mechanism);
-        twinState_free(enrollment->initial_twin);
+        initialTwinState_free(enrollment->initial_twin);
         deviceRegistrationState_free(enrollment->registration_state);
         free(enrollment);
     }
@@ -1698,7 +1698,7 @@ static JSON_Value* individualEnrollment_toJson(const INDIVIDUAL_ENROLLMENT* enro
         json_value_free(root_value);
         root_value = NULL;
     }
-    else if (json_serialize_and_set_struct(root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_INITIAL_TWIN, enrollment->initial_twin, twinState_toJson, OPTIONAL) != 0)
+    else if (json_serialize_and_set_struct(root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_INITIAL_TWIN, enrollment->initial_twin, initialTwinState_toJson, OPTIONAL) != 0)
     {
         LogError("Failed to set '%s' in JSON String", INDIVIDUAL_ENROLLMENT_JSON_KEY_INITIAL_TWIN);
         json_value_free(root_value);
@@ -1761,7 +1761,7 @@ static INDIVIDUAL_ENROLLMENT* individualEnrollment_fromJson(JSON_Object* root_ob
             individualEnrollment_free(new_enrollment);
             new_enrollment = NULL;
         }
-        else if (json_deserialize_and_get_struct(&(new_enrollment->initial_twin), root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_INITIAL_TWIN, twinState_fromJson, OPTIONAL) != 0)
+        else if (json_deserialize_and_get_struct(&(new_enrollment->initial_twin), root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_INITIAL_TWIN, initialTwinState_fromJson, OPTIONAL) != 0)
         {
             LogError("Failed to set '%s' in Individual Enrollment", INDIVIDUAL_ENROLLMENT_JSON_KEY_INITIAL_TWIN);
             individualEnrollment_free(new_enrollment);
@@ -1802,7 +1802,7 @@ static void enrollmentGroup_free(ENROLLMENT_GROUP* enrollment)
     {
         free(enrollment->group_id);
         attestationMechanism_free(enrollment->attestation_mechanism);
-        twinState_free(enrollment->initial_twin);
+        initialTwinState_free(enrollment->initial_twin);
         free(enrollment->etag);
         free(enrollment->created_date_time_utc);
         free(enrollment->updated_date_time_utc);
@@ -1844,7 +1844,7 @@ static JSON_Value* enrollmentGroup_toJson(const ENROLLMENT_GROUP* enrollment)
         json_value_free(root_value);
         root_value = NULL;
     }
-    else if (json_serialize_and_set_struct(root_object, ENROLLMENT_GROUP_JSON_KEY_INITIAL_TWIN, enrollment->initial_twin, twinState_toJson, OPTIONAL) != 0)
+    else if (json_serialize_and_set_struct(root_object, ENROLLMENT_GROUP_JSON_KEY_INITIAL_TWIN, enrollment->initial_twin, initialTwinState_toJson, OPTIONAL) != 0)
     {
         LogError("Failed to set '%s' in JSON string", ENROLLMENT_GROUP_JSON_KEY_INITIAL_TWIN);
         json_value_free(root_value);
@@ -1890,7 +1890,7 @@ static ENROLLMENT_GROUP* enrollmentGroup_fromJson(JSON_Object* root_object)
             enrollmentGroup_free(new_enrollment);
             new_enrollment = NULL;
         }
-        else if (json_deserialize_and_get_struct(&(new_enrollment->initial_twin), root_object, ENROLLMENT_GROUP_JSON_KEY_INITIAL_TWIN, twinState_fromJson, OPTIONAL) != 0)
+        else if (json_deserialize_and_get_struct(&(new_enrollment->initial_twin), root_object, ENROLLMENT_GROUP_JSON_KEY_INITIAL_TWIN, initialTwinState_fromJson, OPTIONAL) != 0)
         {
             LogError("Failed to set '%s' in Enrollment Group", ENROLLMENT_GROUP_JSON_KEY_INITIAL_TWIN);
             enrollmentGroup_free(new_enrollment);
@@ -2362,13 +2362,13 @@ INITIAL_TWIN_HANDLE initialTwinState_create(const char* tags, const char* desire
         if (tags != NULL && ((new_twin->tags = twinCollection_create(tags)) == NULL))
         {
             LogError("Failed to create tags");
-            twinState_free(new_twin);
+            initialTwinState_free(new_twin);
             new_twin = NULL;
         }
         else if (desired_properties != NULL && ((new_twin->properties = twinProperties_create(desired_properties)) == NULL))
         {
             LogError("Failed to create desired properties");
-            twinState_free(new_twin);
+            initialTwinState_free(new_twin);
             new_twin = NULL;
         }
     }
@@ -2376,10 +2376,10 @@ INITIAL_TWIN_HANDLE initialTwinState_create(const char* tags, const char* desire
     return new_twin;
 }
 
-void twinState_destroy(INITIAL_TWIN_HANDLE handle)
+void initialTwinState_destroy(INITIAL_TWIN_HANDLE handle)
 {
     INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
-    twinState_free(twin);
+    initialTwinState_free(twin);
 }
 
 /* Accessor Functions - Attestation Mechanism */
@@ -2472,7 +2472,7 @@ int individualEnrollment_setInitialTwinState(INDIVIDUAL_ENROLLMENT_HANDLE ie_han
     }
     else
     {
-        twinState_free(enrollment->initial_twin);
+        initialTwinState_free(enrollment->initial_twin);
         enrollment->initial_twin = twin;
     }
 
@@ -2743,7 +2743,7 @@ int enrollmentGroup_setInitialTwinState(ENROLLMENT_GROUP_HANDLE eg_handle, INITI
     }
     else
     {
-        twinState_free(enrollment->initial_twin);
+        initialTwinState_free(enrollment->initial_twin);
         enrollment->initial_twin = twin;
     }
 
@@ -3223,9 +3223,9 @@ int x509Certificate_getVersion(X509_CERTIFICATE_HANDLE handle)
     return result;
 }
 
-/* Accessor Functions - Twin State */
+/* Accessor Functions - Initial Twin */
 
-const char* twinState_getTags(INITIAL_TWIN_HANDLE handle)
+const char* initialTwinState_getTags(INITIAL_TWIN_HANDLE handle)
 {
     char* result = NULL;
     INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
@@ -3246,7 +3246,7 @@ const char* twinState_getTags(INITIAL_TWIN_HANDLE handle)
     return result;
 }
 
-int twinState_setTags(INITIAL_TWIN_HANDLE handle, const char* tags)
+int initialTwin_setTags(INITIAL_TWIN_HANDLE handle, const char* tags)
 {
     int result = 0;
     INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
@@ -3281,7 +3281,7 @@ int twinState_setTags(INITIAL_TWIN_HANDLE handle, const char* tags)
     return result;
 }
 
-const char* twinState_getDesiredProperties(INITIAL_TWIN_HANDLE handle)
+const char* initialTwin_getDesiredProperties(INITIAL_TWIN_HANDLE handle)
 {
     char* result = NULL;
     INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
@@ -3302,7 +3302,7 @@ const char* twinState_getDesiredProperties(INITIAL_TWIN_HANDLE handle)
     return result;
 }
 
-int twinState_setDesiredProperties(INITIAL_TWIN_HANDLE handle, const char* desired_properties)
+int initialTwin_setDesiredProperties(INITIAL_TWIN_HANDLE handle, const char* desired_properties)
 {
     int result = 0;
     INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;

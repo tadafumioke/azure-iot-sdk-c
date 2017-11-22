@@ -162,24 +162,24 @@ extern "C" {
     MOCKABLE_FUNCTION(, void, enrollmentGroup_destroy, ENROLLMENT_GROUP_HANDLE, handle);
 
 
-    /* Twin State Operation Functions */
+    /* Initial Twin Operation Functions */
 
-    /** @brief  Creates a Twin State handle for use in consequent APIs.
+    /** @brief  Creates an Initial Twin handle for use in consequent APIs.
     *
     * @param    tags                    The json string for the tags of the initial Twin State
     * @param    desired_properties      The json string for the desired properties of the initial Twin State
     *
-    * @return   A non-NULL handle representing an initial Twin State for use with Provisioning Service, and NULL on failure.
+    * @return   A non-NULL handle representing an Initial Twin for use with Provisioning Service, and NULL on failure.
     */
-    MOCKABLE_FUNCTION(, INITIAL_TWIN_HANDLE, initialTwinState_create, const char*, tags, const char*, desired_properties);
+    MOCKABLE_FUNCTION(, INITIAL_TWIN_HANDLE, initialTwin_create, const char*, tags, const char*, desired_properties);
 
-    /** @brief  Destroys a Twin State handle, freeing all associated memory. Please note that this will also cause any Enrollment 
-    *           that the Twin State has been attached to to have unexpected behvaiours. Do not use this function
-    *           unless the Twin State is unattached.
+    /** @brief  Destroys an Initial Twin handle, freeing all associated memory. Please note that this will also cause any Enrollment 
+    *           that the Initial Twin has been attached to to have unexpected behvaiours. Do not use this function
+    *           unless the Initial Twin is unattached.
     *
-    * @param    handle      The handle of the Twin State to be destroyed
+    * @param    handle      The handle of the Initial Twin to be destroyed
     */
-    MOCKABLE_FUNCTION(, void, twinState_destroy, INITIAL_TWIN_HANDLE, handle);
+    MOCKABLE_FUNCTION(, void, initialTwin_destroy, INITIAL_TWIN_HANDLE, handle);
 
 
     /* ACCESSOR FUNCTIONS
@@ -252,11 +252,11 @@ extern "C" {
     MOCKABLE_FUNCTION(, const char*, x509Certificate_getSerialNumber, X509_CERTIFICATE_HANDLE, handle);
     MOCKABLE_FUNCTION(, int, x509Certificate_getVersion, X509_CERTIFICATE_HANDLE, handle);
 
-    /* Twin State Accessor Functions */
-    MOCKABLE_FUNCTION(, const char*, twinState_getTags, INITIAL_TWIN_HANDLE, handle);
-    MOCKABLE_FUNCTION(, int, twinState_setTags, INITIAL_TWIN_HANDLE, handle, const char*, tags);
-    MOCKABLE_FUNCTION(, const char*, twinState_getDesiredProperties, INITIAL_TWIN_HANDLE, handle);
-    MOCKABLE_FUNCTION(, int, twinState_setDesiredProperties, INITIAL_TWIN_HANDLE, handle, const char*, desiredProperties);
+    /* Initial Twin Accessor Functions */
+    MOCKABLE_FUNCTION(, const char*, initialTwinState_getTags, INITIAL_TWIN_HANDLE, handle);
+    MOCKABLE_FUNCTION(, int, initialTwinState_setTags, INITIAL_TWIN_HANDLE, handle, const char*, tags);
+    MOCKABLE_FUNCTION(, const char*, initialTwinState_getDesiredProperties, INITIAL_TWIN_HANDLE, handle);
+    MOCKABLE_FUNCTION(, int, initialTwinState_setDesiredProperties, INITIAL_TWIN_HANDLE, handle, const char*, desiredProperties);
 
 #ifdef __cplusplus
 }
