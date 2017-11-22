@@ -16,7 +16,8 @@
 #define CERTIFICATE_TYPE_VALUES \
             CERTIFICATE_TYPE_NONE, \
             CERTIFICATE_TYPE_CLIENT, \
-            CERTIFICATE_TYPE_SIGNING \
+            CERTIFICATE_TYPE_SIGNING, \
+            CERTIFICATE_TYPE_CA_REFERENCES \
 
 //Note: CERTIFICATE_TYPE_NONE is invalid, indicating error
 DEFINE_ENUM(CERTIFICATE_TYPE, CERTIFICATE_TYPE_VALUES);
@@ -57,13 +58,21 @@ typedef struct X509_CERTIFICATES_TAG
     X509_CERTIFICATE_WITH_INFO* secondary;
 } X509_CERTIFICATES;
 
+typedef struct X509_CA_REFERENCES_TAG
+{
+    char* primary;
+    char* secondary;
+} X509_CA_REFERENCES;
+
 typedef struct X509_ATTESTATION_TAG
 {
     CERTIFICATE_TYPE type;
     union {
         X509_CERTIFICATES* client_certificates;
         X509_CERTIFICATES* signing_certificates;
+        X509_CA_REFERENCES* ca_references;
     } certificates;
+
 } X509_ATTESTATION;
 
 typedef struct ATTESTATION_MECHANISM_TAG
@@ -75,27 +84,21 @@ typedef struct ATTESTATION_MECHANISM_TAG
     } attestation;
 } ATTESTATION_MECHANISM;
 
-//typedef struct METADATA_TAG
-//{
-//    char* last_updated;
-//    int last_updated_version;
-//} METADATA;
-
 typedef struct TWIN_COLLECTION_TAG
 {
     char* json;
 } TWIN_COLLECTION;
 
-typedef struct TWIN_PROPERTIES_TAG
+typedef struct INITIAL_TWIN_PROPERTIES_TAG
 {
     TWIN_COLLECTION* desired;
-} TWIN_PROPERTIES;
+} INITIAL_TWIN_PROPERTIES;
 
-typedef struct TWIN_STATE_TAG
+typedef struct INITIAL_TWIN_TAG
 {
     TWIN_COLLECTION* tags;
-    TWIN_PROPERTIES* properties;
-} TWIN_STATE;
+    INITIAL_TWIN_PROPERTIES* properties;
+} INITIAL_TWIN;
 
 typedef struct DEVICE_REGISTRATION_STATE_TAG
 {
@@ -115,7 +118,7 @@ typedef struct INDIVIDUAL_ENROLLMENT_TAG
     char* device_id;
     DEVICE_REGISTRATION_STATE* registration_state; //read only
     ATTESTATION_MECHANISM* attestation_mechanism;
-    TWIN_STATE* initial_twin;
+    INITIAL_TWIN* initial_twin;
     char* etag;
     PROVISIONING_STATUS provisioning_status;
     char* created_date_time_utc; //read only
@@ -126,7 +129,7 @@ typedef struct ENROLLMENT_GROUP_TAG
 {
     char* group_id; //read only
     ATTESTATION_MECHANISM* attestation_mechanism;
-    TWIN_STATE* initial_twin;
+    INITIAL_TWIN* initial_twin;
     char* etag;
     PROVISIONING_STATUS provisioning_status;
     char* created_date_time_utc; //read only
@@ -454,7 +457,7 @@ static TWIN_COLLECTION* twinCollection_create(const char* json)
     return new_twinCollection;
 }
 
-static void twinProperties_free(TWIN_PROPERTIES* twin_properties)
+static void twinProperties_free(INITIAL_TWIN_PROPERTIES* twin_properties)
 {
     if (twin_properties != NULL)
     {
@@ -463,17 +466,17 @@ static void twinProperties_free(TWIN_PROPERTIES* twin_properties)
     }
 }
 
-static TWIN_PROPERTIES* twinProperties_create(const char* desired_properties)
+static INITIAL_TWIN_PROPERTIES* twinProperties_create(const char* desired_properties)
 {
-    TWIN_PROPERTIES* new_twinProperties = NULL;
+    INITIAL_TWIN_PROPERTIES* new_twinProperties = NULL;
 
-    if ((new_twinProperties = malloc(sizeof(TWIN_PROPERTIES))) == NULL)
+    if ((new_twinProperties = malloc(sizeof(INITIAL_TWIN_PROPERTIES))) == NULL)
     {
         LogError("Allocation of Twin Properties failed");
     }
     else
     {
-        memset(new_twinProperties, 0, sizeof(TWIN_PROPERTIES));
+        memset(new_twinProperties, 0, sizeof(INITIAL_TWIN_PROPERTIES));
 
         if ((new_twinProperties->desired = twinCollection_create(desired_properties)) == NULL)
         {
@@ -486,7 +489,7 @@ static TWIN_PROPERTIES* twinProperties_create(const char* desired_properties)
     return new_twinProperties;
 }
 
-static JSON_Value* twinProperties_toJson(TWIN_PROPERTIES* twin_properties)
+static JSON_Value* twinProperties_toJson(INITIAL_TWIN_PROPERTIES* twin_properties)
 {
     JSON_Value* root_value = NULL;
     JSON_Object* root_object = NULL;
@@ -503,9 +506,9 @@ static JSON_Value* twinProperties_toJson(TWIN_PROPERTIES* twin_properties)
     }
     
     //Set data
-    else if (json_serialize_and_set_struct(root_object, TWIN_PROPERTIES_JSON_KEY_DESIRED, twin_properties->desired, twinCollection_toJson, OPTIONAL) != 0)
+    else if (json_serialize_and_set_struct(root_object, INITIAL_TWIN_PROPERTIES_JSON_KEY_DESIRED, twin_properties->desired, twinCollection_toJson, OPTIONAL) != 0)
     {
-        LogError("Failed to set '%s' in JSON string representation of Twin Properties", TWIN_PROPERTIES_JSON_KEY_DESIRED);
+        LogError("Failed to set '%s' in JSON string representation of Twin Properties", INITIAL_TWIN_PROPERTIES_JSON_KEY_DESIRED);
         json_value_free(root_value);
         root_value = NULL;
     }
@@ -513,21 +516,21 @@ static JSON_Value* twinProperties_toJson(TWIN_PROPERTIES* twin_properties)
     return root_value;
 }
 
-static TWIN_PROPERTIES* twinProperties_fromJson(JSON_Object* root_object)
+static INITIAL_TWIN_PROPERTIES* twinProperties_fromJson(JSON_Object* root_object)
 {
-    TWIN_PROPERTIES* new_twinProperties = NULL;
+    INITIAL_TWIN_PROPERTIES* new_twinProperties = NULL;
 
-    if ((new_twinProperties = malloc(sizeof(TWIN_PROPERTIES))) == NULL)
+    if ((new_twinProperties = malloc(sizeof(INITIAL_TWIN_PROPERTIES))) == NULL)
     {
         LogError("Allocation of Twin Properties failed");
     }
     else
     {
-        memset(new_twinProperties, 0, sizeof(TWIN_PROPERTIES));
+        memset(new_twinProperties, 0, sizeof(INITIAL_TWIN_PROPERTIES));
 
-        if (json_deserialize_and_get_struct(&(new_twinProperties->desired), root_object, TWIN_PROPERTIES_JSON_KEY_DESIRED, twinCollection_fromJson, OPTIONAL) != 0)
+        if (json_deserialize_and_get_struct(&(new_twinProperties->desired), root_object, INITIAL_TWIN_PROPERTIES_JSON_KEY_DESIRED, twinCollection_fromJson, OPTIONAL) != 0)
         {
-            LogError("Failed to set '%s' in Twin Properties", TWIN_PROPERTIES_JSON_KEY_DESIRED);
+            LogError("Failed to set '%s' in Twin Properties", INITIAL_TWIN_PROPERTIES_JSON_KEY_DESIRED);
             twinProperties_free(new_twinProperties);
             new_twinProperties = NULL;
         }
@@ -536,7 +539,7 @@ static TWIN_PROPERTIES* twinProperties_fromJson(JSON_Object* root_object)
     return new_twinProperties;
 }
 
-static void twinState_free(TWIN_STATE* twin_state)
+static void twinState_free(INITIAL_TWIN* twin_state)
 {
     if (twin_state != NULL)
     {
@@ -546,7 +549,7 @@ static void twinState_free(TWIN_STATE* twin_state)
     }
 }
 
-static JSON_Value* twinState_toJson(TWIN_STATE* twin_state)
+static JSON_Value* twinState_toJson(INITIAL_TWIN* twin_state)
 {
     JSON_Value* root_value = NULL;
     JSON_Object* root_object = NULL;
@@ -563,15 +566,15 @@ static JSON_Value* twinState_toJson(TWIN_STATE* twin_state)
     }
 
     //Set data
-    else if (json_serialize_and_set_struct(root_object, TWIN_STATE_JSON_KEY_TAGS, twin_state->tags, twinCollection_toJson, OPTIONAL) != 0)
+    else if (json_serialize_and_set_struct(root_object, INITIAL_TWIN_JSON_KEY_TAGS, twin_state->tags, twinCollection_toJson, OPTIONAL) != 0)
     {
-        LogError("Failed to set '%s' in JSON string representation", TWIN_STATE_JSON_KEY_TAGS);
+        LogError("Failed to set '%s' in JSON string representation", INITIAL_TWIN_JSON_KEY_TAGS);
         json_value_free(root_value);
         root_value = NULL;
     }
-    else if (json_serialize_and_set_struct(root_object, TWIN_STATE_JSON_KEY_PROPERTIES, twin_state->properties, twinProperties_toJson, OPTIONAL) != 0)
+    else if (json_serialize_and_set_struct(root_object, INITIAL_TWIN_JSON_KEY_PROPERTIES, twin_state->properties, twinProperties_toJson, OPTIONAL) != 0)
     {
-        LogError("Failed to set '%s' in JSON string representation", TWIN_STATE_JSON_KEY_PROPERTIES);
+        LogError("Failed to set '%s' in JSON string representation", INITIAL_TWIN_JSON_KEY_PROPERTIES);
         json_value_free(root_value);
         root_value = NULL;
     }
@@ -579,33 +582,141 @@ static JSON_Value* twinState_toJson(TWIN_STATE* twin_state)
     return root_value;
 }
 
-static TWIN_STATE* twinState_fromJson(JSON_Object* root_object)
+static INITIAL_TWIN* twinState_fromJson(JSON_Object* root_object)
 {
-    TWIN_STATE* new_twinState = NULL;
+    INITIAL_TWIN* new_twinState = NULL;
 
-    if ((new_twinState = malloc(sizeof(TWIN_STATE))) == NULL)
+    if ((new_twinState = malloc(sizeof(INITIAL_TWIN))) == NULL)
     {
         LogError("Allocation of Twin State failed");
     }
     else
     {
-        memset(new_twinState, 0, sizeof(TWIN_STATE));
+        memset(new_twinState, 0, sizeof(INITIAL_TWIN));
 
-        if (json_deserialize_and_get_struct(&(new_twinState->tags), root_object, TWIN_STATE_JSON_KEY_TAGS, twinCollection_fromJson, OPTIONAL) != 0)
+        if (json_deserialize_and_get_struct(&(new_twinState->tags), root_object, INITIAL_TWIN_JSON_KEY_TAGS, twinCollection_fromJson, OPTIONAL) != 0)
         {
-            LogError("Failed to set '%s' in Twin State", TWIN_STATE_JSON_KEY_TAGS);
+            LogError("Failed to set '%s' in Twin State", INITIAL_TWIN_JSON_KEY_TAGS);
             twinState_free(new_twinState);
             new_twinState = NULL;
         }
-        else if (json_deserialize_and_get_struct(&(new_twinState->properties), root_object, TWIN_STATE_JSON_KEY_PROPERTIES, twinProperties_fromJson, OPTIONAL) != 0)
+        else if (json_deserialize_and_get_struct(&(new_twinState->properties), root_object, INITIAL_TWIN_JSON_KEY_PROPERTIES, twinProperties_fromJson, OPTIONAL) != 0)
         {
-            LogError("Failed to set '%s' in Twin State", TWIN_STATE_JSON_KEY_PROPERTIES);
+            LogError("Failed to set '%s' in Twin State", INITIAL_TWIN_JSON_KEY_PROPERTIES);
             twinState_free(new_twinState);
             new_twinState = NULL;
         }
     }
 
     return new_twinState;
+}
+
+static void x509CAReferences_free(X509_CA_REFERENCES* x509_ca_ref)
+{
+    if (x509_ca_ref != NULL)
+    {
+        free(x509_ca_ref->primary);
+        free(x509_ca_ref->secondary);
+        free(x509_ca_ref);
+    }
+}
+
+static X509_CA_REFERENCES* x509CAReferences_create(const char* primary, const char* secondary)
+{
+    X509_CA_REFERENCES* new_x509CARef = NULL;
+
+    if (primary == NULL)
+    {
+        LogError("Requires valid primary CA Reference");
+    }
+    else if ((new_x509CARef = malloc(sizeof(X509_CA_REFERENCES))) == NULL)
+    {
+        LogError("Failed to allocate memory for X509 CA References");
+    }
+    else
+    {
+        memset(new_x509CARef, 0, sizeof(X509_CA_REFERENCES));
+
+        if (copy_string(&(new_x509CARef->primary), primary) != 0)
+        {
+            LogError("Error setting primary CA Reference in X509CAReferences");
+            x509CAReferences_free(new_x509CARef);
+            new_x509CARef = NULL;
+        }
+        else if (copy_string(&(new_x509CARef->secondary), secondary) != 0)
+        {
+            LogError("Error setting secondary CA Reference in X509CAReferences");
+            x509CAReferences_free(new_x509CARef);
+            new_x509CARef = NULL;
+        }
+    }
+
+    return new_x509CARef;
+}
+
+static JSON_Value* x509CAReferences_toJson(const X509_CA_REFERENCES* x509_ca_ref)
+{
+    JSON_Value* root_value = NULL;
+    JSON_Object* root_object = NULL;
+
+    if (x509_ca_ref == NULL)
+    {
+        LogError("CA References is NULL");
+    }
+    else if ((root_value = json_value_init_object()) == NULL)
+    {
+        LogError("json_value_init_object failed");
+    }
+    else if ((root_object = json_value_get_object(root_value)) == NULL)
+    {
+        LogError("json_value_get_object failed");
+        json_value_free(root_value);
+        root_value = NULL;
+    }
+
+    else if (json_object_set_string(root_object, X509_CA_REFERENCES_JSON_KEY_PRIMARY, x509_ca_ref->primary) != JSONSuccess)
+    {
+        LogError("Failed to set '%s' in JSON String", X509_CA_REFERENCES_JSON_KEY_PRIMARY);
+        json_value_free(root_value);
+        root_value = NULL;
+    }
+    else if ((x509_ca_ref->secondary != NULL) && (json_object_set_string(root_object, X509_CA_REFERENCES_JSON_KEY_SECONDARY, x509_ca_ref->secondary) != JSONSuccess))
+    {
+        LogError("Failed to set '%s' in JSON String", X509_CA_REFERENCES_JSON_KEY_SECONDARY);
+        json_value_free(root_value);
+        root_value = NULL;
+    }
+
+    return root_value;
+}
+
+static X509_CA_REFERENCES* x509CAReferences_fromJson(JSON_Object* root_object)
+{
+    X509_CA_REFERENCES* new_x509CARef = NULL;
+
+    if ((new_x509CARef = malloc(sizeof(X509_CA_REFERENCES))) == NULL)
+    {
+        LogError("Allocation of X509 CA References failed");
+    }
+    else
+    {
+        memset(new_x509CARef, 0, sizeof(X509_CA_REFERENCES));
+
+        if (copy_json_string_field(&(new_x509CARef->primary), root_object, X509_CA_REFERENCES_JSON_KEY_PRIMARY) != 0)
+        {
+            LogError("Failed to set '%s' in X509 CA References", X509_CA_REFERENCES_JSON_KEY_PRIMARY);
+            x509CAReferences_free(new_x509CARef);
+            new_x509CARef = NULL;
+        }
+        else if (copy_json_string_field(&(new_x509CARef->secondary), root_object, X509_CA_REFERENCES_JSON_KEY_SECONDARY) != 0)
+        {
+            LogError("Failed to set '%s' in X509 CA References", X509_CA_REFERENCES_JSON_KEY_SECONDARY);
+            x509CAReferences_free(new_x509CARef);
+            new_x509CARef = NULL;
+        }
+    }
+
+    return new_x509CARef;
 }
 
 static void x509CertificateInfo_free(X509_CERTIFICATE_INFO* x509_info)
@@ -843,7 +954,6 @@ static X509_CERTIFICATE_WITH_INFO* x509CertificateWithInfo_fromJson(JSON_Object*
 static X509_CERTIFICATE_WITH_INFO* x509CertificateWithInfo_create(const char* cert)
 {
     X509_CERTIFICATE_WITH_INFO* new_x509CertWithInfo = NULL;
-    X509_CERTIFICATE_INFO* new_x509CertInfo = NULL;
 
     if (cert == NULL)
     {
@@ -862,9 +972,8 @@ static X509_CERTIFICATE_WITH_INFO* x509CertificateWithInfo_create(const char* ce
             LogError("Error setting certificate in X509CertificateWithInfo");
             x509CertificateWithInfo_free(new_x509CertWithInfo);
             new_x509CertWithInfo = NULL;
-            x509CertificateInfo_free(new_x509CertInfo);
-            new_x509CertInfo = NULL;
         }
+        //adding the actual info struct is only when building from JSON
     }
 
     return new_x509CertWithInfo;
@@ -884,6 +993,42 @@ static void x509Certificates_free(X509_CERTIFICATES* x509_certs)
         }
         free(x509_certs);
     }
+}
+
+static X509_CERTIFICATES* x509Certificates_create(const char* primary_cert, const char* secondary_cert)
+{
+    X509_CERTIFICATES* new_x509Certs = NULL;
+
+    if (primary_cert == NULL)
+    {
+        LogError("Requires valid primary certificate");
+    }
+    else if ((new_x509Certs = malloc(sizeof(X509_CERTIFICATES))) == NULL)
+    {
+        LogError("Failed to allocate memory for X509 Certificates");
+    }
+    else
+    {
+        memset(new_x509Certs, 0, sizeof(X509_CERTIFICATES));
+
+        //Primary Cert is mandatory
+        if ((new_x509Certs->primary = x509CertificateWithInfo_create(primary_cert)) == NULL)
+        {
+            LogError("Failed to create Primary Certificate");
+            x509Certificates_free(new_x509Certs);
+            new_x509Certs = NULL;
+        }
+
+        //Secondary Cert is optional
+        else if ((secondary_cert != NULL) && ((new_x509Certs->secondary = x509CertificateWithInfo_create(secondary_cert)) == NULL))
+        {
+            LogError("Failed to create Secondary Certificate");
+            x509Certificates_free(new_x509Certs);
+            new_x509Certs = NULL;
+        }
+    }
+
+    return new_x509Certs;
 }
 
 static JSON_Value* x509Certificates_toJson(const X509_CERTIFICATES* x509_certs)
@@ -973,6 +1118,14 @@ static void x509Attestation_free(X509_ATTESTATION* x509_att)
                 x509Certificates_free(x509_att->certificates.signing_certificates);
             }
         }
+        else if (x509_att->type == CERTIFICATE_TYPE_CA_REFERENCES)
+        {
+            if (x509_att->certificates.ca_references != NULL)
+            {
+                x509CAReferences_free(x509_att->certificates.ca_references);
+            }
+        }
+
         free(x509_att);
     }
 }
@@ -1017,6 +1170,15 @@ static JSON_Value* x509Attestation_toJson(const X509_ATTESTATION* x509_att)
                 root_value = NULL;
             }
         }
+        else if (x509_att->type == CERTIFICATE_TYPE_CA_REFERENCES)
+        {
+            if (json_serialize_and_set_struct(root_object, X509_ATTESTATION_JSON_KEY_CA_REFERENCES, x509_att->certificates.ca_references, x509CAReferences_toJson, REQUIRED) != 0)
+            {
+                LogError("Failed to set '%s' in JSON string representation of X509 Attestation", X509_ATTESTATION_JSON_KEY_CA_REFERENCES);
+                json_value_free(root_value);
+                root_value = NULL;
+            }
+        }
     }
 
     return root_value;
@@ -1038,8 +1200,6 @@ static X509_ATTESTATION* x509Attestation_fromJson(JSON_Object* root_object)
     {
         memset(new_x509Att, 0, sizeof(X509_ATTESTATION));
 
-        
-
         if (json_object_has_value(root_object, X509_ATTESTATION_JSON_KEY_CLIENT_CERTS))
         {
             if (json_deserialize_and_get_struct(&(new_x509Att->certificates.client_certificates), root_object, X509_ATTESTATION_JSON_KEY_CLIENT_CERTS, x509Certificates_fromJson, REQUIRED) != 0)
@@ -1053,7 +1213,6 @@ static X509_ATTESTATION* x509Attestation_fromJson(JSON_Object* root_object)
                 new_x509Att->type = CERTIFICATE_TYPE_CLIENT;
             }
         }
-
         else if (json_object_has_value(root_object, X509_ATTESTATION_JSON_KEY_SIGNING_CERTS))
         {
             if (json_deserialize_and_get_struct(&(new_x509Att->certificates.signing_certificates), root_object, X509_ATTESTATION_JSON_KEY_SIGNING_CERTS, x509Certificates_fromJson, REQUIRED) != 0)
@@ -1067,7 +1226,19 @@ static X509_ATTESTATION* x509Attestation_fromJson(JSON_Object* root_object)
                 new_x509Att->type = CERTIFICATE_TYPE_SIGNING;
             }
         }
-
+        else if (json_object_has_value(root_object, X509_ATTESTATION_JSON_KEY_CA_REFERENCES))
+        {
+            if (json_deserialize_and_get_struct(&(new_x509Att->certificates.ca_references), root_object, X509_ATTESTATION_JSON_KEY_CA_REFERENCES, x509CAReferences_fromJson, OPTIONAL) != 0)
+            {
+                LogError("Failed to set '%s' in X509 Attestation", X509_ATTESTATION_JSON_KEY_CA_REFERENCES);
+                x509Attestation_free(new_x509Att);
+                new_x509Att = NULL;
+            }
+            else
+            {
+                new_x509Att->type = CERTIFICATE_TYPE_CA_REFERENCES;
+            }
+        }
         else
         {
             LogError("No client or signing certificates");
@@ -1082,7 +1253,6 @@ static X509_ATTESTATION* x509Attestation_fromJson(JSON_Object* root_object)
 static X509_ATTESTATION* x509Attestation_create(CERTIFICATE_TYPE cert_type, const char* primary_cert, const char* secondary_cert)
 {
     X509_ATTESTATION* new_x509Att = NULL;
-    X509_CERTIFICATES* new_x509Certs = NULL;
 
     if ((cert_type == CERTIFICATE_TYPE_NONE) || (primary_cert == NULL))
     {
@@ -1092,41 +1262,37 @@ static X509_ATTESTATION* x509Attestation_create(CERTIFICATE_TYPE cert_type, cons
     {
         LogError("Failed to allocate memory for X509 Attestation");
     }
-    else if ((new_x509Certs = malloc(sizeof(X509_CERTIFICATES))) == NULL)
-    {
-        LogError("Failed to allocate memory for X509 Certificates");
-        free(new_x509Att);
-        new_x509Att = NULL;
-    }
     else
     {
         memset(new_x509Att, 0, sizeof(X509_ATTESTATION));
-        memset(new_x509Certs, 0, sizeof(X509_CERTIFICATES));
         
         new_x509Att->type = cert_type;
         if (cert_type == CERTIFICATE_TYPE_CLIENT)
         {
-            new_x509Att->certificates.client_certificates = new_x509Certs;
+            if ((new_x509Att->certificates.client_certificates = x509Certificates_create(primary_cert, secondary_cert)) == NULL)
+            {
+                LogError("Failed to create Client Certificates");
+                x509Attestation_free(new_x509Att);
+                new_x509Att = NULL;
+            }
         }
         else if (cert_type == CERTIFICATE_TYPE_SIGNING)
         {
-            new_x509Att->certificates.signing_certificates = new_x509Certs;
+            if ((new_x509Att->certificates.signing_certificates = x509Certificates_create(primary_cert, secondary_cert)) == NULL)
+            {
+                LogError("Failed to create Client Certificates");
+                x509Attestation_free(new_x509Att);
+                new_x509Att = NULL;
+            }
         }
-
-        //Primary Cert is mandatory
-        if ((new_x509Certs->primary = x509CertificateWithInfo_create(primary_cert)) == NULL)
+        else if (cert_type == CERTIFICATE_TYPE_CA_REFERENCES)
         {
-            LogError("Failed to create Primary Certificate");
-            x509Attestation_free(new_x509Att);
-            new_x509Att = NULL;
-        }
-
-        //Secondary Cert is optional
-        else if ((secondary_cert != NULL) && ((new_x509Certs->secondary = x509CertificateWithInfo_create(secondary_cert)) == NULL))
-        {
-            LogError("Failed to create Secondary Certificate");
-            x509Attestation_free(new_x509Att);
-            new_x509Att = NULL;
+            if ((new_x509Att->certificates.ca_references = x509CAReferences_create(primary_cert, secondary_cert)) == NULL)
+            {
+                LogError("Failed to create CA References");
+                x509Attestation_free(new_x509Att);
+                new_x509Att = NULL;
+            }
         }
     }
 
@@ -1206,6 +1372,7 @@ static TPM_ATTESTATION* tpmAttestation_fromJson(JSON_Object * root_object)
             new_tpmAtt = NULL;
         }
     }
+
     return new_tpmAtt;
 }
 
@@ -1331,6 +1498,68 @@ static ATTESTATION_MECHANISM* attestationMechanism_fromJson(JSON_Object* root_ob
     }
 
     return new_attMech;
+}
+
+static int attestationMechanism_validateForIndividualEnrollment(ATTESTATION_MECHANISM* attmech)
+{
+    int result;
+
+    if (attmech == NULL)
+    {
+        result = 0;
+    }
+    else if (attmech->type == ATTESTATION_TYPE_TPM)
+    {
+        result = 0;
+    }
+    else if (attmech->type == ATTESTATION_TYPE_X509)
+    {
+        if (attmech->attestation.x509->type == CERTIFICATE_TYPE_CLIENT)
+        {
+            result = 0;
+        }
+        else
+        {
+            result = -1;
+        }
+    }
+    else
+    {
+        result = -1;
+    }
+
+    return result;
+}
+
+static int attestationMechanism_validateForEnrollmentGroup(ATTESTATION_MECHANISM* attmech)
+{
+    int result;
+
+    if (attmech == NULL)
+    {
+        result = 0;
+    }
+    else if (attmech->type == ATTESTATION_TYPE_TPM)
+    {
+        result = -1;
+    }
+    else if (attmech->type == ATTESTATION_TYPE_X509)
+    {
+        if (attmech->attestation.x509->type == CERTIFICATE_TYPE_SIGNING)
+        {
+            result = -1;
+        }
+        else
+        {
+            result = 0;
+        }
+    }
+    else
+    {
+        result = -1;
+    }
+
+    return result;
 }
 
 static void deviceRegistrationState_free(DEVICE_REGISTRATION_STATE* device_reg_state)
@@ -1798,6 +2027,37 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509SigningCert(cons
     return (ATTESTATION_MECHANISM_HANDLE)att_mech;
 }
 
+ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509CAReference(const char* primary_ref, const char* secondary_ref)
+{
+    ATTESTATION_MECHANISM* att_mech = NULL;
+
+    if (primary_ref == NULL)
+    {
+        LogError("primary_cert is NULL");
+    }
+    else if ((att_mech = malloc(sizeof(ATTESTATION_MECHANISM))) == NULL)
+    {
+        LogError("Allocation of Attestation Mechanism failed");
+    }
+    else
+    {
+        memset(att_mech, 0, sizeof(ATTESTATION_MECHANISM));
+
+        if ((att_mech->attestation.x509 = x509Attestation_create(CERTIFICATE_TYPE_CA_REFERENCES, primary_ref, secondary_ref)) == NULL)
+        {
+            LogError("Allocation of X509 Attestation failed");
+            attestationMechanism_free(att_mech);
+            att_mech = NULL;
+        }
+        else
+        {
+            att_mech->type = ATTESTATION_TYPE_X509;
+        }
+    }
+
+    return (ATTESTATION_MECHANISM_HANDLE)att_mech;
+}
+
 void attestationMechanism_destroy(ATTESTATION_MECHANISM_HANDLE att_handle)
 {
     ATTESTATION_MECHANISM* att_mech = (ATTESTATION_MECHANISM*)att_handle;
@@ -2074,9 +2334,9 @@ ENROLLMENT_GROUP_HANDLE enrollmentGroup_deserializeFromJson(const char* json_str
     return (ENROLLMENT_GROUP_HANDLE)new_enrollment;
 }
 
-TWIN_STATE_HANDLE initialTwinState_create(const char* tags, const char* desired_properties)
+INITIAL_TWIN_HANDLE initialTwinState_create(const char* tags, const char* desired_properties)
 {
-    TWIN_STATE* new_twin = NULL;
+    INITIAL_TWIN* new_twin = NULL;
 
     if (strcmp(tags, "{}") == 0)
     {
@@ -2091,13 +2351,13 @@ TWIN_STATE_HANDLE initialTwinState_create(const char* tags, const char* desired_
         LogError("no inputs");
     }
     //if adding input validation, add here
-    else if ((new_twin = malloc(sizeof(TWIN_STATE))) == NULL)
+    else if ((new_twin = malloc(sizeof(INITIAL_TWIN))) == NULL)
     {
         LogError("Allocation of Twin State failed");
     }
     else
     {
-        memset(new_twin, 0, sizeof(TWIN_STATE));
+        memset(new_twin, 0, sizeof(INITIAL_TWIN));
 
         if (tags != NULL && ((new_twin->tags = twinCollection_create(tags)) == NULL))
         {
@@ -2116,9 +2376,9 @@ TWIN_STATE_HANDLE initialTwinState_create(const char* tags, const char* desired_
     return new_twin;
 }
 
-void twinState_destroy(TWIN_STATE_HANDLE handle)
+void twinState_destroy(INITIAL_TWIN_HANDLE handle)
 {
-    TWIN_STATE* twin = (TWIN_STATE*)handle;
+    INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
     twinState_free(twin);
 }
 
@@ -2168,6 +2428,11 @@ int individualEnrollment_setAttestationMechanism(INDIVIDUAL_ENROLLMENT_HANDLE ie
         LogError("enrollment handle is NULL");
         result = __FAILURE__;
     }
+    else if (attestationMechanism_validateForIndividualEnrollment(attmech) != 0)
+    {
+        LogError("Invalid attestation mechanism for Individual Enrollment");
+        result = __FAILURE__;
+    }
     else
     {
         attestationMechanism_free(enrollment->attestation_mechanism);
@@ -2177,9 +2442,9 @@ int individualEnrollment_setAttestationMechanism(INDIVIDUAL_ENROLLMENT_HANDLE ie
     return result;
 }
 
-TWIN_STATE_HANDLE individualEnrollment_getInitialTwinState(INDIVIDUAL_ENROLLMENT_HANDLE handle)
+INITIAL_TWIN_HANDLE individualEnrollment_getInitialTwinState(INDIVIDUAL_ENROLLMENT_HANDLE handle)
 {
-    TWIN_STATE* result = NULL;
+    INITIAL_TWIN* result = NULL;
     INDIVIDUAL_ENROLLMENT* enrollment = (INDIVIDUAL_ENROLLMENT*)handle;
 
     if (enrollment == NULL)
@@ -2191,14 +2456,14 @@ TWIN_STATE_HANDLE individualEnrollment_getInitialTwinState(INDIVIDUAL_ENROLLMENT
         result = enrollment->initial_twin;
     }
 
-    return (TWIN_STATE_HANDLE)result;
+    return (INITIAL_TWIN_HANDLE)result;
 }
 
-int individualEnrollment_setInitialTwinState(INDIVIDUAL_ENROLLMENT_HANDLE ie_handle, TWIN_STATE_HANDLE ts_handle)
+int individualEnrollment_setInitialTwinState(INDIVIDUAL_ENROLLMENT_HANDLE ie_handle, INITIAL_TWIN_HANDLE ts_handle)
 {
     int result = 0;
     INDIVIDUAL_ENROLLMENT* enrollment = (INDIVIDUAL_ENROLLMENT*)ie_handle;
-    TWIN_STATE* twin = (TWIN_STATE*)ts_handle;
+    INITIAL_TWIN* twin = (INITIAL_TWIN*)ts_handle;
 
     if (enrollment == NULL)
     {
@@ -2434,6 +2699,11 @@ int enrollmentGroup_setAttestationMechanism(ENROLLMENT_GROUP_HANDLE eg_handle, A
         LogError("enrollment handle is NULL");
         result = __FAILURE__;
     }
+    else if (attestationMechanism_validateForEnrollmentGroup(attmech) != 0)
+    {
+        LogError("Attestation Mechanism is invalid for Enrollment Group");
+        result = __FAILURE__;
+    }
     else
     {
         attestationMechanism_free(enrollment->attestation_mechanism);
@@ -2443,9 +2713,9 @@ int enrollmentGroup_setAttestationMechanism(ENROLLMENT_GROUP_HANDLE eg_handle, A
     return result;
 }
 
-TWIN_STATE_HANDLE enrollmentGroup_getInitialTwinState(ENROLLMENT_GROUP_HANDLE handle)
+INITIAL_TWIN_HANDLE enrollmentGroup_getInitialTwinState(ENROLLMENT_GROUP_HANDLE handle)
 {
-    TWIN_STATE* result = NULL;
+    INITIAL_TWIN* result = NULL;
     ENROLLMENT_GROUP* enrollment = (ENROLLMENT_GROUP*)handle;
 
     if (enrollment == NULL)
@@ -2457,14 +2727,14 @@ TWIN_STATE_HANDLE enrollmentGroup_getInitialTwinState(ENROLLMENT_GROUP_HANDLE ha
         result = enrollment->initial_twin;
     }
 
-    return (TWIN_STATE_HANDLE)result;
+    return (INITIAL_TWIN_HANDLE)result;
 }
 
-int enrollmentGroup_setInitialTwinState(ENROLLMENT_GROUP_HANDLE eg_handle, TWIN_STATE_HANDLE ts_handle)
+int enrollmentGroup_setInitialTwinState(ENROLLMENT_GROUP_HANDLE eg_handle, INITIAL_TWIN_HANDLE ts_handle)
 {
     int result = 0;
     ENROLLMENT_GROUP* enrollment = (ENROLLMENT_GROUP*)eg_handle;
-    TWIN_STATE* twin = (TWIN_STATE*)ts_handle;
+    INITIAL_TWIN* twin = (INITIAL_TWIN*)ts_handle;
 
     if (enrollment == NULL)
     {
@@ -2955,10 +3225,10 @@ int x509Certificate_getVersion(X509_CERTIFICATE_HANDLE handle)
 
 /* Accessor Functions - Twin State */
 
-const char* twinState_getTags(TWIN_STATE_HANDLE handle)
+const char* twinState_getTags(INITIAL_TWIN_HANDLE handle)
 {
     char* result = NULL;
-    TWIN_STATE* twin = (TWIN_STATE*)handle;
+    INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
 
     if (twin == NULL)
     {
@@ -2976,10 +3246,10 @@ const char* twinState_getTags(TWIN_STATE_HANDLE handle)
     return result;
 }
 
-int twinState_setTags(TWIN_STATE_HANDLE handle, const char* tags)
+int twinState_setTags(INITIAL_TWIN_HANDLE handle, const char* tags)
 {
     int result = 0;
-    TWIN_STATE* twin = (TWIN_STATE*)handle;
+    INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
 
     if (twin == NULL)
     {
@@ -3011,10 +3281,10 @@ int twinState_setTags(TWIN_STATE_HANDLE handle, const char* tags)
     return result;
 }
 
-const char* twinState_getDesiredProperties(TWIN_STATE_HANDLE handle)
+const char* twinState_getDesiredProperties(INITIAL_TWIN_HANDLE handle)
 {
     char* result = NULL;
-    TWIN_STATE* twin = (TWIN_STATE*)handle;
+    INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
 
     if (twin == NULL)
     {
@@ -3032,10 +3302,10 @@ const char* twinState_getDesiredProperties(TWIN_STATE_HANDLE handle)
     return result;
 }
 
-int twinState_setDesiredProperties(TWIN_STATE_HANDLE handle, const char* desired_properties)
+int twinState_setDesiredProperties(INITIAL_TWIN_HANDLE handle, const char* desired_properties)
 {
     int result = 0;
-    TWIN_STATE* twin = (TWIN_STATE*)handle;
+    INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
 
     if (twin == NULL)
     {

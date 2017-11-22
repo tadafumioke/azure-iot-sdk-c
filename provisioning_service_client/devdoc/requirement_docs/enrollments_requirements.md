@@ -180,6 +180,23 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509SigningCert(cons
 **SRS_ENROLLMENTS_22_047: [** The new `ATTESTATION_MECHANISM_HANDLE` will have one certificate if it was only given `primary_cert` and two certificates if it was also given `secondary_cert`**]**
 
 
+## attestationMechanism_createWithX509CAReference
+
+```c
+ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509CAReference(const char* primary_ref, const char* secondary_ref);
+```
+
+**SRS_ENROLLMENTS_22_048: [** If `primary_ref` is NULL, `attestationMEchanism_createWithX509CAReference` shall fail and return NULL **]**
+
+**SRS_ENROLLMENTS_22_049: [** If allocating memory for the new attestation mechanism fails, `attestationMechanism_createWithX509CAReference` shall fail and return NULL **]**
+
+**SRS_ENROLLMENTS_22_050: [** If setting initial values within the new attestation mechanism fails, `attestationMechanism_createWithX509CAReference` shall fail and return NULL **]**
+
+**SRS_ENROLLMENTS_22_051: [** Upon successful creation of the new `ATTESTATION_MECHANISM_HANDLE`, `attestationMechanism_createWithX509CAReference` shall return it **]**
+
+**SRS_ENROLLMENTS_22_052: [** The new `ATTESTATION_MECHANISM_HANDLE` will have one CA reference if it was only given `primary_ref` and two references if it was also given `secondary_ref` **]**
+
+
 ## attestationMechanism_destroy
 
 ```c

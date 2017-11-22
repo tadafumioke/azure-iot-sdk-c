@@ -56,6 +56,7 @@ static const char* TPM_ATTESTATION_JSON_KEY_SRK = "storageRootKey";
 
 static const char* X509_ATTESTATION_JSON_KEY_CLIENT_CERTS = "clientCertificates";
 static const char* X509_ATTESTATION_JSON_KEY_SIGNING_CERTS = "signingCertificates";
+static const char* X509_ATTESTATION_JSON_KEY_CA_REFERENCES = "caReferences";
 
 static const char* X509_CERTIFICATES_JSON_KEY_PRIMARY = "primary";
 static const char* X509_CERTIFICATES_JSON_KEY_SECONDARY = "secondary";
@@ -72,10 +73,13 @@ static const char* X509_CERTIFICATE_INFO_JSON_KEY_NOT_AFTER = "notAfterUtc";
 static const char* X509_CERTIFICATE_INFO_JSON_KEY_SERIAL_NO = "serialNumber";
 static const char* X509_CERTIFICATE_INFO_JSON_KEY_VERSION = "version";
 
-static const char* TWIN_STATE_JSON_KEY_TAGS = "tags";
-static const char* TWIN_STATE_JSON_KEY_PROPERTIES = "properties";
+static const char* X509_CA_REFERENCES_JSON_KEY_PRIMARY = "primary";
+static const char* X509_CA_REFERENCES_JSON_KEY_SECONDARY = "secondary";
 
-static const char* TWIN_PROPERTIES_JSON_KEY_DESIRED = "desired";
+static const char* INITIAL_TWIN_JSON_KEY_TAGS = "tags";
+static const char* INITIAL_TWIN_JSON_KEY_PROPERTIES = "properties";
+
+static const char* INITIAL_TWIN_PROPERTIES_JSON_KEY_DESIRED = "desired";
 
 #ifdef __cplusplus
 }
