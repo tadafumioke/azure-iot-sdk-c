@@ -6,7 +6,6 @@
 #include "azure_c_shared_utility/platform.h"
 
 #include "provisioning_service_client.h"
-#include "provisioning_sc_enrollment_private.h"
 
 int main()
 {
