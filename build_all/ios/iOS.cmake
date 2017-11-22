@@ -175,6 +175,8 @@ set (CMAKE_SYSTEM_FRAMEWORK_PATH
 )
 
 set (build_as_dynamic OFF)
+set (HAVE_STDINT_H TRUE CACHE BOOL "Force this to true on iOS")
+set (HAVE_STDBOOL_H TRUE CACHE BOOL "Force this to true on iOS")
 
 # only search the iOS sdks, not the remainder of the host filesystem
 set (CMAKE_FIND_ROOT_PATH_MODE_PROGRAM ONLY)
