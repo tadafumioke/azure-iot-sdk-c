@@ -19,7 +19,10 @@ This is a quick tutorial with the steps to create, update, get, and delete an In
         ```
 
     2. For a **TPM Attestation** (as shown in the sample):
-        1. From the device that you have, you must copy the Registration ID and Endorsement Key. If you do not have a physical device with a TPM, you can use the [TPM Simulator][tpm-simulator-link]
+        1. From the device that you have, you must copy the Registration ID and Endorsement Key. If you do not have a physical device with a TPM, you can create a Registration ID yourself, and use the following endorsement key for testing purposes:
+
+            ```AToAAQALAAMAsgAgg3GXZ0SEs/gakMyNRqXXJP1S124GUgtk8qHaGzMUaaoABgCAAEMAEAgAAAAAAAEAxsj2gUScTk1UjuioeTlfGYZrrimExB+bScH75adUMRIi2UOMxG1kw4y+9RW/IVoMl4e620VxZad0ARX2gUqVjYO7KPVt3dyKhZS3dkcvfBisBhP1XH9B33VqHG9SHnbnQXdBUaCgKAfxome8UmBKfe+naTsE5fkvjb/do3/dD6l4sGBwFCnKRdln4XpM03zLpoHFao8zOwt8l/uP3qUIxmCYv9A7m69Ms+5/pCkTu/rK4mRDsfhZ0QLfbzVI6zQFOKF/rwsfBtFeWlWtcuJMKlXdD8TXWElTzgh7JS4qhFzreL0c1mI0GCj+Aws0usZh7dLIVPnlgZcBhgy1SSDQMQ==```
+
         2. Replace the `[Registration Id]` with the Reigstration ID, and `[Endorsement Key]` with the Endorsement Key.
             ```c
             const char* registrationId = "[Registration Id]";
@@ -58,7 +61,7 @@ This is a quick tutorial with the steps to create, update, get, and delete an In
             ```
 4. Build as shown [here][devbox-setup-link] and run the sample.
 
-[root-link]: ../../..
+[root-link]: https://github.com/Azure/azure-iot-sdk-c/tree/prov_sc_bugbash
 [source-code-link]: ../../src
 [tpm-simulator-link]: https://github.com/Azure/azure-iot-sdk-java/tree/master/provisioning/provisioning-tools/tpm-simulator
 [dice-link]: https://azure.microsoft.com/en-us/blog/azure-iot-supports-new-security-hardware-to-strengthen-iot-security/
