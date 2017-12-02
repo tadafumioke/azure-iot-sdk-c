@@ -47,7 +47,7 @@ if (CMAKE_UNAME)
 	string (REGEX REPLACE "^([0-9]+)\\.([0-9]+).*$" "\\1" DARWIN_MAJOR_VERSION "${CMAKE_HOST_SYSTEM_VERSION}")
 endif (CMAKE_UNAME)
 
-set(MACOSX_BUNDLE_GUI_IDENTIFIER com.example)
+set(MACOSX_BUNDLE_GUI_IDENTIFIER com.microsoft)
 set(CMAKE_MACOSX_BUNDLE YES)
 set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "iPhone Developer")
 
@@ -90,6 +90,7 @@ set (CMAKE_FIND_LIBRARY_SUFFIXES ".dylib" ".so" ".a")
 
 # Do not attempt to build samples on iOS platform
 set(skip_samples ON CACHE BOOL "set skip_samples to ON to skip building samples (default is OFF)[if possible, they are always built]" FORCE)
+set(suppress_header_searches ON CACHE BOOL "do not try to find headers - used when compiler check will fail" FORCE)
 
 # hack: if a new cmake (which uses CMAKE_INSTALL_NAME_TOOL) runs on an old build tree
 # (where install_name_tool was hardcoded) and where CMAKE_INSTALL_NAME_TOOL isn't in the cache
@@ -99,23 +100,13 @@ if (NOT DEFINED CMAKE_INSTALL_NAME_TOOL)
 	find_program(CMAKE_INSTALL_NAME_TOOL install_name_tool)
 endif (NOT DEFINED CMAKE_INSTALL_NAME_TOOL)
 
-# Setup building for arm64 or not
-if (NOT DEFINED BUILD_ARM64)
-    set (BUILD_ARM64 true)
-endif (NOT DEFINED BUILD_ARM64)
-
-set (BUILD_ARM64 ${BUILD_ARM64} CACHE STRING "Build arm64 arch or not")
-
 # Set up for building simulator or device image
 if (${simulator_build})
-	# set (SIMULATOR True)
 	set (IOS_PLATFORM_LOCATION "iPhoneSimulator.platform")
 	set (CMAKE_XCODE_EFFECTIVE_PLATFORMS "-iphonesimulator")
-    set (IOS_ARCH i386 x86_64)
 else (${simulator_build})
 	set (IOS_PLATFORM_LOCATION "iPhoneOS.platform")
 	set (CMAKE_XCODE_EFFECTIVE_PLATFORMS "-iphoneos")
-    set (IOS_ARCH armv7s arm64)
 endif (${simulator_build})
 
 # Setup iOS developer location unless specified manually with CMAKE_IOS_DEVELOPER_ROOT
@@ -147,7 +138,34 @@ if (NOT DEFINED CMAKE_IOS_SDK_ROOT)
 	message (STATUS "Toolchain using default iOS SDK: ${CMAKE_IOS_SDK_ROOT}")
 endif (NOT DEFINED CMAKE_IOS_SDK_ROOT)
 
+# Extract the SDK version
+string(REGEX MATCH "([0-9]+)\\.([0-9]+)\\.sdk$" IOS_SDK_VERSION ${CMAKE_IOS_SDK_ROOT})
+
+if(NOT CMAKE_MATCH_1 OR NOT CMAKE_MATCH_2)
+	message(FATAL_ERROR "Unable to determine SDK version")
+endif()
+
+set(IOS_SDK_VERSION_MAJOR ${CMAKE_MATCH_1})
+set(IOS_SDK_VERSION_MINOR ${CMAKE_MATCH_2})
+
 set (CMAKE_IOS_SDK_ROOT ${CMAKE_IOS_SDK_ROOT} CACHE PATH "Location of the selected iOS SDK")
+
+# Set up for building simulator or device image
+if (${simulator_build})
+    set (IOS_ARCH x86_64)
+	
+	# 32 bit not supported at 11 or above
+	if (IOS_SDK_VERSION_MAJOR LESS 11)
+		set(IOS_ARCH ${IOS_ARCH} i386)
+	endif()
+else (${simulator_build})
+    set (IOS_ARCH arm64)
+	
+	# 32 bit not supported at 11 or above
+	if (IOS_SDK_VERSION_MAJOR LESS 11)
+		set(IOS_ARCH ${IOS_ARCH} armv7s)
+	endif()
+endif (${simulator_build})
 
 # Set the sysroot default to the most recent SDK
 set (CMAKE_OSX_SYSROOT ${CMAKE_IOS_SDK_ROOT} CACHE PATH "Sysroot used for iOS support")
@@ -173,10 +191,6 @@ set (CMAKE_SYSTEM_FRAMEWORK_PATH
 	${CMAKE_IOS_SDK_ROOT}/System/Library/PrivateFrameworks
 	${CMAKE_IOS_SDK_ROOT}/Developer/Library/Frameworks
 )
-
-set (build_as_dynamic OFF)
-set (HAVE_STDINT_H TRUE CACHE BOOL "Force this to true on iOS")
-set (HAVE_STDBOOL_H TRUE CACHE BOOL "Force this to true on iOS")
 
 # only search the iOS sdks, not the remainder of the host filesystem
 set (CMAKE_FIND_ROOT_PATH_MODE_PROGRAM ONLY)
