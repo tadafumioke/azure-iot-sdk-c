@@ -91,7 +91,7 @@ if (NOT ${skip_samples})
     else()
         add_subdirectory(samples)
     endif()
-endif(NOT ${skip_samples})
+endif()
 
 if(NOT IN_OPENWRT)
     # Disable tests for OpenWRT
