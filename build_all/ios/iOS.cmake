@@ -17,12 +17,6 @@
 #   By default this location is automatcially chosen based on the CMAKE_IOS_DEVELOPER_ROOT value.
 #   In this case it will always be the most up-to-date SDK found in the CMAKE_IOS_DEVELOPER_ROOT path.
 #   If set manually, this will force the use of a specific SDK version
-#
-# OPENSSL_ROOT_DIR = Path to root directory of cross compiled OpenSSL
-#   Defaults to "$ENV{HOME}/Desktop/openssl-ios-dist/"
-#
-# CURL_ROOT_DIR = Path to root directory of cross compiled Curl
-#   Defaults to "$ENV{HOME}/Desktop/libcurl-ios-dist/"
 
 cmake_policy(SET CMP0054 NEW)
 
