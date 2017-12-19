@@ -344,7 +344,9 @@ if (NOT IOS)
         ./src/iothub_client_dll.def
     )
     target_link_libraries(iothub_client_dll ${iothub_client_libs})
-    set_target_properties(iothub_client_dll PROPERTIES OUTPUT_NAME "iothub_client")
+	if (NOT WIN32)
+		set_target_properties(iothub_client_dll PROPERTIES OUTPUT_NAME "iothub_client")
+	endif()
 endif()
 
 add_library(iothub_client
