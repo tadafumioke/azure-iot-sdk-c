@@ -91,6 +91,7 @@ set (CMAKE_FIND_LIBRARY_SUFFIXES ".dylib" ".so" ".a")
 # Do not attempt to build samples on iOS platform
 set(skip_samples ON CACHE BOOL "set skip_samples to ON to skip building samples (default is OFF)[if possible, they are always built]" FORCE)
 set(suppress_header_searches ON CACHE BOOL "do not try to find headers - used when compiler check will fail" FORCE)
+set(use_builtin_httpapi ON CACHE BOOL "set use_builtin_httpapi to ON to use the built-in httpapi_compact that comes with C shared utility (default is OFF)" FORCE)
 
 # hack: if a new cmake (which uses CMAKE_INSTALL_NAME_TOOL) runs on an old build tree
 # (where install_name_tool was hardcoded) and where CMAKE_INSTALL_NAME_TOOL isn't in the cache

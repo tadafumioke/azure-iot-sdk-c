@@ -3074,7 +3074,7 @@ static int sscanfu(const char* src, unsigned int* dst)
     else
     {
         result = 1;
-        (*dst) = (int)temp;
+        (*dst) = (unsigned int)temp;
     }
     return result;
 }
