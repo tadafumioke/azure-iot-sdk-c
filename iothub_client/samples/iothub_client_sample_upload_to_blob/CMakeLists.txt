@@ -37,12 +37,17 @@ include_directories(../../../certs)
 
 add_executable(iothub_client_sample_upload_to_blob ${iothub_client_sample_upload_to_blob_c_files} ${iothub_client_sample_upload_to_blob_h_files})
 
-target_link_libraries(iothub_client_sample_upload_to_blob 
-#iothubclient is here only because locking... in gballoc no less.
-	iothub_client
-	iothub_client_http_transport
-    parson_lib
-)
-
-linkSharedUtil(iothub_client_sample_upload_to_blob)
-linkHttp(iothub_client_sample_upload_to_blob)
+if (${build_as_dynamic})
+	target_link_libraries(iothub_client_sample_upload_to_blob 
+		iothub_client_http_transport_dll
+	)
+else()
+	target_link_libraries(iothub_client_sample_upload_to_blob 
+	#iothubclient is here only because locking... in gballoc no less.
+		aziotsharedutil
+		iothub_client
+		iothub_client_http_transport
+		parson_lib
+		uhttp
+	)
+endif()

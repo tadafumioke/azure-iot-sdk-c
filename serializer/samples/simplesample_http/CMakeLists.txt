@@ -10,7 +10,7 @@ endif()
 compileAsC99()
 
 set(simplesample_http_c_files
-simplesample_http.c
+	simplesample_http.c
 )
 
 if(WIN32)
@@ -29,7 +29,7 @@ IF(WIN32)
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 ENDIF(WIN32)
 
-#Conditionally use the SDK trusted certs in the samples
+# Conditionally use the SDK trusted certs in the samples
 if(${set_trusted_cert_in_samples})
     add_definitions(-DSET_TRUSTED_CERT_IN_SAMPLES)
 	include_directories(${PROJECT_SOURCE_DIR}/certs)
@@ -37,16 +37,21 @@ if(${set_trusted_cert_in_samples})
 endif()
 
 include_directories(. ${SHARED_UTIL_INC_FOLDER} ${IOTHUB_CLIENT_INC_FOLDER})
-link_directories(${whatIsBuilding}_dll ${SHARED_UTIL_LIB_DIR})
+#link_directories(${whatIsBuilding}_dll ${SHARED_UTIL_LIB_DIR})
 
 add_executable(simplesample_http ${simplesample_http_c_files} ${simplesample_http_h_files} ${samples_cert_file})
 
-target_link_libraries(simplesample_http 
-	serializer 
-	iothub_client 
-	iothub_client_http_transport 
-    parson_lib
-)
-
-linkSharedUtil(simplesample_http)
-linkHttp(simplesample_http)
+if (build_as_dynamic)
+	target_link_libraries(simplesample_http
+		iothub_client_http_transport_dll
+		serializer_dll
+	)
+else()
+	target_link_libraries(simplesample_http  
+		iothub_client 
+		iothub_client_http_transport
+		serializer
+		parson_lib
+		uhttp
+	)
+endif()

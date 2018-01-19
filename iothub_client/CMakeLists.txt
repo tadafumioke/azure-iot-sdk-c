@@ -68,7 +68,6 @@ endif()
 if(NOT ${dont_use_uploadtoblob})
     set(iothub_client_ll_transport_h_files 
         ${iothub_client_ll_transport_h_files}
-        # ../deps/parson/parson.h
         ./inc/iothub_client_ll_uploadtoblob.h
     )
 endif()
@@ -296,6 +295,9 @@ if(${use_http})
         endif()
         set_target_properties(iothub_client_http_transport_dll PROPERTIES 
             OUTPUT_NAME "iothub_client_http_transport"
+            ARCHIVE_OUTPUT_NAME "iothub_client_http_transport_dll_import"		# Rename import library so it doesn't clash with the static version
+            ENABLE_EXPORTS YES
+            WINDOWS_EXPORT_ALL_SYMBOLS YES										# Alternative to using a .def file - negates the need to create and maintain them
             VERSION ${IOT_SDK_VERSION}
             SOVERSION ${IOT_SDK_VERION_MAJOR}
         )
@@ -311,9 +313,8 @@ if(${use_amqp})
         ${iothub_client_amqp_transport_h_files}
     )
     
-    add_library(iothub_client_amqp_transport $<TARGET_OBJECTS:iothub_client_amqp_transport_obj>)
+    add_library(iothub_client_amqp_transport STATIC $<TARGET_OBJECTS:iothub_client_amqp_transport_obj>)
 
-    #linkSharedUtil(iothub_client_amqp_transport)
     set(iothub_client_libs
         ${iothub_client_libs}
         iothub_client_amqp_transport
@@ -326,9 +327,8 @@ if(${use_amqp})
         ${iothub_client_amqp_ws_transport_h_files}
     )
     
-    add_library(iothub_client_amqp_ws_transport $<TARGET_OBJECTS:iothub_client_amqp_ws_transport_obj>)
+    add_library(iothub_client_amqp_ws_transport STATIC $<TARGET_OBJECTS:iothub_client_amqp_ws_transport_obj>)
 
-    #linkSharedUtil(iothub_client_amqp_ws_transport)
     set(iothub_client_libs
         ${iothub_client_libs}
         iothub_client_amqp_ws_transport
@@ -349,6 +349,9 @@ if(${use_amqp})
         endif()
         set_target_properties(iothub_client_amqp_transport_dll PROPERTIES 
             OUTPUT_NAME "iothub_client_amqp_transport"
+            ARCHIVE_OUTPUT_NAME "iothub_client_amqp_transport_dll_import"		# Rename import library so it doesn't clash with the static version
+            ENABLE_EXPORTS YES
+            WINDOWS_EXPORT_ALL_SYMBOLS YES										# Alternative to using a .def file - negates the need to create and maintain them
             VERSION ${IOT_SDK_VERSION}
             SOVERSION ${IOT_SDK_VERION_MAJOR}
         )
@@ -368,6 +371,9 @@ if(${use_amqp})
         endif()
         set_target_properties(iothub_client_amqp_ws_transport_dll PROPERTIES 
             OUTPUT_NAME "iothub_client_amqp_ws_transport"
+            ARCHIVE_OUTPUT_NAME "iothub_client_amqp_ws_transport_dll_import"	# Rename import library so it doesn't clash with the static version
+            ENABLE_EXPORTS YES
+            WINDOWS_EXPORT_ALL_SYMBOLS YES										# Alternative to using a .def file - negates the need to create and maintain them
             VERSION ${IOT_SDK_VERSION}
             SOVERSION ${IOT_SDK_VERION_MAJOR}
         )
@@ -395,8 +401,6 @@ if(${use_mqtt})
         ${iothub_client_mqtt_ws_transport_h_files}
     )
     add_library(iothub_client_mqtt_ws_transport $<TARGET_OBJECTS:iothub_client_mqtt_ws_transport_obj>)
-    #linkSharedUtil(iothub_client_mqtt_ws_transport)
-    #linkMqttLibrary(iothub_client_mqtt_ws_transport)
     set(iothub_client_libs
         ${iothub_client_libs}
         iothub_client_mqtt_ws_transport
@@ -484,7 +488,7 @@ add_library(iothub_client
     ${iothub_client_c_files} 
     ${iothub_client_h_files}
 )
-target_link_libraries(iothub_client ${iothub_client_libs})
+#target_link_libraries(iothub_client ${iothub_client_libs}) <<<---- THIS ONE
 
 #linkSharedUtil(iothub_client)
 # set(iothub_client_libs

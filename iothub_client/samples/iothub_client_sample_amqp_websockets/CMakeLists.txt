@@ -35,11 +35,16 @@ include_directories(.)
 
 add_executable(iothub_client_sample_amqp_websockets ${iothub_client_sample_amqp_websockets_c_files} ${iothub_client_sample_amqp_websockets_h_files})
 
-target_link_libraries(iothub_client_sample_amqp_websockets
-    iothub_client
-    iothub_client_amqp_ws_transport
-    parson_lib
-)
-
-linkSharedUtil(iothub_client_sample_amqp_websockets)
-linkUAMQP(iothub_client_sample_amqp_websockets)
+if (${build_as_dynamic})
+	target_link_libraries(iothub_client_sample_amqp_websockets
+		iothub_client_amqp_ws_transport_dll
+	)
+else()
+	target_link_libraries(iothub_client_sample_amqp_websockets
+		aziotsharedutil
+		iothub_client
+		iothub_client_amqp_ws_transport
+		parson_lib
+		uamqp
+	)
+endif()

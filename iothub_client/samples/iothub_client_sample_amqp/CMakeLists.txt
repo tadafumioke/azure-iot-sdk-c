@@ -35,15 +35,15 @@ include_directories(.)
 add_executable(iothub_client_sample_amqp ${iothub_client_sample_amqp_c_files} ${iothub_client_sample_amqp_h_files} ${samples_cert_file})
 
 if(${build_as_dynamic})
-	message(STATUS "Build AMQP sample as dynamic")
 	target_link_libraries(iothub_client_sample_amqp
 		iothub_client_amqp_transport_dll
 	)
 else()
-	message(STATUS "Build AMQP sample as static")
 	target_link_libraries(iothub_client_sample_amqp
+		aziotsharedutil
 		iothub_client
 		iothub_client_amqp_transport
 		parson_lib    
+		uamqp
 	)
 endif(${build_as_dynamic})

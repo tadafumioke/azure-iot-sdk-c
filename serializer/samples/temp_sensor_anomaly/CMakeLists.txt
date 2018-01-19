@@ -9,7 +9,7 @@ endif()
 compileAsC99()
 
 set(temp_sensor_anomaly_c_files
-./windows/main.c
+	./windows/main.c
 )
 
 set(temp_sensor_anomaly_h_files
@@ -21,16 +21,20 @@ IF(WIN32)
 ENDIF(WIN32)
 
 include_directories(. ${SHARED_UTIL_INC_FOLDER} ${IOTHUB_CLIENT_INC_FOLDER})
-link_directories(${whatIsBuilding}_dll ${SHARED_UTIL_LIB_DIR})
 
 add_executable(temp_sensor_anomaly ${temp_sensor_anomaly_c_files} ${temp_sensor_anomaly_h_files})
 
-target_link_libraries(temp_sensor_anomaly 
-	serializer 
-	iothub_client 
-	iothub_client_http_transport
-    parson_lib
-)
-	
-linkSharedUtil(temp_sensor_anomaly)
-linkHttp(temp_sensor_anomaly)
+if (build_as_dynamic)
+	target_link_libraries(temp_sensor_anomaly
+		iothub_client_http_transport_dll
+		serializer_dll
+	)
+else()
+	target_link_libraries(temp_sensor_anomaly  
+		iothub_client 
+		iothub_client_http_transport
+		serializer
+		parson_lib
+		uhttp
+	)
+endif()

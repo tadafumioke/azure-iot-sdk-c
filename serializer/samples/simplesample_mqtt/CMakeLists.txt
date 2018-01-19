@@ -3,11 +3,11 @@
 
 #this is CMakeLists.txt for simplesample_mqtt sample
 
+compileAsC99()
+
 if(NOT ${use_mqtt})
 	message(FATAL_ERROR "simplesample_mqtt being generated without mqtt support")
 endif()
-
-compileAsC99()
 
 set(simplesample_mqtt_c_files
 	simplesample_mqtt.c
@@ -28,7 +28,7 @@ IF(WIN32)
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 ENDIF(WIN32)
 
-#Conditionally use the SDK trusted certs in the samples
+# Conditionally use the SDK trusted certs in the samples
 if(${set_trusted_cert_in_samples})
     add_definitions(-DSET_TRUSTED_CERT_IN_SAMPLES)
 	include_directories(${PROJECT_SOURCE_DIR}/certs)
@@ -36,14 +36,20 @@ if(${set_trusted_cert_in_samples})
 endif()
 
 include_directories(. ${SHARED_UTIL_INC_FOLDER} ${IOTHUB_CLIENT_INC_FOLDER})
-#link_directories(${whatIsBuilding}_dll ${SHARED_UTIL_LIB_DIR})
 
 add_executable(simplesample_mqtt ${simplesample_mqtt_c_files} ${simplesample_mqtt_h_files} ${samples_cert_file})
 
-target_link_libraries(simplesample_mqtt 
-	iothub_client_mqtt_transport
-	serializer 
-	iothub_client
-    parson_lib
-    umqtt
-)
+if (build_as_dynamic)
+	target_link_libraries(simplesample_mqtt
+		iothub_client_mqtt_transport_dll
+		serializer_dll
+	)
+else()
+	target_link_libraries(simplesample_mqtt  
+		iothub_client 
+		iothub_client_mqtt_transport
+		serializer
+		parson_lib
+		umqtt
+	)
+endif()

@@ -54,9 +54,9 @@ set(serializer_h_files
     ./inc/methodreturn.h
 )
 
-if(MSVC)
-    set_source_files_properties(../deps/parson/parson.c PROPERTIES COMPILE_FLAGS "/wd4244 /wd4232")
-endif()
+# if(MSVC)
+    # set_source_files_properties(../deps/parson/parson.c PROPERTIES COMPILE_FLAGS "/wd4244 /wd4232")
+# endif()
 
 #these are the include folders
 #the following "set" statetement exports across the project a global variable called SHARED_UTIL_INC_FOLDER that expands to whatever needs to included when using COMMON library
@@ -85,10 +85,13 @@ set(install_libs
 
 if (${build_as_dynamic})
     add_library(
-        serializer_dll SHARED $<TARGET_OBJECTS:serializer_obj> ./src/serializer.def
+        serializer_dll SHARED $<TARGET_OBJECTS:serializer_obj>
     )
     set_target_properties(serializer_dll PROPERTIES 
         OUTPUT_NAME "serializer"
+		ARCHIVE_OUTPUT_NAME "serializer_dll_import"							# Rename import library so it doesn't clash with the static version
+		ENABLE_EXPORTS YES
+		WINDOWS_EXPORT_ALL_SYMBOLS YES										# Alternative to using a .def file - negates the need to create and maintain them
         VERSION ${IOT_SDK_VERSION}
         SOVERSION ${IOT_SDK_VERION_MAJOR}
     )

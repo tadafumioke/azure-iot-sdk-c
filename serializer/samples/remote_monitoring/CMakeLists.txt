@@ -10,14 +10,16 @@ if(NOT ${use_amqp})
 endif()
 
 set(remote_monitoring_c_files
-remote_monitoring.c
+	remote_monitoring.c
 )
 
-if(WIN32)
-	set(remote_monitoring_c_files ${remote_monitoring_c_files})
-else()
-	set(remote_monitoring_c_files ${remote_monitoring_c_files})
-endif()
+# set(remote_monitoring_c_files ${remote_monitoring_c_files})
+
+# if(WIN32)
+	# set(remote_monitoring_c_files ${remote_monitoring_c_files})
+# else()
+	# set(remote_monitoring_c_files ${remote_monitoring_c_files})
+# endif()
 
 set(remote_monitoring_h_files
 	remote_monitoring.h
@@ -40,11 +42,18 @@ include_directories(. ${IOTHUB_CLIENT_INC_FOLDER})
 link_directories(${whatIsBuilding}_dll ${SHARED_UTIL_LIB_DIR})
 
 add_executable(remote_monitoring ${remote_monitoring_c_files} ${remote_monitoring_h_files} ${samples_cert_file})
-target_link_libraries(remote_monitoring serializer 
-    iothub_client 
-    iothub_client_amqp_transport
-    parson_lib
-)
 
-linkSharedUtil(remote_monitoring)
-linkUAMQP(remote_monitoring)
+if (build_as_dynamic)
+	target_link_libraries(remote_monitoring 
+		iothub_client_amqp_transport_dll
+		serializer_dll
+	)
+else()
+	target_link_libraries(remote_monitoring 
+		iothub_client 
+		iothub_client_amqp_transport
+		serializer 
+		parson_lib
+		uamqp
+	)
+endif()

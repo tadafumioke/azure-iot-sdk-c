@@ -27,12 +27,12 @@ include_directories(.)
 add_executable(iothub_client_sample_device_method ${iothub_client_sample_device_method_c_files} ${iothub_client_sample_device_method_h_files})
 
 target_link_libraries(iothub_client_sample_device_method  
-    iothub_client_mqtt_transport
-    iothub_client_amqp_transport
-    iothub_client 
-    aziotsharedutil
-    parson_lib
-    uamqp
-    umqtt
+	iothub_client_mqtt_transport
+	iothub_client_amqp_transport
+	iothub_client 
+	aziotsharedutil
+	parson_lib
+	uamqp
+	umqtt
 )
 

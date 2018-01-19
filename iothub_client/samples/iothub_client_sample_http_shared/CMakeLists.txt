@@ -41,12 +41,20 @@ include_directories(.)
 
 add_executable(iothub_client_sample_http_shared ${iothub_client_sample_http_c_files} ${iothub_client_sample_http_h_files} ${samples_cert_file})
 
-target_link_libraries(iothub_client_sample_http_shared 
-#iothubclient is here only because locking... in gballoc no less.
-	iothub_client
-	iothub_client_http_transport
-    parson_lib
-)
+if (${build_as_dynamic})
+	target_link_libraries(iothub_client_sample_http_shared 
+		iothub_client_http_transport_dll
+	)
+else()
+	target_link_libraries(iothub_client_sample_http_shared 
+	#iothubclient is here only because locking... in gballoc no less.
+		aziotsharedutil
+		iothub_client
+		iothub_client_http_transport
+		parson_lib
+		uhttp
+	)
+endif()
 
 linkSharedUtil(iothub_client_sample_http_shared)
 linkHttp(iothub_client_sample_http_shared)

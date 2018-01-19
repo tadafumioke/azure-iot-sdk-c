@@ -33,11 +33,16 @@ include_directories(.)
 
 add_executable(iothub_client_sample_amqp_shared ${iothub_client_sample_amqp_shared_c_files} ${iothub_client_sample_amqp_shared_h_files} ${samples_cert_file})
 
-target_link_libraries(iothub_client_sample_amqp_shared
-    iothub_client
-    iothub_client_amqp_transport
-    parson_lib
-)
-
-linkSharedUtil(iothub_client_sample_amqp_shared)
-linkUAMQP(iothub_client_sample_amqp_shared)
+if (${build_as_dynamic})
+	target_link_libraries(iothub_client_sample_amqp_shared
+		iothub_client_amqp_transport_dll
+	)
+else()
+	target_link_libraries(iothub_client_sample_amqp_shared
+		aziotsharedutil
+		iothub_client
+		iothub_client_amqp_transport
+		parson_lib
+		uamqp
+	)
+endif()
