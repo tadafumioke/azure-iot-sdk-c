@@ -9,6 +9,9 @@
 
 #include "provisioning_sc_enrollment.h"
 #include "provisioning_sc_json_const.h"
+#include "provisioning_sc_json.h"
+#include "provisioning_sc_private_utility.h"
+#include "provisioning_sc_twin.h"
 #include "parson.h"
 
 #define UNREFERENCED_PARAMETER(x) x
@@ -21,12 +24,6 @@
 
 //Note: CERTIFICATE_TYPE_NONE is invalid, indicating error
 DEFINE_ENUM(CERTIFICATE_TYPE, CERTIFICATE_TYPE_VALUES);
-
-typedef enum NECESSITY_TAG
-{
-    REQUIRED,
-    OPTIONAL
-} NECESSITY;
 
 typedef struct TPM_ATTESTATION_TAG
 {
@@ -84,22 +81,6 @@ typedef struct ATTESTATION_MECHANISM_TAG
     } attestation;
 } ATTESTATION_MECHANISM;
 
-typedef struct TWIN_COLLECTION_TAG
-{
-    char* json;
-} TWIN_COLLECTION;
-
-typedef struct INITIAL_TWIN_PROPERTIES_TAG
-{
-    TWIN_COLLECTION* desired;
-} INITIAL_TWIN_PROPERTIES;
-
-typedef struct INITIAL_TWIN_TAG
-{
-    TWIN_COLLECTION* tags;
-    INITIAL_TWIN_PROPERTIES* properties;
-} INITIAL_TWIN;
-
 typedef struct DEVICE_REGISTRATION_STATE_TAG
 {
     char* registration_id;
@@ -118,7 +99,7 @@ typedef struct INDIVIDUAL_ENROLLMENT_TAG
     char* device_id;
     DEVICE_REGISTRATION_STATE* registration_state; //read only
     ATTESTATION_MECHANISM* attestation_mechanism;
-    INITIAL_TWIN* initial_twin;
+    INITIAL_TWIN_HANDLE initial_twin;
     char* etag;
     PROVISIONING_STATUS provisioning_status;
     char* created_date_time_utc; //read only
@@ -129,7 +110,7 @@ typedef struct ENROLLMENT_GROUP_TAG
 {
     char* group_id; //read only
     ATTESTATION_MECHANISM* attestation_mechanism;
-    INITIAL_TWIN* initial_twin;
+    INITIAL_TWIN_HANDLE initial_twin;
     char* etag;
     PROVISIONING_STATUS provisioning_status;
     char* created_date_time_utc; //read only
@@ -140,121 +121,6 @@ DEFINE_ENUM_STRINGS(ATTESTATION_TYPE, ATTESTATION_TYPE_VALUES)
 DEFINE_ENUM_STRINGS(CERTIFICATE_TYPE, CERTIFICATE_TYPE_VALUES)
 DEFINE_ENUM_STRINGS(PROVISIONING_STATUS, PROVISIONING_STATUS_VALUES)
 DEFINE_ENUM_STRINGS(REGISTRATION_STATUS, REGISTRATION_STATUS_VALUES)
-
-
-
-static int copy_string(char** dest, const char* string)
-{
-    int result = 0;
-    char* new_copy = NULL;
-    char* old_val = *dest;
-
-    if (string != NULL)
-    {
-        size_t len = strlen(string);
-        if ((new_copy = malloc(len + 1)) == NULL)
-        {
-            LogError("Allocating string for value '%s' failed", string);
-            result = __FAILURE__;
-        }
-        else if ((strncpy(new_copy, string, len + 1)) == NULL)
-        {
-            LogError("Failed to copy value '%s'", string);
-            free(new_copy);
-            new_copy = NULL;
-            result = __FAILURE__;
-        }
-        else
-        {
-            free(old_val);
-        }
-    }
-
-    *dest = new_copy;
-    return result;
-}
-
-static int copy_json_string_field(char** dest, JSON_Object* root_object, const char* json_key)
-{
-    int result = 0;
-
-    const char* string = json_object_get_string(root_object, json_key);
-    if (string != NULL)
-    {
-        if (copy_string(dest, string) != 0)
-        {
-            result = __FAILURE__;
-        }
-    }
-
-    return result;
-}
-
-static int json_serialize_and_set_struct(JSON_Object* root_object, const char* json_key, void* structure, void*(*toJson)(void*), NECESSITY necessity)
-{
-    int result;
-
-    if (necessity == OPTIONAL && structure == NULL)
-    {
-        result = 0;
-    }
-    else
-    {
-        JSON_Value* struct_val;
-        if (structure == NULL)
-        {
-            LogError("NULL structure");
-            result = __FAILURE__;
-        }
-        else if ((struct_val = toJson(structure)) == NULL)
-        {
-            LogError("Failed converting structure to JSON Value");
-            result = __FAILURE__;
-        }
-        else if (json_object_set_value(root_object, json_key, struct_val) != JSONSuccess)
-        {
-            LogError("Failed to set JSON Value in JSON Object");
-            result = __FAILURE__;
-        }
-        else
-        {
-            result = 0;
-        }
-    }
-
-    return result;
-}
-
-static int json_deserialize_and_get_struct(void** dest, JSON_Object* root_object, const char* json_key, void*(*fromJson)(void*), NECESSITY necessity)
-{
-    int result;
-
-    JSON_Object* struct_object = json_object_get_object(root_object, json_key);
-
-    if (necessity == OPTIONAL && struct_object == NULL)
-    {
-        result = 0;
-    }
-    else if (necessity == REQUIRED && struct_object == NULL)
-    {
-        LogError("object required");
-        result = __FAILURE__;
-    }
-    else
-    {
-        if ((*dest = fromJson(struct_object)) == NULL)
-        {
-            LogError("Failed to deserialize from JSON");
-            result = __FAILURE__;
-        }
-        else
-        {
-            result = 0;
-        }
-    }
-
-    return result;
-}
 
 static const REGISTRATION_STATUS registrationStatus_fromJson(const char* str_rep)
 {
@@ -373,242 +239,6 @@ static const ATTESTATION_TYPE attestationType_fromJson(const char* str_rep)
     }
 
     return new_type;
-}
-
-
-static void twinCollection_free(TWIN_COLLECTION* twin_collection)
-{
-    if (twin_collection != NULL)
-    {
-        free(twin_collection->json);
-        free(twin_collection);
-    }
-}
-
-static JSON_Value* twinCollection_toJson(const TWIN_COLLECTION* twin_collection)
-{
-    JSON_Value* root_value = NULL;
-    if ((root_value = json_parse_string(twin_collection->json)) == NULL)
-    {
-        LogError("Failed to parse Twin Collection json");
-    }
-    return root_value;
-}
-
-static TWIN_COLLECTION* twinCollection_fromJson(JSON_Object* root_object)
-{
-    TWIN_COLLECTION* new_twinCollection = NULL;
-
-    if ((new_twinCollection = malloc(sizeof(TWIN_COLLECTION))) == NULL)
-    {
-        LogError("Allocation of Twin Collection failed");
-    }
-    else
-    {
-        memset(new_twinCollection, 0, sizeof(TWIN_COLLECTION));
-
-        JSON_Value* root_value = NULL;
-        char* json_rep = NULL;
-
-        if ((root_value = json_object_get_wrapping_value(root_object)) == NULL)
-        {
-            LogError("Failed to get Twin Collection root");
-            twinCollection_free(new_twinCollection);
-            new_twinCollection = NULL;
-        }
-        else if ((json_rep = json_serialize_to_string(root_value)) == NULL)
-        {
-            LogError("Failed to serialize Twin Collection");
-            twinCollection_free(new_twinCollection);
-            new_twinCollection = NULL;
-        }
-        else if (copy_string(&(new_twinCollection->json), json_rep) != 0)
-        {
-            LogError("Failed to copy Twin Collection json");
-            twinCollection_free(new_twinCollection);
-            new_twinCollection = NULL;
-        }
-        json_free_serialized_string(json_rep);
-    }
-
-    return new_twinCollection;
-}
-
-static TWIN_COLLECTION* twinCollection_create(const char* json)
-{
-    TWIN_COLLECTION* new_twinCollection = NULL;
-
-    if ((new_twinCollection = malloc(sizeof(TWIN_COLLECTION))) == NULL)
-    {
-        LogError("Allocation of Twin Collection failed");
-    }
-    else
-    {
-        memset(new_twinCollection, 0, sizeof(TWIN_COLLECTION));
-
-        if (copy_string(&(new_twinCollection->json), json) != 0)
-        {
-            LogError("Failed to set json in Twin Collection");
-            twinCollection_free(new_twinCollection);
-            new_twinCollection = NULL;
-        }
-    }
-
-    return new_twinCollection;
-}
-
-static void twinProperties_free(INITIAL_TWIN_PROPERTIES* twin_properties)
-{
-    if (twin_properties != NULL)
-    {
-        twinCollection_free(twin_properties->desired);
-        free(twin_properties);
-    }
-}
-
-static INITIAL_TWIN_PROPERTIES* twinProperties_create(const char* desired_properties)
-{
-    INITIAL_TWIN_PROPERTIES* new_twinProperties = NULL;
-
-    if ((new_twinProperties = malloc(sizeof(INITIAL_TWIN_PROPERTIES))) == NULL)
-    {
-        LogError("Allocation of Twin Properties failed");
-    }
-    else
-    {
-        memset(new_twinProperties, 0, sizeof(INITIAL_TWIN_PROPERTIES));
-
-        if ((new_twinProperties->desired = twinCollection_create(desired_properties)) == NULL)
-        {
-            LogError("Failed to set desired properties in Twin Properties");
-            twinProperties_free(new_twinProperties);
-            new_twinProperties = NULL;
-        }
-    }
-
-    return new_twinProperties;
-}
-
-static JSON_Value* twinProperties_toJson(INITIAL_TWIN_PROPERTIES* twin_properties)
-{
-    JSON_Value* root_value = NULL;
-    JSON_Object* root_object = NULL;
-
-    if ((root_value = json_value_init_object()) == NULL)
-    {
-        LogError("json_value_init_object failed");
-    }
-    else if ((root_object = json_value_get_object(root_value)) == NULL)
-    {
-        LogError("json_value_get_object failed");
-        json_value_free(root_value);
-        root_value = NULL;
-    }
-    
-    //Set data
-    else if (json_serialize_and_set_struct(root_object, INITIAL_TWIN_PROPERTIES_JSON_KEY_DESIRED, twin_properties->desired, twinCollection_toJson, OPTIONAL) != 0)
-    {
-        LogError("Failed to set '%s' in JSON string representation of Twin Properties", INITIAL_TWIN_PROPERTIES_JSON_KEY_DESIRED);
-        json_value_free(root_value);
-        root_value = NULL;
-    }
-
-    return root_value;
-}
-
-static INITIAL_TWIN_PROPERTIES* twinProperties_fromJson(JSON_Object* root_object)
-{
-    INITIAL_TWIN_PROPERTIES* new_twinProperties = NULL;
-
-    if ((new_twinProperties = malloc(sizeof(INITIAL_TWIN_PROPERTIES))) == NULL)
-    {
-        LogError("Allocation of Twin Properties failed");
-    }
-    else
-    {
-        memset(new_twinProperties, 0, sizeof(INITIAL_TWIN_PROPERTIES));
-
-        if (json_deserialize_and_get_struct(&(new_twinProperties->desired), root_object, INITIAL_TWIN_PROPERTIES_JSON_KEY_DESIRED, twinCollection_fromJson, OPTIONAL) != 0)
-        {
-            LogError("Failed to set '%s' in Twin Properties", INITIAL_TWIN_PROPERTIES_JSON_KEY_DESIRED);
-            twinProperties_free(new_twinProperties);
-            new_twinProperties = NULL;
-        }
-    }
-
-    return new_twinProperties;
-}
-
-static void initialTwinState_free(INITIAL_TWIN* twin_state)
-{
-    if (twin_state != NULL)
-    {
-        twinCollection_free(twin_state->tags);
-        twinProperties_free(twin_state->properties);
-        free(twin_state);
-    }
-}
-
-static JSON_Value* initialTwinState_toJson(INITIAL_TWIN* twin_state)
-{
-    JSON_Value* root_value = NULL;
-    JSON_Object* root_object = NULL;
-
-    if ((root_value = json_value_init_object()) == NULL)
-    {
-        LogError("json_value_init_object failed");
-    }
-    else if ((root_object = json_value_get_object(root_value)) == NULL)
-    {
-        LogError("json_value_get_object failed");
-        json_value_free(root_value);
-        root_value = NULL;
-    }
-
-    //Set data
-    else if (json_serialize_and_set_struct(root_object, INITIAL_TWIN_JSON_KEY_TAGS, twin_state->tags, twinCollection_toJson, OPTIONAL) != 0)
-    {
-        LogError("Failed to set '%s' in JSON string representation", INITIAL_TWIN_JSON_KEY_TAGS);
-        json_value_free(root_value);
-        root_value = NULL;
-    }
-    else if (json_serialize_and_set_struct(root_object, INITIAL_TWIN_JSON_KEY_PROPERTIES, twin_state->properties, twinProperties_toJson, OPTIONAL) != 0)
-    {
-        LogError("Failed to set '%s' in JSON string representation", INITIAL_TWIN_JSON_KEY_PROPERTIES);
-        json_value_free(root_value);
-        root_value = NULL;
-    }
-
-    return root_value;
-}
-
-static INITIAL_TWIN* initialTwinState_fromJson(JSON_Object* root_object)
-{
-    INITIAL_TWIN* new_initialTwinState = NULL;
-
-    if ((new_initialTwinState = malloc(sizeof(INITIAL_TWIN))) == NULL)
-    {
-        LogError("Allocation of Twin State failed");
-    }
-    else
-    {
-        memset(new_initialTwinState, 0, sizeof(INITIAL_TWIN));
-
-        if (json_deserialize_and_get_struct(&(new_initialTwinState->tags), root_object, INITIAL_TWIN_JSON_KEY_TAGS, twinCollection_fromJson, OPTIONAL) != 0)
-        {
-            LogError("Failed to set '%s' in Twin State", INITIAL_TWIN_JSON_KEY_TAGS);
-            initialTwinState_free(new_initialTwinState);
-            new_initialTwinState = NULL;
-        }
-        else if (json_deserialize_and_get_struct(&(new_initialTwinState->properties), root_object, INITIAL_TWIN_JSON_KEY_PROPERTIES, twinProperties_fromJson, OPTIONAL) != 0)
-        {
-            LogError("Failed to set '%s' in Twin State", INITIAL_TWIN_JSON_KEY_PROPERTIES);
-            initialTwinState_free(new_initialTwinState);
-            new_initialTwinState = NULL;
-        }
-    }
-
-    return new_initialTwinState;
 }
 
 static void x509CAReferences_free(X509_CA_REFERENCES* x509_ca_ref)
@@ -1650,7 +1280,7 @@ static void individualEnrollment_free(INDIVIDUAL_ENROLLMENT* enrollment)
         free(enrollment->created_date_time_utc);
         free(enrollment->updated_date_time_utc);
         attestationMechanism_free(enrollment->attestation_mechanism);
-        initialTwinState_free(enrollment->initial_twin);
+        initialTwinState_destroy(enrollment->initial_twin);
         deviceRegistrationState_free(enrollment->registration_state);
         free(enrollment);
     }
@@ -1802,7 +1432,7 @@ static void enrollmentGroup_free(ENROLLMENT_GROUP* enrollment)
     {
         free(enrollment->group_id);
         attestationMechanism_free(enrollment->attestation_mechanism);
-        initialTwinState_free(enrollment->initial_twin);
+        initialTwinState_destroy(enrollment->initial_twin);
         free(enrollment->etag);
         free(enrollment->created_date_time_utc);
         free(enrollment->updated_date_time_utc);
@@ -2334,54 +1964,6 @@ ENROLLMENT_GROUP_HANDLE enrollmentGroup_deserializeFromJson(const char* json_str
     return (ENROLLMENT_GROUP_HANDLE)new_enrollment;
 }
 
-INITIAL_TWIN_HANDLE initialTwinState_create(const char* tags, const char* desired_properties)
-{
-    INITIAL_TWIN* new_twin = NULL;
-
-    if (strcmp(tags, "{}") == 0)
-    {
-        tags = NULL;
-    }
-    else if (strcmp(desired_properties, "{}") == 0)
-    {
-        desired_properties = NULL;
-    }
-    else if (tags == NULL && desired_properties == NULL)
-    {
-        LogError("no inputs");
-    }
-    //if adding input validation, add here
-    else if ((new_twin = malloc(sizeof(INITIAL_TWIN))) == NULL)
-    {
-        LogError("Allocation of Twin State failed");
-    }
-    else
-    {
-        memset(new_twin, 0, sizeof(INITIAL_TWIN));
-
-        if (tags != NULL && ((new_twin->tags = twinCollection_create(tags)) == NULL))
-        {
-            LogError("Failed to create tags");
-            initialTwinState_free(new_twin);
-            new_twin = NULL;
-        }
-        else if (desired_properties != NULL && ((new_twin->properties = twinProperties_create(desired_properties)) == NULL))
-        {
-            LogError("Failed to create desired properties");
-            initialTwinState_free(new_twin);
-            new_twin = NULL;
-        }
-    }
-
-    return new_twin;
-}
-
-void initialTwinState_destroy(INITIAL_TWIN_HANDLE handle)
-{
-    INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
-    initialTwinState_free(twin);
-}
-
 /* Accessor Functions - Attestation Mechanism */
 ATTESTATION_TYPE attestationMechanism_getType(ATTESTATION_MECHANISM_HANDLE att_handle)
 {
@@ -2444,7 +2026,7 @@ int individualEnrollment_setAttestationMechanism(INDIVIDUAL_ENROLLMENT_HANDLE ie
 
 INITIAL_TWIN_HANDLE individualEnrollment_getInitialTwinState(INDIVIDUAL_ENROLLMENT_HANDLE handle)
 {
-    INITIAL_TWIN* result = NULL;
+    INITIAL_TWIN_HANDLE result = NULL;
     INDIVIDUAL_ENROLLMENT* enrollment = (INDIVIDUAL_ENROLLMENT*)handle;
 
     if (enrollment == NULL)
@@ -2456,14 +2038,13 @@ INITIAL_TWIN_HANDLE individualEnrollment_getInitialTwinState(INDIVIDUAL_ENROLLME
         result = enrollment->initial_twin;
     }
 
-    return (INITIAL_TWIN_HANDLE)result;
+    return result;
 }
 
 int individualEnrollment_setInitialTwinState(INDIVIDUAL_ENROLLMENT_HANDLE ie_handle, INITIAL_TWIN_HANDLE ts_handle)
 {
     int result = 0;
     INDIVIDUAL_ENROLLMENT* enrollment = (INDIVIDUAL_ENROLLMENT*)ie_handle;
-    INITIAL_TWIN* twin = (INITIAL_TWIN*)ts_handle;
 
     if (enrollment == NULL)
     {
@@ -2472,8 +2053,8 @@ int individualEnrollment_setInitialTwinState(INDIVIDUAL_ENROLLMENT_HANDLE ie_han
     }
     else
     {
-        initialTwinState_free(enrollment->initial_twin);
-        enrollment->initial_twin = twin;
+        initialTwinState_destroy(enrollment->initial_twin);
+        enrollment->initial_twin = ts_handle;
     }
 
     return result;
@@ -2715,7 +2296,7 @@ int enrollmentGroup_setAttestationMechanism(ENROLLMENT_GROUP_HANDLE eg_handle, A
 
 INITIAL_TWIN_HANDLE enrollmentGroup_getInitialTwinState(ENROLLMENT_GROUP_HANDLE handle)
 {
-    INITIAL_TWIN* result = NULL;
+    INITIAL_TWIN_HANDLE result = NULL;
     ENROLLMENT_GROUP* enrollment = (ENROLLMENT_GROUP*)handle;
 
     if (enrollment == NULL)
@@ -2727,14 +2308,13 @@ INITIAL_TWIN_HANDLE enrollmentGroup_getInitialTwinState(ENROLLMENT_GROUP_HANDLE 
         result = enrollment->initial_twin;
     }
 
-    return (INITIAL_TWIN_HANDLE)result;
+    return result;
 }
 
 int enrollmentGroup_setInitialTwinState(ENROLLMENT_GROUP_HANDLE eg_handle, INITIAL_TWIN_HANDLE ts_handle)
 {
     int result = 0;
     ENROLLMENT_GROUP* enrollment = (ENROLLMENT_GROUP*)eg_handle;
-    INITIAL_TWIN* twin = (INITIAL_TWIN*)ts_handle;
 
     if (enrollment == NULL)
     {
@@ -2743,8 +2323,8 @@ int enrollmentGroup_setInitialTwinState(ENROLLMENT_GROUP_HANDLE eg_handle, INITI
     }
     else
     {
-        initialTwinState_free(enrollment->initial_twin);
-        enrollment->initial_twin = twin;
+        initialTwinState_destroy(enrollment->initial_twin);
+        enrollment->initial_twin = ts_handle;
     }
 
     return result;
@@ -3218,128 +2798,6 @@ int x509Certificate_getVersion(X509_CERTIFICATE_HANDLE handle)
     else
     {
         result = x509_certwinfo->info->version;
-    }
-
-    return result;
-}
-
-/* Accessor Functions - Initial Twin */
-
-const char* initialTwinState_getTags(INITIAL_TWIN_HANDLE handle)
-{
-    char* result = NULL;
-    INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
-
-    if (twin == NULL)
-    {
-        LogError("Twin State is NULL");
-    }
-    else if (twin->tags == NULL)
-    {
-        LogError("No tags in Twin State");
-    }
-    else
-    {
-        result = twin->tags->json;
-    }
-
-    return result;
-}
-
-int initialTwin_setTags(INITIAL_TWIN_HANDLE handle, const char* tags)
-{
-    int result = 0;
-    INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
-
-    if (twin == NULL)
-    {
-        LogError("TwinState is NULL");
-        result = __FAILURE__;
-    }
-    else if (tags == NULL)
-    {
-        LogError("Tags are NULL");
-        result = __FAILURE__;
-    }
-    else if (twin->tags == NULL)
-    {
-        if ((twin->tags = twinCollection_create(tags)) == NULL)
-        {
-            LogError("Failure creating Twin Collection for tags");
-            result = __FAILURE__;
-        }
-    }
-    else
-    {
-        if (copy_string(&(twin->tags->json), tags) != 0)
-        {
-            LogError("Failure setting tags");
-            result = __FAILURE__;
-        }
-    }
-
-    return result;
-}
-
-const char* initialTwin_getDesiredProperties(INITIAL_TWIN_HANDLE handle)
-{
-    char* result = NULL;
-    INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
-
-    if (twin == NULL)
-    {
-        LogError("Twin State is NULL");
-    }
-    else if ((twin->properties == NULL) || (twin->properties->desired == NULL))
-    {
-        LogError("No Desired Properties in Twin State");
-    }
-    else
-    {
-        result = twin->properties->desired->json;
-    }
-
-    return result;
-}
-
-int initialTwin_setDesiredProperties(INITIAL_TWIN_HANDLE handle, const char* desired_properties)
-{
-    int result = 0;
-    INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
-
-    if (twin == NULL)
-    {
-        LogError("TwinState is NULL");
-        result = __FAILURE__;
-    }
-    else if (desired_properties == NULL)
-    {
-        LogError("Desired properties are NULL");
-        result = __FAILURE__;
-    }
-    else if (twin->properties == NULL)
-    {
-        if ((twin->properties = twinProperties_create(desired_properties)) == NULL)
-        {
-            LogError("Failure creating Twin Properties");
-            result = __FAILURE__;
-        }
-    }
-    else if (twin->properties->desired == NULL)
-    {
-        if ((twin->properties->desired = twinCollection_create(desired_properties)) == NULL)
-        {
-            LogError("Failure creating Twin Collection for desired properties");
-            result = __FAILURE__;
-        }
-    }
-    else
-    {
-        if (copy_string(&(twin->properties->desired->json), desired_properties) != 0)
-        {
-            LogError("Failure setting desired properties");
-            result = __FAILURE__;
-        }
     }
 
     return result;

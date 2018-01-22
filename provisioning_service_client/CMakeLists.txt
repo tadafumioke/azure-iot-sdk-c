@@ -15,6 +15,8 @@ set(provisioning_service_client_c_files
 ./src/provisioning_sc_query.c
 ./src/provisioning_sc_bulk_operation.c
 ./src/provisioning_sc_enrollment.c
+./src/provisioning_sc_twin.c
+./src/provisioning_sc_private_utility.c
 ../deps/parson/parson.c
 )
 
@@ -25,6 +27,9 @@ set(provisioning_service_client_h_files
 ./inc/provisioning_sc_enrollment.h
 ./inc/provisioning_sc_enrollment_private.h
 ./inc/provisioning_sc_json_const.h
+./inc/provisioning_sc_json.h
+./inc/provisioning_sc_twin.h
+./inc/provisioning_sc_private_utility.h
 ../deps/parson/parson.h
 )
 
