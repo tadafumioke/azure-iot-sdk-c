@@ -8,7 +8,6 @@
 #include "azure_c_shared_utility/xlogging.h"
 #include "azure_c_shared_utility/crt_abstractions.h"
 
-#include "hsm_client_x509_abstract.h"
 #include "hsm_client_riot.h"
 #include "hsm_client_data.h"
 
@@ -496,7 +495,7 @@ static int process_riot_key_info(HSM_CLIENT_X509_INFO* riot_info)
     return result;
 }
 
-int hsm_init_x509_system(void)
+int hsm_client_x509_init(void)
 {
     // Only initialize one time
     if (g_digest_initialized == 0)
@@ -511,7 +510,7 @@ int hsm_init_x509_system(void)
     return 0;
 }
 
-void hsm_deinit_x509_system(void)
+void hsm_client_x509_deinit(void)
 {
 }
 
@@ -569,8 +568,10 @@ char* hsm_client_riot_get_certificate(HSM_CLIENT_HANDLE handle)
     {
         HSM_CLIENT_X509_INFO* x509_client = (HSM_CLIENT_X509_INFO*)handle;
 
+        size_t total_len = x509_client->alias_cert_length + x509_client->device_signed_length;
+
         /* Codes_SRS_HSM_CLIENT_RIOT_07_011: [ hsm_client_riot_get_certificate shall allocate a char* to return the riot certificate. ] */
-        result = (char*)malloc(x509_client->alias_cert_length+ x509_client->device_id_length+1);
+        result = (char*)malloc(total_len + 1);
         if (result == NULL)
         {
             /* Codes_SRS_HSM_CLIENT_RIOT_07_013: [ If any failure is encountered hsm_client_riot_get_certificate shall return NULL ] */
@@ -578,10 +579,13 @@ char* hsm_client_riot_get_certificate(HSM_CLIENT_HANDLE handle)
         }
         else
         {
+            size_t offset = 0;
             /* Codes_SRS_HSM_CLIENT_RIOT_07_012: [ On success hsm_client_riot_get_certificate shall return the riot certificate. ] */
-            memset(result, 0, x509_client->alias_cert_length + x509_client->device_id_length + 1);
+            memset(result, 0, total_len + 1);
             memcpy(result, x509_client->alias_cert_pem, x509_client->alias_cert_length);
-            memcpy(result+ x509_client->alias_cert_length, x509_client->device_id_public_pem, x509_client->device_id_length);
+            offset += x509_client->alias_cert_length;
+
+            memcpy(result + offset, x509_client->device_signed_pem, x509_client->device_signed_length);
         }
     }
     return result;

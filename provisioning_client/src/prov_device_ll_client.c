@@ -20,11 +20,13 @@
 
 #include "azure_prov_client/prov_auth_client.h"
 #include "azure_prov_client/prov_device_ll_client.h"
+#include "azure_prov_client/prov_client_const.h"
 
 static const char* OPTION_LOG_TRACE = "logtrace";
+static const char* PROV_REGISTRATION_ID = "registration_id";
 
 static const char* JSON_NODE_STATUS = "status";
-static const char* JSON_NODE_REG_STATUS = "registrationStatus";
+static const char* JSON_NODE_REG_STATUS = "registrationState";
 static const char* JSON_NODE_AUTH_KEY = "authenticationKey";
 static const char* JSON_NODE_DEVICE_ID = "deviceId";
 static const char* JSON_NODE_KEY_NAME = "keyName";
@@ -33,22 +35,16 @@ static const char* JSON_NODE_ASSIGNED_HUB = "assignedHub";
 static const char* JSON_NODE_TPM_NODE = "tpm";
 static const char* JSON_NODE_TRACKING_ID = "trackingId";
 
-static const char* PROV_ASSIGNED_STATUS = "assigned";
-static const char* PROV_ASSIGNING_STATUS = "assigning";
-static const char* PROV_UNASSIGNED_STATUS = "unassigned";
 static const char* PROV_FAILED_STATUS = "failed";
 static const char* PROV_BLACKLISTED_STATUS = "blacklisted";
 
-static const char* PROV_API_VERSION = "2017-08-31-preview";
 static const char* SAS_TOKEN_SCOPE_FMT = "%s/registrations/%s";
-
-static const char* PROV_DEVICE_CLIENT_VERSION = "1.1.01";
 
 #define SAS_TOKEN_DEFAULT_LIFETIME  3600
 #define EPOCH_TIME_T_VALUE          (time_t)0
 #define MAX_AUTH_ATTEMPTS           3
-#define PROV_GET_THROTTLE_TIME       2
-#define PROV_DEFAULT_TIMEOUT         60
+#define PROV_GET_THROTTLE_TIME      2
+#define PROV_DEFAULT_TIMEOUT        60
 
 typedef enum CLIENT_STATE_TAG
 {
@@ -389,11 +385,15 @@ static PROV_JSON_INFO* prov_transport_process_json_reply(const char* json_docume
                     }
                 }*/
                 LogError("Unsuccessful json encountered: %s", json_document);
+                free(result);
+                result = NULL;
                 break;
             }
 
             default:
                 LogError("invalid json status specified %d", result->prov_status);
+                free(result);
+                result = NULL;
                 break;
         }
         json_value_free(root_value);
@@ -493,6 +493,9 @@ static void on_transport_status(PROV_DEVICE_TRANSPORT_STATUS transport_status, v
                     }
                 }
                 break;
+            default:
+                LogError("Unknown status encountered");
+                break;
         }
     }
 }
@@ -519,13 +522,13 @@ static void destroy_instance(PROV_INSTANCE_INFO* prov_info)
     free(prov_info);
 }
 
-PROV_DEVICE_LL_HANDLE Prov_Device_LL_Create(const char* uri, const char* scope_id, PROV_DEVICE_TRANSPORT_PROVIDER_FUNCTION protocol)
+PROV_DEVICE_LL_HANDLE Prov_Device_LL_Create(const char* uri, const char* id_scope, PROV_DEVICE_TRANSPORT_PROVIDER_FUNCTION protocol)
 {
     PROV_INSTANCE_INFO* result;
     /* Codes_SRS_PROV_CLIENT_07_001: [If uri is NULL Prov_Device_LL_CreateFromUri shall return NULL.] */
-    if (uri == NULL || scope_id == NULL || protocol == NULL)
+    if (uri == NULL || id_scope == NULL || protocol == NULL)
     {
-        LogError("Invalid parameter specified uri: %p, scope_id: %p, protocol: %p", uri, scope_id, protocol);
+        LogError("Invalid parameter specified uri: %p, id_scope: %p, protocol: %p", uri, id_scope, protocol);
         result = NULL;
     }
     else
@@ -544,11 +547,11 @@ PROV_DEVICE_LL_HANDLE Prov_Device_LL_Create(const char* uri, const char* scope_i
             result->prov_state = CLIENT_STATE_READY;
             result->prov_transport_protocol = protocol();
 
-            /* Codes_SRS_PROV_CLIENT_07_034: [ Prov_Device_LL_Create shall construct a scope_id by base64 encoding the uri. ] */
-            if (mallocAndStrcpy_s(&result->scope_id, scope_id) != 0)
+            /* Codes_SRS_PROV_CLIENT_07_034: [ Prov_Device_LL_Create shall construct a id_scope by base64 encoding the uri. ] */
+            if (mallocAndStrcpy_s(&result->scope_id, id_scope) != 0)
             {
                 /* Codes_SRS_PROV_CLIENT_07_003: [ If any error is encountered, Prov_Device_LL_CreateFromUri shall return NULL. ] */
-                LogError("failed to construct scope_id");
+                LogError("failed to construct id_scope");
                 free(result);
                 result = NULL;
             }
@@ -681,19 +684,25 @@ PROV_DEVICE_RESULT Prov_Device_LL_Register_Device(PROV_DEVICE_LL_HANDLE handle, 
         }
         if (result == PROV_DEVICE_RESULT_OK)
         {
+            /* Codes_SRS_PROV_CLIENT_07_008: [ Prov_Device_LL_Register_Device shall set the state to send the registration request to on subsequent DoWork calls. ] */
+            handle->register_callback = register_callback;
+            handle->user_context = user_context;
+
+            handle->register_status_cb = reg_status_cb;
+            handle->status_user_ctx = status_ctx;
+
             if (handle->prov_transport_protocol->prov_transport_open(handle->transport_handle, ek_value, srk_value, on_transport_registration_data, handle, on_transport_status, handle) != 0)
             {
                 LogError("Failure establishing  connection");
+                handle->register_callback = NULL;
+                handle->user_context = NULL;
+
+                handle->register_status_cb = NULL;
+                handle->status_user_ctx = NULL;
                 result = PROV_DEVICE_RESULT_ERROR;
             }
             else
             {
-                /* Codes_SRS_PROV_CLIENT_07_008: [ Prov_Device_LL_Register_Device shall set the state to send the registration request to on subsequent DoWork calls. ] */
-                handle->register_callback = register_callback;
-                handle->user_context = user_context;
-
-                handle->register_status_cb = reg_status_cb;
-                handle->status_user_ctx = status_ctx;
                 handle->prov_state = CLIENT_STATE_REGISTER_SEND;
                 /* Codes_SRS_PROV_CLIENT_07_009: [ Upon success Prov_Device_LL_Register_Device shall return PROV_CLIENT_OK. ] */
                 result = PROV_DEVICE_RESULT_OK;
@@ -789,7 +798,7 @@ void Prov_Device_LL_DoWork(PROV_DEVICE_LL_HANDLE handle)
             (void)tickcounter_get_current_ms(prov_info->tick_counter, &current_time);
             if ((current_time - prov_info->timeout_value) / 1000 > PROV_DEFAULT_TIMEOUT)
             {
-                LogError("Failure sending operation status");
+                LogError("Timed out connecting to provisioning service");
                 prov_info->error_reason = PROV_DEVICE_RESULT_TIMEOUT;
                 prov_info->prov_state = CLIENT_STATE_ERROR;
             }
@@ -840,12 +849,48 @@ PROV_DEVICE_RESULT Prov_Device_LL_SetOption(PROV_DEVICE_LL_HANDLE handle, const 
 
             if (handle->prov_transport_protocol->prov_transport_set_proxy(handle->transport_handle, proxy_options) != 0)
             {
-                LogError("Failure setting proxy options");
+                LogError("setting proxy options");
                 result = PROV_DEVICE_RESULT_ERROR;
             }
             else
             {
                 result = PROV_DEVICE_RESULT_OK;
+            }
+        }
+        else if (strcmp(PROV_REGISTRATION_ID, option_name) == 0)
+        {
+            if (handle->prov_state != CLIENT_STATE_READY)
+            {
+                LogError("registration id cannot be set after registration has begun");
+                result = PROV_DEVICE_RESULT_ERROR;
+            }
+            else if (value == NULL)
+            {
+                LogError("value must be set to the correct registration id");
+                result = PROV_DEVICE_RESULT_ERROR;
+            }
+            else
+            {
+                if (handle->registration_id != NULL)
+                {
+                    free(handle->registration_id);
+                }
+                
+                if (mallocAndStrcpy_s(&handle->registration_id, (const char*)value) != 0)
+                {
+                    LogError("Failure allocating setting registration id");
+                    result = PROV_DEVICE_RESULT_ERROR;
+                }
+                else if (prov_auth_set_registration_id(handle->prov_auth_handle, handle->registration_id) != 0)
+                {
+                    LogError("Failure setting registration id");
+                    free(handle->registration_id);
+                    result = PROV_DEVICE_RESULT_ERROR;
+                }
+                else
+                {
+                    result = PROV_DEVICE_RESULT_OK;
+                }
             }
         }
         else

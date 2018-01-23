@@ -22,11 +22,11 @@
 #include "azure_prov_client/prov_sasl_tpm.h"
 #include "azure_c_shared_utility/strings.h"
 
+#include "azure_prov_client/prov_client_const.h"
+
 #define AMQP_MAX_SENDER_MSG_SIZE    UINT64_MAX
 #define AMQP_MAX_RECV_MSG_SIZE      65536
 
-static const char* HEADER_KEY_AUTHORIZATION = "Authorization";
-static const char* SAS_TOKEN_KEY_NAME = "registration";
 static const char* AMQP_ADDRESS_FMT = "amqps://%s/%s/registrations/%s";
 static const char* KEY_NAME_VALUE = "registration";
 
@@ -34,16 +34,14 @@ static const char* AMQP_REGISTER_ME = "iotdps-register";
 static const char* AMQP_WHO_AM_I = "iotdps-get-registration";
 static const char* AMQP_OPERATION_STATUS = "iotdps-get-operationstatus";
 
+static const char* AMQP_API_VERSION_KEY = "com.microsoft:api-version";
+
 static const char* AMQP_OP_TYPE_PROPERTY = "iotdps-operation-type";
 static const char* AMQP_STATUS = "iotdps-status";
 static const char* AMQP_OPERATION_ID = "iotdps-operation-id";
 static const char* AMQP_IOTHUB_URI = "iotdps-assigned-hub";
 static const char* AMQP_DEVICE_ID = "iotdps-device-id";
 static const char* AMQP_AUTH_KEY = "iotdps-auth-key";
-
-static const char* PROV_ASSIGNED_STATUS = "Assigned";
-static const char* PROV_ASSIGNING_STATUS = "Assigning";
-static const char* PROV_UNASSIGNED_STATUS = "Unassigned";
 
 typedef enum AMQP_TRANSPORT_STATE_TAG
 {
@@ -110,7 +108,7 @@ typedef struct PROV_TRANSPORT_AMQP_INFO_TAG
     TRANSPORT_CLIENT_STATE transport_state;
     AMQP_TRANSPORT_STATE amqp_state;
 
-    MESSAGE_SENDER_STATE msg_recv_state;
+    MESSAGE_RECEIVER_STATE msg_recv_state;
     MESSAGE_SENDER_STATE msg_send_state;
 
     SASL_MECHANISM_HANDLE tpm_sasl_handler;
@@ -440,6 +438,57 @@ static int send_amqp_message(PROV_TRANSPORT_AMQP_INFO* amqp_info, const char* ms
     return result;
 }
 
+static int add_link_properties(LINK_HANDLE amqp_link, const char* key, const char* value)
+{
+    fields attach_properties;
+    AMQP_VALUE device_client_type_key_name;
+    AMQP_VALUE device_client_type_value;
+    int result;
+
+    if ((attach_properties = amqpvalue_create_map()) == NULL)
+    {
+        LogError("Failed to create the map for device client type.");
+        result = __FAILURE__;
+    }
+    else
+    {
+        if ((device_client_type_key_name = amqpvalue_create_symbol(key)) == NULL)
+        {
+            LogError("Failed to create the key name for the device client type.");
+            result = __FAILURE__;
+        }
+        else
+        {
+            if ((device_client_type_value = amqpvalue_create_string(value)) == NULL)
+            {
+                LogError("Failed to create the key value for the device client type.");
+                result = __FAILURE__;
+            }
+            else
+            {
+                if ((result = amqpvalue_set_map_value(attach_properties, device_client_type_key_name, device_client_type_value)) != 0)
+                {
+                    LogError("Failed to set the property map for the device client type (error code is: %d)", result);
+                    result = __FAILURE__;
+                }
+                else if ((result = link_set_attach_properties(amqp_link, attach_properties)) != 0)
+                {
+                    LogError("Unable to attach the device client type to the link properties (error code is: %d)", result);
+                    result = __FAILURE__;
+                }
+                else
+                {
+                    result = 0;
+                }
+                amqpvalue_destroy(device_client_type_value);
+            }
+            amqpvalue_destroy(device_client_type_key_name);
+        }
+        amqpvalue_destroy(attach_properties);
+    }
+    return 0;
+}
+
 static int create_sender_link(PROV_TRANSPORT_AMQP_INFO* amqp_info)
 {
     int result;
@@ -475,7 +524,14 @@ static int create_sender_link(PROV_TRANSPORT_AMQP_INFO* amqp_info)
         }
         else
         {
-            if (link_set_max_message_size(amqp_info->sender_link, AMQP_MAX_SENDER_MSG_SIZE) != 0)
+            if (add_link_properties(amqp_info->sender_link, AMQP_API_VERSION_KEY, PROV_API_VERSION))
+            {
+                LogError("Failure adding link property");
+                link_destroy(amqp_info->sender_link);
+                amqp_info->sender_link = NULL;
+                result = __FAILURE__;
+            }
+            else if (link_set_max_message_size(amqp_info->sender_link, AMQP_MAX_SENDER_MSG_SIZE) != 0)
             {
                 LogError("Failure setting sender link max size");
                 link_destroy(amqp_info->sender_link);
@@ -546,7 +602,14 @@ static int create_receiver_link(PROV_TRANSPORT_AMQP_INFO* amqp_info)
         else
         {
             link_set_rcv_settle_mode(amqp_info->receiver_link, receiver_settle_mode_first);
-            if (link_set_max_message_size(amqp_info->receiver_link, AMQP_MAX_RECV_MSG_SIZE) != 0)
+            if (add_link_properties(amqp_info->receiver_link, AMQP_API_VERSION_KEY, PROV_API_VERSION))
+            {
+                LogError("Failure adding link property");
+                link_destroy(amqp_info->sender_link);
+                amqp_info->sender_link = NULL;
+                result = __FAILURE__;
+            }
+            else if (link_set_max_message_size(amqp_info->receiver_link, AMQP_MAX_RECV_MSG_SIZE) != 0)
             {
                 LogError("Failure setting max message size");
                 link_destroy(amqp_info->receiver_link);
@@ -619,9 +682,6 @@ static int create_amqp_connection(PROV_TRANSPORT_AMQP_INFO* amqp_info)
             amqp_info->underlying_io = transport_io->sasl_handle;
         }
 
-        bool ignore_check = true;
-        (void)xio_setoption(amqp_info->underlying_io, "ignore_server_name_check", &ignore_check);
-
         if (amqp_info->hsm_type == TRANSPORT_HSM_TYPE_X509)
         {
             if (amqp_info->x509_cert != NULL && amqp_info->private_key != NULL)
@@ -688,6 +748,7 @@ static int create_connection(PROV_TRANSPORT_AMQP_INFO* amqp_info)
     const SASL_MECHANISM_INTERFACE_DESCRIPTION* sasl_interface;
     SASL_TPM_CONFIG_INFO sasl_config;
     sasl_config.registration_id = amqp_info->registration_id;
+    sasl_config.scope_id = amqp_info->scope_id;
     sasl_config.storage_root_key = amqp_info->srk;
     sasl_config.endorsement_key = amqp_info->ek;
     sasl_config.hostname = amqp_info->hostname;
@@ -769,6 +830,8 @@ static void free_json_parse_info(PROV_JSON_INFO* parse_info)
             break;
         case PROV_DEVICE_TRANSPORT_STATUS_ASSIGNING:
             free(parse_info->operation_id);
+            break;
+        default:
             break;
     }
     free(parse_info);

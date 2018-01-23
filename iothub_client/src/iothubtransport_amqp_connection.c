@@ -29,11 +29,14 @@ typedef struct AMQP_CONNECTION_INSTANCE_TAG
     SESSION_HANDLE session_handle;
     XIO_HANDLE sasl_io;
     SASL_MECHANISM_HANDLE sasl_mechanism;
+    bool has_cbs;
+    bool has_sasl_mechanism;
     bool is_trace_on;
     AMQP_CONNECTION_STATE current_state;
     ON_AMQP_CONNECTION_STATE_CHANGED on_state_changed_callback;
     const void* on_state_changed_context;
-    uint32_t c2d_keep_alive_freq_secs;
+    uint32_t svc2cl_keep_alive_timeout_secs;
+    double cl2svc_keep_alive_send_ratio;
 } AMQP_CONNECTION_INSTANCE;
 
 
@@ -114,12 +117,12 @@ static void on_connection_state_changed(void* context, CONNECTION_STATE new_conn
     AMQP_CONNECTION_INSTANCE* instance = (AMQP_CONNECTION_INSTANCE*)context;
 
     // Codes_SRS_IOTHUBTRANSPORT_AMQP_CONNECTION_09_063: [If `on_connection_state_changed` is called back, `instance->on_state_changed_callback` shall be invoked, if defined]
-    if (instance->cbs_handle == NULL || instance->sasl_io == NULL)
+    if (new_connection_state == CONNECTION_STATE_START)
     {
         // connection is using x509 authentication.
         // At this point uamqp's connection only raises CONNECTION_STATE_START when using X509 auth.
         // So that should be all we expect to consider the amqp_connection_handle opened.
-        if (new_connection_state == CONNECTION_STATE_START)
+        if (instance->has_cbs == false || instance->has_sasl_mechanism == false)
         {
             update_state(instance, AMQP_CONNECTION_STATE_OPENED);
         }
@@ -196,11 +199,17 @@ static int create_connection_handle(AMQP_CONNECTION_INSTANCE* instance)
             result = __FAILURE__;
             LogError("Failed creating the AMQP connection (connection_create2 failed)");
         }
-        else if (connection_set_idle_timeout(instance->connection_handle, 1000 * instance->c2d_keep_alive_freq_secs) != RESULT_OK)
+        else if (connection_set_idle_timeout(instance->connection_handle, 1000 * instance->svc2cl_keep_alive_timeout_secs) != RESULT_OK)
         {
             // Codes_SRS_IOTHUBTRANSPORT_AMQP_CONNECTION_09_074: [If connection_set_idle_timeout() fails, amqp_connection_create() shall fail and return NULL]
             result = __FAILURE__;
             LogError("Failed creating the AMQP connection (connection_set_idle_timeout failed)");
+        }
+        else if (connection_set_remote_idle_timeout_empty_frame_send_ratio(instance->connection_handle, instance->cl2svc_keep_alive_send_ratio) != RESULT_OK) 
+		{
+			// Codes_SRS_IOTHUBTRANSPORT_AMQP_CONNECTION_99_001: [If connection_set_remote_idle_timeout_empty_frame_send_ratio fails, amqp_connection_create() shall fail and return NULL]
+			result = __FAILURE__;
+			LogError("Failed creating the AMQP connection (connection_set_remote_idle_timeout_empty_frame_send_ratio)");
         }
         else
         {
@@ -381,8 +390,11 @@ AMQP_CONNECTION_HANDLE amqp_connection_create(AMQP_CONNECTION_CONFIG* config)
                 instance->on_state_changed_callback = config->on_state_changed_callback;
                 // Codes_SRS_IOTHUBTRANSPORT_AMQP_CONNECTION_09_061: [`config->on_state_changed_context` shall be saved on `instance->on_state_changed_context`]
                 instance->on_state_changed_context = config->on_state_changed_context;
+                instance->has_sasl_mechanism = config->create_sasl_io;
+                instance->has_cbs = config->create_cbs_connection;
 
-                instance->c2d_keep_alive_freq_secs = (uint32_t)config->c2d_keep_alive_freq_secs;
+                instance->svc2cl_keep_alive_timeout_secs = (uint32_t)config->svc2cl_keep_alive_timeout_secs;
+				instance->cl2svc_keep_alive_send_ratio = (double)config->cl2svc_keep_alive_send_ratio;
 
                 instance->current_state = AMQP_CONNECTION_STATE_CLOSED;
 
@@ -410,8 +422,6 @@ AMQP_CONNECTION_HANDLE amqp_connection_create(AMQP_CONNECTION_CONFIG* config)
                 }
                 else
                 {
-                    
-
                     // Codes_SRS_IOTHUBTRANSPORT_AMQP_CONNECTION_09_034: [If no failures occur, amqp_connection_create() shall return the handle to the connection state]
                     result = (AMQP_CONNECTION_HANDLE)instance;
                 }

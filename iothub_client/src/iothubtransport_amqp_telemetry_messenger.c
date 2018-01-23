@@ -343,10 +343,11 @@ static void destroy_event_sender(TELEMETRY_MESSENGER_INSTANCE* instance)
         // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_060: [`instance->message_sender` shall be destroyed using messagesender_destroy()]
         messagesender_destroy(instance->message_sender);
         instance->message_sender = NULL;
-        instance->message_sender_current_state = MESSAGE_SENDER_STATE_IDLE;
-        instance->message_sender_previous_state = MESSAGE_SENDER_STATE_IDLE;
-        instance->last_message_sender_state_change_time = INDEFINITE_TIME;
     }
+
+    instance->message_sender_current_state = MESSAGE_SENDER_STATE_IDLE;
+    instance->message_sender_previous_state = MESSAGE_SENDER_STATE_IDLE;
+    instance->last_message_sender_state_change_time = INDEFINITE_TIME;
 
     if (instance->sender_link != NULL)
     {
@@ -449,10 +450,9 @@ static int create_event_sender(TELEMETRY_MESSENGER_INSTANCE* instance)
         if ((instance->message_sender = messagesender_create(instance->sender_link, on_event_sender_state_changed_callback, (void*)instance)) == NULL)
         {
             // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_052: [If messagesender_create() fails, telemetry_messenger_do_work() shall fail and return]
-            result = __FAILURE__;
-            link_destroy(instance->sender_link);
-            instance->sender_link = NULL;
             LogError("Failed creating the message sender (messagesender_create failed)");
+            destroy_event_sender(instance);
+            result = __FAILURE__;
         }
         else
         {
@@ -460,12 +460,9 @@ static int create_event_sender(TELEMETRY_MESSENGER_INSTANCE* instance)
             if (messagesender_open(instance->message_sender) != RESULT_OK)
             {
                 // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_054: [If messagesender_open() fails, telemetry_messenger_do_work() shall fail and return]
-                result = __FAILURE__;
-                messagesender_destroy(instance->message_sender);
-                instance->message_sender = NULL;
-                link_destroy(instance->sender_link);
-                instance->sender_link = NULL;
                 LogError("Failed opening the AMQP message sender.");
+                destroy_event_sender(instance);
+                result = __FAILURE__;
             }
             else
             {
@@ -509,10 +506,11 @@ static void destroy_message_receiver(TELEMETRY_MESSENGER_INSTANCE* instance)
 
         // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_096: [`instance->message_receiver` shall be set to NULL]
         instance->message_receiver = NULL;
-        instance->message_receiver_current_state = MESSAGE_RECEIVER_STATE_IDLE;
-        instance->message_receiver_previous_state = MESSAGE_RECEIVER_STATE_IDLE;
-        instance->last_message_receiver_state_change_time = INDEFINITE_TIME;
     }
+
+    instance->message_receiver_current_state = MESSAGE_RECEIVER_STATE_IDLE;
+    instance->message_receiver_previous_state = MESSAGE_RECEIVER_STATE_IDLE;
+    instance->last_message_receiver_state_change_time = INDEFINITE_TIME;
 
     if (instance->receiver_link != NULL)
     {
@@ -748,9 +746,9 @@ static int create_message_receiver(TELEMETRY_MESSENGER_INSTANCE* instance)
         if ((instance->message_receiver = messagereceiver_create(instance->receiver_link, on_message_receiver_state_changed_callback, (void*)instance)) == NULL)
         {
             // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_087: [If messagereceiver_create() fails, telemetry_messenger_do_work() shall fail and return]
-            result = __FAILURE__;
-            link_destroy(instance->receiver_link);
             LogError("Failed creating the message receiver (messagereceiver_create failed)");
+            destroy_message_receiver(instance);
+            result = __FAILURE__;
         }
         else
         {
@@ -758,10 +756,9 @@ static int create_message_receiver(TELEMETRY_MESSENGER_INSTANCE* instance)
             if (messagereceiver_open(instance->message_receiver, on_message_received_internal_callback, (void*)instance) != RESULT_OK)
             {
                 // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_089: [If messagereceiver_open() fails, telemetry_messenger_do_work() shall fail and return]
-                result = __FAILURE__;
-                messagereceiver_destroy(instance->message_receiver);
-                link_destroy(instance->receiver_link);
                 LogError("Failed opening the AMQP message receiver.");
+                destroy_message_receiver(instance);
+                result = __FAILURE__;
             }
             else
             {
@@ -1107,8 +1104,8 @@ static int create_send_pending_events_state(TELEMETRY_MESSENGER_INSTANCE* instan
     }
     else if (message_set_message_format(send_pending_events_state->message_batch_container, AMQP_BATCHING_FORMAT_CODE) != 0)
     {
-        LogError("Failed setting the message format to batching format");
-        result = __FAILURE__;
+         LogError("Failed setting the message format to batching format");
+         result = __FAILURE__;
     }
     else if ((send_pending_events_state->task = create_task(instance)) == NULL)
     {
@@ -1217,7 +1214,7 @@ static int send_pending_events(TELEMETRY_MESSENGER_INSTANCE* instance)
             break;
         }
         // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_200: [Retrieve an AMQP encoded representation of this message for later appending to main batched message.  On error, invoke callback but continue send loop; this is NOT a fatal error.]
-        else if (message_create_uamqp_encoding_from_iothub_message(caller_info->message->messageHandle, &body_binary_data) != RESULT_OK)
+        else if (message_create_uamqp_encoding_from_iothub_message(send_pending_events_state.message_batch_container, caller_info->message->messageHandle, &body_binary_data) != RESULT_OK)
         {
             // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_201: [If message_create_uamqp_encoding_from_iothub_message fails, invoke callback with TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_CANNOT_PARSE]
             LogError("message_create_uamqp_encoding_from_iothub_message() failed.  Will continue to try to process messages, result");

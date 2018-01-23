@@ -45,10 +45,15 @@ else()
         include_directories(./RIoT/Emulator/RIoT)
         include_directories(./RIoT/Emulator/RIoT/RIoTCrypt/include)
 
+if(MSVC)
+    set_source_files_properties(./RIoT/Emulator/RIoT/RIoTCrypt/RiotKdf.c PROPERTIES COMPILE_FLAGS "/wd4100")
+endif()
+
         IF(WIN32)
             #windows needs this define
             add_definitions(-D_CRT_SECURE_NO_WARNINGS)
             add_definitions(-DGB_MEASURE_MEMORY_FOR_THIS -DGB_DEBUG_ALLOC)
+            add_definitions(-DWIN32)
         ENDIF(WIN32)
 
         add_library(msr_riot ${msr_riot_c_files} ${msr_riot_h_files})

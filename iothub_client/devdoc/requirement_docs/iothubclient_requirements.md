@@ -20,6 +20,7 @@ extern const char* IoTHubClient_GetVersionString(void);
 extern IOTHUB_CLIENT_HANDLE IoTHubClient_CreateFromConnectionString(const char* connectionString, IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol);
 extern IOTHUB_CLIENT_HANDLE IoTHubClient_Create(const IOTHUB_CLIENT_CONFIG* config);
 extern IOTHUB_CLIENT_HANDLE IoTHubClient_CreateWithTransport(TRANSPORT_HANDLE transportHandle, const IOTHUB_CLIENT_CONFIG* config);
+extern IOTHUB_CLIENT_HANDLE IoTHubClient_CreateFromDeviceAuth(const char* iothub_uri, const char* device_id, IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol);
 extern void IoTHubClient_Destroy(IOTHUB_CLIENT_HANDLE iotHubClientHandle);
 
 extern IOTHUB_CLIENT_RESULT IoTHubClient_SendEventAsync(IOTHUB_CLIENT_HANDLE iotHubClientHandle, IOTHUB_MESSAGE_HANDLE eventMessageHandle, IOTHUB_CLIENT_EVENT_CONFIRMATION_CALLBACK eventConfirmationCallback, void* userContextCallback);
@@ -32,6 +33,7 @@ extern IOTHUB_CLIENT_RESULT IoTHubClient_GetRetryPolicy(IOTHUB_CLIENT_LL_HANDLE 
 extern IOTHUB_CLIENT_RESULT IoTHubClient_GetLastMessageReceiveTime(IOTHUB_CLIENT_HANDLE iotHubClientHandle, time_t* lastMessageReceiveTime);
 extern IOTHUB_CLIENT_RESULT IoTHubClient_SetOption(IOTHUB_CLIENT_HANDLE iotHubClientHandle, const char* optionName, const void* value);
 extern IOTHUB_CLIENT_RESULT IoTHubClient_UploadToBlobAsync(IOTHUB_CLIENT_HANDLE iotHubClientHandle, const char* destinationFileName, const unsigned char* source, size_t size, IOTHUB_CLIENT_FILE_UPLOAD_CALLBACK iotHubClientFileUploadCallback, void* context);
+extern IOTHUB_CLIENT_RESULT IoTHubClient_UploadMultipleBlocksToBlobAsync(IOTHUB_CLIENT_HANDLE iotHubClientHandle, const char* destinationFileName, IOTHUB_CLIENT_FILE_UPLOAD_GET_DATA_CALLBACK getDataCallback, void* context);
 
 ## Device Twin
 extern IOTHUB_CLIENT_RESULT IoTHubClient_SetDeviceTwinCallback(IOTHUB_CLIENT_HANDLE iotHubClientHandle, IOTHUB_CLIENT_DEVICE_TWIN_CALLBACK deviceTwinCallback, void* userContextCallback);
@@ -41,7 +43,6 @@ extern IOTHUB_CLIENT_RESULT IoTHubClient_SendReportedState(IOTHUB_CLIENT_HANDLE 
 extern IOTHUB_CLIENT_RESULT IoTHubClient_SetDeviceMethodCallback(IOTHUB_CLIENT_HANDLE iotHubClientHandle, IOTHUB_CLIENT_METHOD_CALLBACK_ASYNC deviceMethodCallback, void* userContextCallback);
 unsigned char* payload, IOTHUB_CLIENT_IOTHUB_METHOD_EXECUTE_CALLBACK iotHubExecuteCallback, void* userContextCallback);
 extern IOTHUB_CLIENT_RESULT IoTHubClient_SetDeviceMethodCallback_Ex(IOTHUB_CLIENT_HANDLE iotHubClientHandle, IOTHUB_CLIENT_INBOUND_DEVICE_METHOD_CALLBACK inboundDeviceMethodCallback, void* userContextCallback);
-
 ```
 
 ## IoTHubClient_GetVersionString
@@ -51,6 +52,7 @@ extern const char* IoTHubClient_GetVersionString(void);
 ```
 
 **SRS_IOTHUBCLIENT_05_001: [** `IoTHubClient_GetVersionString` shall return a pointer to a constant string which indicates the version of `IoTHubClient` API. **]**
+
 
 ## IoTHubClient_CreateFromConnectionString
 
@@ -77,7 +79,6 @@ extern IOTHUB_CLIENT_HANDLE IoTHubClient_CreateFromConnectionString(const char* 
 **SRS_IOTHUBCLIENT_12_010: [** If `IoTHubClient_LL_CreateFromConnectionString` fails then `IoTHubClient_CreateFromConnectionString` shall do clean-up and return `NULL`. **]**
 
 
-
 ## IoTHubClient_Create
 
 ```c 
@@ -101,7 +102,6 @@ extern IOTHUB_CLIENT_HANDLE IoTHubClient_Create(const IOTHUB_CLIENT_CONFIG* conf
 **SRS_IOTHUBCLIENT_01_030: [** If creating the lock fails, then `IoTHubClient_Create` shall return `NULL`. **]**
 
 **SRS_IOTHUBCLIENT_01_031: [** If `IoTHubClient_Create` fails, all resources allocated by it shall be freed. **]**
-
 
 
 ## IoTHubClient_CreateWithTransport
@@ -138,6 +138,28 @@ Create an IoTHubClient using an existing connection.
 
 **SRS_IOTHUBCLIENT_17_009: [** If `IoTHubClient_LL_CreateWithTransport` fails, all resources allocated by it shall be freed. **]**
 
+
+### IoTHubClient_CreateFromDeviceAuth
+
+```c
+extern IOTHUB_CLIENT_HANDLE IoTHubClient_CreateFromDeviceAuth(const char* iothub_uri, const char* device_id, IOTHUB_CLIENT_TRANSPORT_PROVIDER protocol);
+```
+
+**SRS_IOTHUBCLIENT_12_019: [** `IoTHubClient_CreateFromDeviceAuth` shall verify the input parameters and if any of them `NULL` then return `NULL`. **]**
+
+**SRS_IOTHUBCLIENT_12_020: [** `IoTHubClient_CreateFromDeviceAuth` shall allocate a new `IoTHubClient` instance. **]**
+
+**SRS_IOTHUBCLIENT_12_021: [** If allocating memory for the new `IoTHubClient` instance fails, then `IoTHubClient_CreateFromDeviceAuth` shall return `NULL`. **]**
+
+**SRS_IOTHUBCLIENT_12_022: [** `IoTHubClient_CreateFromDeviceAuth` shall create a lock object to be used later for serializing IoTHubClient calls. **]**
+
+**SRS_IOTHUBCLIENT_12_023: [** If creating the lock fails, then IoTHubClient_CreateFromDeviceAuth shall return NULL. **]**
+
+**SRS_IOTHUBCLIENT_12_024: [** If IoTHubClient_CreateFromDeviceAuth fails, all resources allocated by it shall be freed. **]**
+
+**SRS_IOTHUBCLIENT_12_025: [** `IoTHubClient_CreateFromDeviceAuth` shall instantiate a new `IoTHubClient_LL` instance by calling `IoTHubClient_LL_CreateFromDeviceAuth` and passing iothub_uri, device_id and protocol argument.  **]**
+
+
 ## IoTHubClient_Destroy
 
 ```c
@@ -159,6 +181,7 @@ extern void IoTHubClient_Destroy(IOTHUB_CLIENT_HANDLE iotHubClientHandle);
 **SRS_IOTHUBCLIENT_01_032: [** If the lock was allocated in `IoTHubClient_Create`, it shall be also freed. **]**
 
 **SRS_IOTHUBCLIENT_01_008: [** `IoTHubClient_Destroy` shall do nothing if parameter `iotHubClientHandle` is `NULL`. **]**
+
 
 ## IoTHubClient_SendEventAsync
 
@@ -184,6 +207,7 @@ extern IOTHUB_CLIENT_RESULT IoTHubClient_SendEventAsync(IOTHUB_CLIENT_HANDLE iot
 
 **SRS_IOTHUBCLIENT_07_001: [** `IoTHubClient_SendEventAsync` shall allocate a IOTHUB_QUEUE_CONTEXT object to be sent to the `IoTHubClient_LL_SendEventAsync` function as a user context. **]**
 
+
 ## IoTHubClient_SetMessageCallback
 
 ```c
@@ -205,6 +229,7 @@ extern IOTHUB_CLIENT_RESULT IoTHubClient_SetMessageCallback(IOTHUB_CLIENT_HANDLE
 **SRS_IOTHUBCLIENT_01_027: [** `IoTHubClient_SetMessageCallback` shall be made thread-safe by using the lock created in `IoTHubClient_Create`. **]**
 
 **SRS_IOTHUBCLIENT_01_028: [** If acquiring the lock fails, `IoTHubClient_SetMessageCallback` shall return `IOTHUB_CLIENT_ERROR`. **]**
+
 
 ###IoTHubClient_SetConnectionStatusCallback
 
@@ -228,6 +253,7 @@ extern IOTHUB_CLIENT_RESULT IoTHubClient_SetConnectionStatusCallback(IOTHUB_CLIE
 
 **SRS_IOTHUBCLIENT_25_088: [** If acquiring the lock fails, `IoTHubClient_SetConnectionStatusCallback` shall return `IOTHUB_CLIENT_ERROR`. **]**
 
+
 ###IoTHubClient_SetRetryPolicy
 
 ```c
@@ -249,6 +275,7 @@ extern IOTHUB_CLIENT_RESULT IoTHubClient_SetRetryPolicy(IOTHUB_CLIENT_LL_HANDLE 
 **SRS_IOTHUBCLIENT_25_079: [** `IoTHubClient_SetRetryPolicy` shall be made thread-safe by using the lock created in `IoTHubClient_Create`. **]**
 
 **SRS_IOTHUBCLIENT_25_080: [** If acquiring the lock fails, `IoTHubClient_SetRetryPolicy` shall return `IOTHUB_CLIENT_ERROR`. **]**
+
 
 ###IoTHubClient_GetRetryPolicy
 
@@ -289,6 +316,7 @@ extern IOTHUB_CLIENT_RESULT IoTHubClient_GetLastMessageReceiveTime(IOTHUB_CLIENT
 
 **SRS_IOTHUBCLIENT_01_036: [** If acquiring the lock fails, `IoTHubClient_GetLastMessageReceiveTime` shall return `IOTHUB_CLIENT_ERROR`. **]**
 
+
 ## IoTHubClient_GetSendStatus
 
 ```c
@@ -317,6 +345,7 @@ extern IOTHUB_CLIENT_RESULT IoTHubClient_GetSendStatus(IOTHUB_CLIENT_HANDLE iotH
 
 **SRS_IOTHUBCLIENT_02_072: [** All threads marked as disposable (upon completion of a file upload) shall be joined and the data structures build for them shall be freed. **]**
 
+
 ## IoTHubClient_SetOption
 
 ```c
@@ -339,6 +368,7 @@ IoTHubClient_SetOption allows run-time changing of settings of the IoTHubClient.
 
 Options handled by IoTHubClient_SetOption:
 -none.
+
 
 ## IoTHubClient_SetDeviceTwinCallback
 
@@ -364,6 +394,7 @@ extern IOTHUB_CLIENT_RESULT IoTHubClient_SetDeviceTwinCallback(IOTHUB_CLIENT_HAN
 
 **SRS_IOTHUBCLIENT_07_002: [** `IoTHubClient_SetDeviceTwinCallback` shall allocate a IOTHUB_QUEUE_CONTEXT object to be sent to the `IoTHubClient_LL_SetDeviceTwinCallback` function as a user context. **]**
 
+
 ## IoTHubClient_SendReportedState
 
 ```c
@@ -388,6 +419,7 @@ extern IOTHUB_CLIENT_RESULT IoTHubClient_SendReportedState(IOTHUB_CLIENT_HANDLE 
 
 **SRS_IOTHUBCLIENT_07_003: [** `IoTHubClient_SendReportedState` shall allocate a IOTHUB_QUEUE_CONTEXT object to be sent to the `IoTHubClient_LL_SendReportedState` function as a user context. **]**
 
+
 ## IoTHubClient_SetDeviceMethodCallback
 
 ```c
@@ -409,6 +441,7 @@ extern IOTHUB_CLIENT_RESULT IoTHubClient_SetDeviceMethodCallback(IOTHUB_CLIENT_H
 **SRS_IOTHUBCLIENT_12_017: [** When `IoTHubClient_LL_SetDeviceMethodCallback` is called, `IoTHubClient_SetDeviceMethodCallback` shall return the result of `IoTHubClient_LL_SetDeviceMethodCallback`. **]**
 
 **SRS_IOTHUBCLIENT_12_018: [** `IoTHubClient_SetDeviceMethodCallback` shall be made thread-safe by using the lock created in IoTHubClient_Create. **]**
+
 
 ## IoTHubClient_SetDeviceMethodCallback_Ex
 
@@ -448,6 +481,7 @@ int(*IOTHUB_CLIENT_INBOUND_DEVICE_METHOD_CALLBACK)(const char* method_name, cons
 
 **SRS_IOTHUB_MQTT_TRANSPORT_07_004: [** On success IOTHUB_CLIENT_INBOUND_DEVICE_METHOD_CALLBACK shall return a 0 value. **]**
 
+
 ## IoTHubClient_UploadToBlobAsync
 
 ```c
@@ -463,7 +497,7 @@ called `destinationFileName` in Azure Blob Storage and calls `iotHubClientFileUp
 
 **SRS_IOTHUBCLIENT_02_049: [** If `source` is `NULL` and size is greated than 0 then `IoTHubClient_UploadToBlobAsync` shall fail and return `IOTHUB_CLIENT_INVALID_ARG`. **]**
 
-**SRS_IOTHUBCLIENT_02_051: [** `IoTHubClient_UploadToBlobAsync` shall copy the `souce`, `size`, `iotHubClientFileUploadCallback`, `context` into a structure. **]**
+**SRS_IOTHUBCLIENT_02_051: [** `IoTHubClient_UploadToBlobAsync` shall copy the `source`, `size`, `iotHubClientFileUploadCallback`, `context` into a structure. **]**
 
 **SRS_IOTHUBCLIENT_02_058: [** `IoTHubClient_UploadToBlobAsync` shall add the structure to the list of structures that need to be cleaned once file upload finishes. **]**
 
@@ -479,3 +513,26 @@ called `destinationFileName` in Azure Blob Storage and calls `iotHubClientFileUp
 
 **SRS_IOTHUBCLIENT_02_071: [** The thread shall mark itself as disposable. **]**
 
+## IoTHubClient_UploadMultipleBlocksToBlobAsync
+
+```c
+IOTHUB_CLIENT_RESULT IoTHubClient_UploadMultipleBlocksToBlobAsync(IOTHUB_CLIENT_HANDLE iotHubClientHandle, const char* destinationFileName, IOTHUB_CLIENT_FILE_UPLOAD_GET_DATA_CALLBACK getDataCallback, void* context);
+```
+
+`IoTHubClient_UploadMultipleBlocksToBlobAsync` asynchronously uploads multiples blocks of data to a file called `destinationFileName` in Azure Blob Storage. The blocks are provided by calling repetitively `getDataCallback` until it returns an empty block.
+
+**SRS_IOTHUBCLIENT_99_072: [** If `iotHubClientHandle` is `NULL` then `IoTHubClient_UploadMultipleBlocksToBlobAsync` shall fail and return `IOTHUB_CLIENT_INVALID_ARG`. **]**
+
+**SRS_IOTHUBCLIENT_99_073: [** If `destinationFileName` is `NULL` then `IoTHubClient_UploadMultipleBlocksToBlobAsync` shall fail and return `IOTHUB_CLIENT_INVALID_ARG`. **]**
+
+**SRS_IOTHUBCLIENT_99_074: [** If `getDataCallback` is `NULL` then `IoTHubClient_UploadMultipleBlocksToBlobAsync` shall fail and return `IOTHUB_CLIENT_INVALID_ARG`. **]**
+
+**SRS_IOTHUBCLIENT_99_075: [** `IoTHubClient_UploadMultipleBlocksToBlobAsync` shall copy the `destinationFileName`, `getDataCallback`, `context`  and `iotHubClientHandle` into a structure. **]**
+
+**SRS_IOTHUBCLIENT_99_076: [** `IoTHubClient_UploadMultipleBlocksToBlobAsync` shall spawn a thread passing the structure build in SRS IOTHUBCLIENT 99 075 as thread data.]**
+
+**SRS_IOTHUBCLIENT_99_077: [** If copying to the structure or spawning the thread fails, then `IoTHubClient_UploadMultipleBlocksToBlobAsync` shall fail and return `IOTHUB_CLIENT_ERROR`. **]**
+
+**SRS_IOTHUBCLIENT_99_078: [** The thread shall call `IoTHubClient_LL_UploadMultipleBlocksToBlob` passing the information packed in the structure. **]**
+
+**SRS_IOTHUBCLIENT_99_077: [** If copying to the structure and spawning the thread succeeds, then `IoTHubClient_UploadMultipleBlocksToBlobAsync` shall return `IOTHUB_CLIENT_OK`. **]**

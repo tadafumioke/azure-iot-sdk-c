@@ -18,15 +18,7 @@
 #include "azure_uhttp_c/uhttp.h"
 #include "parson.h"
 
-/*#define PROV_STATUS_RESULT_VALUES    \
-    PROV_STATUS_COMPLETE,     \
-    PROV_STATUS_UNASSIGNED,   \
-    PROV_STATUS_ASSIGNING,    \
-    PROV_STATUS_ERROR
-
-DEFINE_ENUM(PROV_STATUS_RESULT, PROV_STATUS_RESULT_VALUES);*/
-
-#define HTTP_PORT_NUM               443
+#define HTTP_PORT_NUM                   443
 #define HTTP_STATUS_CODE_OK             200
 #define HTTP_STATUS_CODE_OK_MAX         226
 #define HTTP_STATUS_CODE_UNAUTHORIZED   401
@@ -43,19 +35,6 @@ static const char* USER_AGENT_VALUE = "prov_device_client/1.0";
 static const char* ACCEPT_VALUE = "application/json";
 static const char* CONTENT_TYPE_VALUE = "application/json; charset=utf-8";
 static const char* KEEP_ALIVE_VALUE = "keep-alive";
-
-static const char* JSON_NODE_STATUS = "status";
-static const char* JSON_NODE_REG_STATUS = "registrationStatus";
-static const char* JSON_NODE_AUTH_KEY = "authenticationKey";
-static const char* JSON_NODE_DEVICE_ID = "deviceId";
-static const char* JSON_NODE_KEY_NAME = "keyName";
-static const char* JSON_NODE_OPERATION_ID = "operationId";
-static const char* JSON_NODE_ASSIGNED_HUB = "assignedHub";
-static const char* JSON_NODE_TPM_NODE = "tpm";
-
-static const char* PROV_ASSIGNED_STATUS = "assigned";
-static const char* PROV_ASSIGNING_STATUS = "assigning";
-static const char* PROV_UNASSIGNED_STATUS = "unassigned";
 
 static const char* TPM_SECURITY_INFO = "{\"registrationId\":\"%s\",\"tpm\":{\"endorsementKey\":\"%s\", \"storageRootKey\":\"%s\"}}";
 static const char* RIOT_SECURITY_INFO = "{ \"registrationId\":\"%s\" }";
@@ -495,6 +474,8 @@ static void free_json_parse_info(PROV_JSON_INFO* parse_info)
         case PROV_DEVICE_TRANSPORT_STATUS_ASSIGNING:
             free(parse_info->operation_id);
             break;
+        default:
+            break;
     }
     free(parse_info);
 }
@@ -719,6 +700,11 @@ int prov_transport_http_open(PROV_DEVICE_TRANSPORT_HANDLE handle, BUFFER_HANDLE 
     }
     else
     {
+        http_info->register_data_cb = data_callback;
+        http_info->user_ctx = user_ctx;
+        http_info->status_cb = status_cb;
+        http_info->status_ctx = status_ctx;
+
         if (create_connection(http_info) != 0)
         {
             /* Codes_PROV_TRANSPORT_HTTP_CLIENT_07_013: [ If an error is encountered prov_transport_http_open shall return a non-zero value. ] */
@@ -733,14 +719,14 @@ int prov_transport_http_open(PROV_DEVICE_TRANSPORT_HANDLE handle, BUFFER_HANDLE 
                 BUFFER_delete(http_info->srk);
                 http_info->srk = NULL;
             }
+            http_info->register_data_cb = NULL;
+            http_info->user_ctx = NULL;
+            http_info->status_cb = NULL;
+            http_info->status_ctx = NULL;
             result = __FAILURE__;
         }
         else
         {
-            http_info->register_data_cb = data_callback;
-            http_info->user_ctx = user_ctx;
-            http_info->status_cb = status_cb;
-            http_info->status_ctx = status_ctx;
             result = 0;
         }
     }
