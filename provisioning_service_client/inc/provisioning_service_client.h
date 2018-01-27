@@ -8,7 +8,7 @@
 #include "azure_c_shared_utility/umock_c_prod.h"
 #include "azure_c_shared_utility/shared_util_options.h"
 
-#include "provisioning_sc_enrollment.h"
+#include "provisioning_sc_models.h"
 #include "provisioning_sc_query.h"
 #include "provisioning_sc_bulk_operation.h"
 

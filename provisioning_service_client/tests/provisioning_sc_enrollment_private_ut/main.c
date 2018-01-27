@@ -8,6 +8,6 @@
 int main(void)
 {
     size_t failedTestCount = 0;
-    RUN_TEST_SUITE(provisioning_sc_enrollment_private_ut, failedTestCount);
+    RUN_TEST_SUITE(provisioning_sc_models_serializer_ut, failedTestCount);
     return failedTestCount;
 }

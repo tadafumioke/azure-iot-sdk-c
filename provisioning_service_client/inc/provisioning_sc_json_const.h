@@ -1,8 +1,8 @@
 // Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-#ifndef PROVISIONING_SC_JSON_CONST
-#define PROVISIONING_SC_JSON_CONST
+#ifndef PROVISIONING_SC_JSON_CONST_H
+#define PROVISIONING_SC_JSON_CONST_H
 
 #ifdef __cplusplus
 extern "C" {

@@ -15,11 +15,11 @@
 #include "azure_c_shared_utility/tlsio.h"
 #include "azure_c_shared_utility/http_proxy_io.h"
 
-
 #include "azure_uhttp_c/uhttp.h"
 
 #include "provisioning_service_client.h"
-#include "provisioning_sc_enrollment_private.h"
+#include "provisioning_sc_models_serializer.h"
+#include "provisioning_sc_private_utility.h"
 
 typedef enum HTTP_CONNECTION_STATE_TAG
 {
@@ -81,58 +81,6 @@ typedef struct HANDLE_FUNCTION_VECTOR_TAG
 #define UID_LENGTH                  37
 #define SAS_TOKEN_DEFAULT_LIFETIME  3600
 #define EPOCH_TIME_T_VALUE          (time_t)0
-
-static size_t string_length(const char* value)
-{
-    size_t result;
-    if (value != NULL)
-    {
-        result = strlen(value);
-    }
-    else
-    {
-        result = 0;
-    }
-    return result;
-}
-
-static int mallocAndStrcpy_overwrite(char** dest, char* source)
-{
-    int result = 0;
-    char* temp = NULL;
-
-    if (dest == NULL || source == NULL)
-    {
-        LogError("Invalid input");
-        result = __FAILURE__;
-    }
-    else if (mallocAndStrcpy_s(&temp, source) != 0)
-    {
-        LogError("Failed to copy value from source");
-        result = __FAILURE__;
-    }
-    else
-    {
-        free(*dest);
-        *dest = temp;
-    }
-
-    return result;
-}
-
-static const char* retrieve_json_string(const char* value)
-{
-    const char* result;
-    if (value != NULL)
-    {
-        result = value;
-    }
-    else
-    {
-        result = "";
-    }
-    return result;
-}
 
 static HANDLE_FUNCTION_VECTOR getVector_individualEnrollment()
 {

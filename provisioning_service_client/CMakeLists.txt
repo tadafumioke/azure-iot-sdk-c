@@ -14,9 +14,13 @@ set(provisioning_service_client_c_files
 ./src/provisioning_service_client.c
 ./src/provisioning_sc_query.c
 ./src/provisioning_sc_bulk_operation.c
+./src/provisioning_sc_attestation_mechanism.c
+./src/provisioning_sc_device_registration_state.c
 ./src/provisioning_sc_enrollment.c
+./src/provisioning_sc_tpm_attestation.c
 ./src/provisioning_sc_twin.c
 ./src/provisioning_sc_private_utility.c
+./src/provisioning_sc_x509_attestation.c
 ../deps/parson/parson.c
 )
 
@@ -24,11 +28,16 @@ set(provisioning_service_client_h_files
 ./inc/provisioning_service_client.h
 ./inc/provisioning_sc_query.h
 ./inc/provisioning_sc_bulk_operation.h
+./inc/provisioning_sc_models.h
+./inc/provisioning_sc_attestation_mechanism.h
+./inc/provisioning_sc_device_registration_state.h
 ./inc/provisioning_sc_enrollment.h
-./inc/provisioning_sc_enrollment_private.h
+./inc/provisioning_sc_models_serializer.h
 ./inc/provisioning_sc_json_const.h
-./inc/provisioning_sc_json.h
+./inc/provisioning_sc_models_internal.h
+./inc/provisioning_sc_tpm_attestation.h
 ./inc/provisioning_sc_twin.h
+./inc/provisioning_sc_x509_attestation.h
 ./inc/provisioning_sc_private_utility.h
 ../deps/parson/parson.h
 )

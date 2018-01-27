@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 2.8.11)
 
 compileAsC11()
 
-set(theseTestsName provisioning_sc_enrollment_private_ut)
+set(theseTestsName provisioning_sc_models_serializer_ut)
 
 set(${theseTestsName}_test_files
     ${theseTestsName}.c

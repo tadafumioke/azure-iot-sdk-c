@@ -21,7 +21,7 @@ typedef struct INITIAL_TWIN_TAG* INITIAL_TWIN_HANDLE;
 *
 * @return   A non-NULL handle representing an Initial Twin for use with Provisioning Service, and NULL on failure.
 */
-MOCKABLE_FUNCTION(, INITIAL_TWIN_HANDLE, initialTwinState_create, const char*, tags, const char*, desired_properties);
+MOCKABLE_FUNCTION(, INITIAL_TWIN_HANDLE, initialTwin_create, const char*, tags, const char*, desired_properties);
 
 /** @brief  Destroys an Initial Twin handle, freeing all associated memory. Please note that this will also cause any Enrollment 
 *           that the Initial Twin has been attached to to have unexpected behvaiours. Do not use this function
@@ -29,13 +29,13 @@ MOCKABLE_FUNCTION(, INITIAL_TWIN_HANDLE, initialTwinState_create, const char*, t
 *
 * @param    handle      The handle of the Initial Twin to be destroyed
 */
-MOCKABLE_FUNCTION(, void, initialTwinState_destroy, INITIAL_TWIN_HANDLE, handle);
+MOCKABLE_FUNCTION(, void, initialTwin_destroy, INITIAL_TWIN_HANDLE, handle);
 
 /* Initial Twin Accessor Functions */
-MOCKABLE_FUNCTION(, const char*, initialTwinState_getTags, INITIAL_TWIN_HANDLE, handle);
-MOCKABLE_FUNCTION(, int, initialTwinState_setTags, INITIAL_TWIN_HANDLE, handle, const char*, tags);
-MOCKABLE_FUNCTION(, const char*, initialTwinState_getDesiredProperties, INITIAL_TWIN_HANDLE, handle);
-MOCKABLE_FUNCTION(, int, initialTwinState_setDesiredProperties, INITIAL_TWIN_HANDLE, handle, const char*, desiredProperties);
+MOCKABLE_FUNCTION(, const char*, initialTwin_getTags, INITIAL_TWIN_HANDLE, handle);
+MOCKABLE_FUNCTION(, int, initialTwin_setTags, INITIAL_TWIN_HANDLE, handle, const char*, tags);
+MOCKABLE_FUNCTION(, const char*, initialTwin_getDesiredProperties, INITIAL_TWIN_HANDLE, handle);
+MOCKABLE_FUNCTION(, int, initialTwin_setDesiredProperties, INITIAL_TWIN_HANDLE, handle, const char*, desiredProperties);
 
 #ifdef __cplusplus
 }

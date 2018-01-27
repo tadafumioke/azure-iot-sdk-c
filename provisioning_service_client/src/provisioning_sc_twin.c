@@ -5,8 +5,10 @@
 
 #include "azure_c_shared_utility/xlogging.h"
 #include "azure_c_shared_utility/gballoc.h"
+#include "azure_c_shared_utility/crt_abstractions.h"
 
 #include "provisioning_sc_twin.h"
+#include "provisioning_sc_models_internal.h"
 #include "provisioning_sc_json_const.h"
 #include "provisioning_sc_private_utility.h"
 #include "parson.h"
@@ -73,7 +75,7 @@ static TWIN_COLLECTION* twinCollection_fromJson(JSON_Object* root_object)
             twinCollection_free(new_twinCollection);
             new_twinCollection = NULL;
         }
-        else if (copy_string(&(new_twinCollection->json), json_rep) != 0)
+        else if (mallocAndStrcpy_s(&(new_twinCollection->json), json_rep) != 0)
         {
             LogError("Failed to copy Twin Collection json");
             twinCollection_free(new_twinCollection);
@@ -97,7 +99,7 @@ static TWIN_COLLECTION* twinCollection_create(const char* json)
     {
         memset(new_twinCollection, 0, sizeof(TWIN_COLLECTION));
 
-        if (copy_string(&(new_twinCollection->json), json) != 0)
+        if (mallocAndStrcpy_s(&(new_twinCollection->json), json) != 0)
         {
             LogError("Failed to set json in Twin Collection");
             twinCollection_free(new_twinCollection);
@@ -190,7 +192,7 @@ static INITIAL_TWIN_PROPERTIES* twinProperties_fromJson(JSON_Object* root_object
     return new_twinProperties;
 }
 
-static void initialTwinState_free(INITIAL_TWIN* twin_state)
+static void initialTwin_free(INITIAL_TWIN* twin_state)
 {
     if (twin_state != NULL)
     {
@@ -200,7 +202,8 @@ static void initialTwinState_free(INITIAL_TWIN* twin_state)
     }
 }
 
-JSON_Value* initialTwinState_toJson(INITIAL_TWIN* twin_state)
+/* Serialization Functions */
+JSON_Value* initialTwin_toJson(const INITIAL_TWIN_HANDLE twin_state)
 {
     JSON_Value* root_value = NULL;
     JSON_Object* root_object = NULL;
@@ -233,44 +236,45 @@ JSON_Value* initialTwinState_toJson(INITIAL_TWIN* twin_state)
     return root_value;
 }
 
-INITIAL_TWIN* initialTwinState_fromJson(JSON_Object* root_object)
+INITIAL_TWIN_HANDLE initialTwin_fromJson(JSON_Object* root_object)
 {
-    INITIAL_TWIN* new_initialTwinState = NULL;
+    INITIAL_TWIN* new_initialTwin = NULL;
 
-    if ((new_initialTwinState = malloc(sizeof(INITIAL_TWIN))) == NULL)
+    if ((new_initialTwin = malloc(sizeof(INITIAL_TWIN))) == NULL)
     {
         LogError("Allocation of Twin State failed");
     }
     else
     {
-        memset(new_initialTwinState, 0, sizeof(INITIAL_TWIN));
+        memset(new_initialTwin, 0, sizeof(INITIAL_TWIN));
 
-        if (json_deserialize_and_get_struct(&(new_initialTwinState->tags), root_object, INITIAL_TWIN_JSON_KEY_TAGS, twinCollection_fromJson, OPTIONAL) != 0)
+        if (json_deserialize_and_get_struct(&(new_initialTwin->tags), root_object, INITIAL_TWIN_JSON_KEY_TAGS, twinCollection_fromJson, OPTIONAL) != 0)
         {
             LogError("Failed to set '%s' in Twin State", INITIAL_TWIN_JSON_KEY_TAGS);
-            initialTwinState_free(new_initialTwinState);
-            new_initialTwinState = NULL;
+            initialTwin_free(new_initialTwin);
+            new_initialTwin = NULL;
         }
-        else if (json_deserialize_and_get_struct(&(new_initialTwinState->properties), root_object, INITIAL_TWIN_JSON_KEY_PROPERTIES, twinProperties_fromJson, OPTIONAL) != 0)
+        else if (json_deserialize_and_get_struct(&(new_initialTwin->properties), root_object, INITIAL_TWIN_JSON_KEY_PROPERTIES, twinProperties_fromJson, OPTIONAL) != 0)
         {
             LogError("Failed to set '%s' in Twin State", INITIAL_TWIN_JSON_KEY_PROPERTIES);
-            initialTwinState_free(new_initialTwinState);
-            new_initialTwinState = NULL;
+            initialTwin_free(new_initialTwin);
+            new_initialTwin = NULL;
         }
     }
 
-    return new_initialTwinState;
+    return new_initialTwin;
 }
 
-INITIAL_TWIN_HANDLE initialTwinState_create(const char* tags, const char* desired_properties)
+/* Exposed Twin API */
+INITIAL_TWIN_HANDLE initialTwin_create(const char* tags, const char* desired_properties)
 {
     INITIAL_TWIN* new_twin = NULL;
 
-    if (strcmp(tags, "{}") == 0)
+    if ((tags != NULL) && (strcmp(tags, "{}") == 0))
     {
         tags = NULL;
     }
-    else if (strcmp(desired_properties, "{}") == 0)
+    else if ((desired_properties != NULL) && (strcmp(desired_properties, "{}") == 0))
     {
         desired_properties = NULL;
     }
@@ -290,13 +294,13 @@ INITIAL_TWIN_HANDLE initialTwinState_create(const char* tags, const char* desire
         if (tags != NULL && ((new_twin->tags = twinCollection_create(tags)) == NULL))
         {
             LogError("Failed to create tags");
-            initialTwinState_free(new_twin);
+            initialTwin_free(new_twin);
             new_twin = NULL;
         }
         else if (desired_properties != NULL && ((new_twin->properties = twinProperties_create(desired_properties)) == NULL))
         {
             LogError("Failed to create desired properties");
-            initialTwinState_free(new_twin);
+            initialTwin_free(new_twin);
             new_twin = NULL;
         }
     }
@@ -304,16 +308,13 @@ INITIAL_TWIN_HANDLE initialTwinState_create(const char* tags, const char* desire
     return new_twin;
 }
 
-void initialTwinState_destroy(INITIAL_TWIN_HANDLE handle)
+void initialTwin_destroy(INITIAL_TWIN_HANDLE handle)
 {
     INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
-    initialTwinState_free(twin);
+    initialTwin_free(twin);
 }
 
-
-/* Accessor Functions - Initial Twin */
-
-const char* initialTwinState_getTags(INITIAL_TWIN_HANDLE handle)
+const char* initialTwin_getTags(INITIAL_TWIN_HANDLE handle)
 {
     char* result = NULL;
     INITIAL_TWIN* twin = (INITIAL_TWIN*)handle;
@@ -359,7 +360,7 @@ int initialTwin_setTags(INITIAL_TWIN_HANDLE handle, const char* tags)
     }
     else
     {
-        if (copy_string(&(twin->tags->json), tags) != 0)
+        if (mallocAndStrcpy_overwrite(&(twin->tags->json), tags) != 0)
         {
             LogError("Failure setting tags");
             result = __FAILURE__;
@@ -423,7 +424,7 @@ int initialTwin_setDesiredProperties(INITIAL_TWIN_HANDLE handle, const char* des
     }
     else
     {
-        if (copy_string(&(twin->properties->desired->json), desired_properties) != 0)
+        if (mallocAndStrcpy_overwrite(&(twin->properties->desired->json), desired_properties) != 0)
         {
             LogError("Failure setting desired properties");
             result = __FAILURE__;

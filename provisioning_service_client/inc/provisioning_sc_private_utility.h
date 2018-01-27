@@ -16,7 +16,7 @@ typedef enum NECESSITY_TAG
     OPTIONAL
 } NECESSITY;
 
-MOCKABLE_FUNCTION(, int, copy_string, char**, dest, const char*, string);
+MOCKABLE_FUNCTION(, int, mallocAndStrcpy_overwrite, char**, dest, const char*, source);
 MOCKABLE_FUNCTION(, int, copy_json_string_field, char**, dest, JSON_Object*, root_object, const char*, json_key);
 MOCKABLE_FUNCTION(, int, json_serialize_and_set_struct, JSON_Object*, root_object, const char*, json_key, void*, structure, void*, (*toJson)(void*), NECESSITY, necessity);
 MOCKABLE_FUNCTION(, int, json_deserialize_and_get_struct, void**, dest, JSON_Object*, root_object, const char*, json_key, void*, (*fromJson)(void*), NECESSITY, necessity);

@@ -6,6 +6,10 @@
 
 #include "azure_c_shared_utility/agenttime.h"
 #include "azure_c_shared_utility/macro_utils.h"
+#include "provisioning_sc_attestation_mechanism.h"
+#include "provisioning_sc_device_registration_state.h"
+#include "provisioning_sc_twin.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,33 +19,6 @@ extern "C" {
     */
     typedef struct INDIVIDUAL_ENROLLMENT_TAG* INDIVIDUAL_ENROLLMENT_HANDLE;
     typedef struct ENROLLMENT_GROUP_TAG* ENROLLMENT_GROUP_HANDLE;
-    typedef struct ATTESTATION_MECHANISM_TAG* ATTESTATION_MECHANISM_HANDLE;
-    typedef struct TPM_ATTESTATION_TAG* TPM_ATTESTATION_HANDLE;
-    typedef struct X509_ATTESTATION_TAG* X509_ATTESTATION_HANDLE;
-    typedef struct X509_CERTIFICATE_WITH_INFO_TAG* X509_CERTIFICATE_HANDLE;
-    typedef struct DEVICE_REGISTRATION_STATE_TAG* DEVICE_REGISTRATION_STATE_HANDLE;
-    typedef struct INITIAL_TWIN_TAG* INITIAL_TWIN_HANDLE;
-
-    /** @brief  Enums representing types and states for values within handles
-    */
-    #define REGISTRATION_STATUS_VALUES \
-            REGISTRATION_STATUS_ERROR, \
-            REGISTRATION_STATUS_UNASSIGNED, \
-            REGISTRATION_STATUS_ASSIGNING, \
-            REGISTRATION_STATUS_ASSIGNED, \
-            REGISTRATION_STATUS_FAILED, \
-            REGISTRATION_STATUS_DISABLED \
-
-    //Note: REGISTRATION_STATUS_ERROR is invalid, indicating error
-    DEFINE_ENUM(REGISTRATION_STATUS, REGISTRATION_STATUS_VALUES);
-
-    #define ATTESTATION_TYPE_VALUES \
-            ATTESTATION_TYPE_NONE, \
-            ATTESTATION_TYPE_TPM, \
-            ATTESTATION_TYPE_X509 \
-
-    //Note: ATTESTATION_TYPE_NONE is invalid, indicating error
-    DEFINE_ENUM(ATTESTATION_TYPE, ATTESTATION_TYPE_VALUES);
 
     #define PROVISIONING_STATUS_VALUES \
             PROVISIONING_STATUS_NONE, \
@@ -60,71 +37,6 @@ extern "C" {
     * Please ONLY use given "destroy" functions to free handles when you are done with them.
     */
 
-
-    /* Attestation Mechanism Operation Functions */
-
-    /** @brief  Creates an Attestation Mechanism handle that uses a TPM Attestation for use in consequent APIs.
-    *
-    * @param    endorsement_key     An endorsement key to use with the TPM.
-    *
-    * @return   A non NULL handle representing an Attestation Mechanism using a TPM Attestation, and NULL on failure.
-    */
-    MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWithTpm, const char*, endorsement_key);
-
-    /** @brief  Creates an Attestation Mechanism handle that uses an x509 Attestation with client certificate(s) for use in consequent APIs.
-    *           Please note that an x509 Attestation with a client certificate is NOT VALID when attached to an enrollment group.
-    *
-    * @param    primary_cert        A primary certificate for use with the x509.
-    * @param    secondary_cert      A secondary certificate for use with the x509 (optional - if not using two certs, pass NULL).
-    *
-    * @return   A non NULL handle representing an Attestation Mechanism using an X509 Attestation with a client certificate, and NULL on failure.
-    */
-    MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWithX509ClientCert, const char*, primary_cert, const char*, secondary_cert);
-
-    /** @brief  Creates an Attestation Mechanism handle that uses an x509 Attestation with signing certificate(s) for use in consequent APIs.
-    *           Please note that an x509 Attestation with a signing certificate is NOT VALID when attached to an individual enrollment.
-    *
-    * @param    primary_cert        A primary certificate for use with the x509.
-    * @param    secondary_cert      A secondary certificate for use with the x509 (optional - if not using two certs, pass NULL).
-    *
-    * @return   A non NULL handle representing an Attestation Mechanism using an X509 Attestation with a signing certificate, and NULL on failure.
-    */
-    MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWithX509SigningCert, const char*, primary_cert, const char*, secondary_cert);
-
-    /** @brief  Creates an Attestation Mechanism handle that uses an x509 Attestation with CA Certificate Reference(s) for use in consequent APIs.
-    *           Please note that an x509 Attestation with a CA Certificate Reference is NOT VALID when attached to an Individual Enrollment.
-    *
-    * @param    primary_ref         A reference to a primary CA Certificate for use with the x509.
-    * @param    secondary_ref       A reference to a secondary CA Certificate for use with the x509 (optional - if not using two cert refs, pass NULL).
-    *
-    * @return   A non NULL handle representing an Attestation Mechanism using an X509 Attestation with a CA Reference, and NULL on failure.
-    */
-    MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWithX509CAReference, const char*, primary_ref, const char*, secondary_ref);
-
-    /** @brief  Destroys an Attestation Mechanism handle, freeing all allocated memory. Please note that this also includes any memory
-    *           in more specific handles generated from the handle (e.g. TPM_ATTESTATION_HANDLE). Please note further that this will also
-    *           cause any Enrollment that the Attestation Mechanism has been attached to to have unexpected behvaiours. Do not use this function
-    *           unless the attestation mechanism is unattached.
-    *
-    * @param    att_handle          The handle of the Attestation Mechanism
-    */
-    MOCKABLE_FUNCTION(, void, attestationMechanism_destroy, ATTESTATION_MECHANISM_HANDLE, att_handle);
-
-    /** @brief Gives a TPM Attestation handle for accessing TPM Attestation values.
-    *
-    * @param    att_handle      The Attestation Mechanism handle to retrieve the TPM Attestation from.
-    *
-    * @return   A non-NULL handle representing a TPM Attestation, and NULL on failure - including if the Attestation Mechanism does not have a TPM Attestation.
-    */
-    MOCKABLE_FUNCTION(, TPM_ATTESTATION_HANDLE, attestationMechanism_getTpmAttestation, ATTESTATION_MECHANISM_HANDLE, att_handle);
-
-    /** @brief Gives an x509 Attestation handle for accessing X509 Attestation values.
-    *
-    * @param    att_handle      The Attestation Mechanism to retrieve the x509 Attestation from.
-    *
-    * @return   A non-NULL handle representing an x509 Attestation, and NULL on failure - including if the Attestation Mechanism does not have an x509 Attestation.
-    */
-    MOCKABLE_FUNCTION(, X509_ATTESTATION_HANDLE, attestationMechanism_getX509Attestation, ATTESTATION_MECHANISM_HANDLE, att_handle);
 
 
     /* Enrollment Operation Functions */
@@ -162,26 +74,6 @@ extern "C" {
     MOCKABLE_FUNCTION(, void, enrollmentGroup_destroy, ENROLLMENT_GROUP_HANDLE, handle);
 
 
-    /* Initial Twin Operation Functions */
-
-    /** @brief  Creates an Initial Twin handle for use in consequent APIs.
-    *
-    * @param    tags                    The json string for the tags of the initial Twin State
-    * @param    desired_properties      The json string for the desired properties of the initial Twin State
-    *
-    * @return   A non-NULL handle representing an Initial Twin for use with Provisioning Service, and NULL on failure.
-    */
-    MOCKABLE_FUNCTION(, INITIAL_TWIN_HANDLE, initialTwin_create, const char*, tags, const char*, desired_properties);
-
-    /** @brief  Destroys an Initial Twin handle, freeing all associated memory. Please note that this will also cause any Enrollment 
-    *           that the Initial Twin has been attached to to have unexpected behvaiours. Do not use this function
-    *           unless the Initial Twin is unattached.
-    *
-    * @param    handle      The handle of the Initial Twin to be destroyed
-    */
-    MOCKABLE_FUNCTION(, void, initialTwin_destroy, INITIAL_TWIN_HANDLE, handle);
-
-
     /* ACCESSOR FUNCTIONS
     *
     * Use these to retrieve and access properties of handles.
@@ -193,16 +85,12 @@ extern "C" {
     * The "set" accessor functions on the other hand, will return a non-zero integer in the event of failure.
     */
 
-    /* Attestation Mechanism Accessor Functions */
-    MOCKABLE_FUNCTION(, ATTESTATION_TYPE, attestationMechanism_getType, ATTESTATION_MECHANISM_HANDLE, att_handle);
-
     /* Individual Enrollment Accessor Functions */
     MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, individualEnrollment_getAttestationMechanism, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
     MOCKABLE_FUNCTION(, int, individualEnrollment_setAttestationMechanism, INDIVIDUAL_ENROLLMENT_HANDLE, ie_handle, ATTESTATION_MECHANISM_HANDLE, am_handle);
-    MOCKABLE_FUNCTION(, INITIAL_TWIN_HANDLE, individualEnrollment_getInitialTwinState, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
-    MOCKABLE_FUNCTION(, int, individualEnrollment_setInitialTwinState, INDIVIDUAL_ENROLLMENT_HANDLE, ie_handle, INITIAL_TWIN_HANDLE, ts_handle);
+    MOCKABLE_FUNCTION(, INITIAL_TWIN_HANDLE, individualEnrollment_getInitialTwin, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
+    MOCKABLE_FUNCTION(, int, individualEnrollment_setInitialTwin, INDIVIDUAL_ENROLLMENT_HANDLE, ie_handle, INITIAL_TWIN_HANDLE, ts_handle);
     MOCKABLE_FUNCTION(, DEVICE_REGISTRATION_STATE_HANDLE, individualEnrollment_getDeviceRegistrationState, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
-
     MOCKABLE_FUNCTION(, const char*, individualEnrollment_getRegistrationId, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
     MOCKABLE_FUNCTION(, const char*, individualEnrollment_getDeviceId, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
     MOCKABLE_FUNCTION(, int, individualEnrollment_setDeviceId, INDIVIDUAL_ENROLLMENT_HANDLE, handle, const char*, device_id);
@@ -218,7 +106,6 @@ extern "C" {
     MOCKABLE_FUNCTION(, int, enrollmentGroup_setAttestationMechanism, ENROLLMENT_GROUP_HANDLE, eg_handle, ATTESTATION_MECHANISM_HANDLE, am_handle);
     MOCKABLE_FUNCTION(, INITIAL_TWIN_HANDLE, enrollmentGroup_getInitialTwinState, ENROLLMENT_GROUP_HANDLE, handle);
     MOCKABLE_FUNCTION(, int, enrollmentGroup_setInitialTwinState, ENROLLMENT_GROUP_HANDLE, eg_handle, INITIAL_TWIN_HANDLE, ts_handle);
-
     MOCKABLE_FUNCTION(, const char*, enrollmentGroup_getGroupId, ENROLLMENT_GROUP_HANDLE, handle);
     MOCKABLE_FUNCTION(, const char*, enrollmentGroup_getEtag, ENROLLMENT_GROUP_HANDLE, handle);
     MOCKABLE_FUNCTION(, int, enrollmentGroup_setEtag, ENROLLMENT_GROUP_HANDLE, handle, const char*, etag);
@@ -226,37 +113,6 @@ extern "C" {
     MOCKABLE_FUNCTION(, int, enrollmentGroup_setProvisioningStatus, ENROLLMENT_GROUP_HANDLE, handle, PROVISIONING_STATUS, prov_status);
     MOCKABLE_FUNCTION(, const char*, enrollmentGroup_getCreatedDateTime, ENROLLMENT_GROUP_HANDLE, handle);
     MOCKABLE_FUNCTION(, const char*, enrollmentGroup_getUpdatedDateTime, ENROLLMENT_GROUP_HANDLE, handle);
-
-    /* Device Registration State Accessor Functions */
-    MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getRegistrationId, DEVICE_REGISTRATION_STATE_HANDLE, handle);
-    MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getCreatedDateTime, DEVICE_REGISTRATION_STATE_HANDLE, handle);
-    MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getDeviceId, DEVICE_REGISTRATION_STATE_HANDLE, handle);
-    MOCKABLE_FUNCTION(, REGISTRATION_STATUS, deviceRegistrationState_getRegistrationStatus, DEVICE_REGISTRATION_STATE_HANDLE, handle);
-    MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getUpdatedDateTime, DEVICE_REGISTRATION_STATE_HANDLE, handle);
-    MOCKABLE_FUNCTION(, int, deviceRegistrationState_getErrorCode, DEVICE_REGISTRATION_STATE_HANDLE, handle);
-    MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getErrorMessage, DEVICE_REGISTRATION_STATE_HANDLE, handle);
-    MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getEtag, DEVICE_REGISTRATION_STATE_HANDLE, handle);
-
-    /* TPM Attestation Accessor Functions */
-    MOCKABLE_FUNCTION(, const char*, tpmAttestation_getEndorsementKey, TPM_ATTESTATION_HANDLE, handle);
-
-    /* X509 Attestation Accessor Functions */
-    MOCKABLE_FUNCTION(, X509_CERTIFICATE_HANDLE, x509Attestation_getPrimaryCertificate, X509_ATTESTATION_HANDLE, handle);
-    MOCKABLE_FUNCTION(, X509_CERTIFICATE_HANDLE, x509Attestation_getSecondaryCertificate, X509_ATTESTATION_HANDLE, handle);
-    MOCKABLE_FUNCTION(, const char*, x509Certificate_getSubjectName, X509_CERTIFICATE_HANDLE, handle);
-    MOCKABLE_FUNCTION(, const char*, x509Certificate_getSha1Thumbprint, X509_CERTIFICATE_HANDLE, handle);
-    MOCKABLE_FUNCTION(, const char*, x509Certificate_getSha256Thumbprint, X509_CERTIFICATE_HANDLE, handle);
-    MOCKABLE_FUNCTION(, const char*, x509Certificate_getIssuerName, X509_CERTIFICATE_HANDLE, handle);
-    MOCKABLE_FUNCTION(, const char*, x509Certificate_getNotBeforeUtc, X509_CERTIFICATE_HANDLE, handle);
-    MOCKABLE_FUNCTION(, const char*, x509Certificate_getNotAfterUtc, X509_CERTIFICATE_HANDLE, handle);
-    MOCKABLE_FUNCTION(, const char*, x509Certificate_getSerialNumber, X509_CERTIFICATE_HANDLE, handle);
-    MOCKABLE_FUNCTION(, int, x509Certificate_getVersion, X509_CERTIFICATE_HANDLE, handle);
-
-    /* Initial Twin Accessor Functions */
-    MOCKABLE_FUNCTION(, const char*, initialTwinState_getTags, INITIAL_TWIN_HANDLE, handle);
-    MOCKABLE_FUNCTION(, int, initialTwinState_setTags, INITIAL_TWIN_HANDLE, handle, const char*, tags);
-    MOCKABLE_FUNCTION(, const char*, initialTwinState_getDesiredProperties, INITIAL_TWIN_HANDLE, handle);
-    MOCKABLE_FUNCTION(, int, initialTwinState_setDesiredProperties, INITIAL_TWIN_HANDLE, handle, const char*, desiredProperties);
 
 #ifdef __cplusplus
 }

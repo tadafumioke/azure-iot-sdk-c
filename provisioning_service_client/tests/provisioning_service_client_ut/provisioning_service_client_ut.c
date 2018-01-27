@@ -41,7 +41,7 @@ static void real_free(void* ptr)
 #include "azure_uhttp_c/uhttp.h"
 
 #include "provisioning_sc_enrollment.h"
-#include "provisioning_sc_enrollment_private.h"
+#include "provisioning_sc_models_serializer.h"
 
 #undef ENABLE_MOCKS
 

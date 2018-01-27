@@ -52,7 +52,7 @@ void dummy_json_value_free(JSON_Value* val)
 }
 
 #include "provisioning_sc_enrollment.h"
-#include "provisioning_sc_enrollment_private.h"
+#include "provisioning_sc_models_serializer.h"
 
 static TEST_MUTEX_HANDLE g_testByTest;
 static TEST_MUTEX_HANDLE g_dllByDll;
@@ -123,7 +123,7 @@ static void register_global_mock_returns()
     //REGISTER_GLOBAL_MOCK_RETURN(json_value_free, 1);
 }
 
-BEGIN_TEST_SUITE(provisioning_sc_enrollment_private_ut)
+BEGIN_TEST_SUITE(provisioning_sc_models_serializer_ut)
 
 TEST_SUITE_INITIALIZE(TestClassInitialize)
 {
@@ -667,4 +667,4 @@ TEST_FUNCTION(individualEnrollment_deserializeFromJson_error_NULL)
 }
 
 /* Testing of Serialize MAX cases, as well as all Deserialize cases require integration testing and cannot be done with pure unit testing */
-END_TEST_SUITE(provisioning_sc_enrollment_private_ut)
+END_TEST_SUITE(provisioning_sc_models_serializer_ut)
