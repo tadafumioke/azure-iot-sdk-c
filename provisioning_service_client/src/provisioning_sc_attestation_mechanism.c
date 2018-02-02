@@ -12,7 +12,7 @@
 #include "provisioning_sc_x509_attestation.h"
 #include "provisioning_sc_models_internal.h"
 #include "provisioning_sc_json_const.h"
-#include "provisioning_sc_private_utility.h"
+#include "provisioning_sc_shared_helpers.h"
 #include "parson.h"
 
 DEFINE_ENUM_STRINGS(ATTESTATION_TYPE, ATTESTATION_TYPE_VALUES)
@@ -68,7 +68,7 @@ static const ATTESTATION_TYPE attestationType_fromJson(const char* str_rep)
     return new_type;
 }
 
-static void attestationMechanism_free(ATTESTATION_MECHANISM* att_mech)
+void attestationMechanism_destroy(ATTESTATION_MECHANISM_HANDLE att_mech)
 {
     if (att_mech != NULL)
     {
@@ -76,14 +76,14 @@ static void attestationMechanism_free(ATTESTATION_MECHANISM* att_mech)
         {
             if (att_mech->attestation.tpm != NULL)
             {
-                tpmAttestation_free(att_mech->attestation.tpm);
+                tpmAttestation_destroy(att_mech->attestation.tpm);
             }
         }
         else if (att_mech->type == ATTESTATION_TYPE_X509)
         {
             if (att_mech->attestation.x509 != NULL)
             {
-                x509Attestation_free(att_mech->attestation.x509);
+                x509Attestation_destroy(att_mech->attestation.x509);
             }
         }
 
@@ -149,7 +149,7 @@ JSON_Value* attestationMechanism_toJson(const ATTESTATION_MECHANISM_HANDLE att_m
 
 ATTESTATION_MECHANISM_HANDLE attestationMechanism_fromJson(JSON_Object* root_object)
 {
-    ATTESTATION_MECHANISM* new_attMech = NULL;
+    ATTESTATION_MECHANISM_HANDLE new_attMech = NULL;
 
     if (root_object == NULL)
     {
@@ -166,7 +166,7 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_fromJson(JSON_Object* root_obj
         if ((new_attMech->type = attestationType_fromJson(json_object_get_string(root_object, ATTESTATION_MECHANISM_JSON_KEY_TYPE))) == ATTESTATION_TYPE_NONE)
         {
             LogError("Failed to set '%s' in Attestation Mechanism", ATTESTATION_MECHANISM_JSON_KEY_TYPE);
-            attestationMechanism_free(new_attMech);
+            attestationMechanism_destroy(new_attMech);
             new_attMech = NULL;
         }
         else if (new_attMech->type == ATTESTATION_TYPE_TPM)
@@ -174,7 +174,7 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_fromJson(JSON_Object* root_obj
             if (json_deserialize_and_get_struct(&(new_attMech->attestation.tpm), root_object, ATTESTATION_MECHANISM_JSON_KEY_TPM, tpmAttestation_fromJson, REQUIRED) != 0)
             {
                 LogError("Failed to set '%s' in Attestation Mechanism", ATTESTATION_MECHANISM_JSON_KEY_TPM);
-                attestationMechanism_free(new_attMech);
+                attestationMechanism_destroy(new_attMech);
                 new_attMech = NULL;
             }
         }
@@ -183,7 +183,7 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_fromJson(JSON_Object* root_obj
             if (json_deserialize_and_get_struct(&(new_attMech->attestation.x509), root_object, ATTESTATION_MECHANISM_JSON_KEY_X509, x509Attestation_fromJson, REQUIRED) != 0)
             {
                 LogError("Failed to set '%s' in Attestation Mechanism", ATTESTATION_MECHANISM_JSON_KEY_X509);
-                attestationMechanism_free(new_attMech);
+                attestationMechanism_destroy(new_attMech);
                 new_attMech = NULL;
             }
         }
@@ -192,10 +192,9 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_fromJson(JSON_Object* root_obj
     return new_attMech;
 }
 
-/* Exposed API */
 ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithTpm(const char* endorsement_key)
 {
-    ATTESTATION_MECHANISM* att_mech = NULL;
+    ATTESTATION_MECHANISM_HANDLE att_mech = NULL;
 
     if (endorsement_key == NULL)
     {
@@ -218,7 +217,7 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithTpm(const char* endo
 
 ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509ClientCert(const char* primary_cert, const char* secondary_cert)
 {
-    ATTESTATION_MECHANISM* att_mech = NULL;
+    ATTESTATION_MECHANISM_HANDLE att_mech = NULL;
 
     if (primary_cert == NULL)
     {
@@ -235,7 +234,7 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509ClientCert(const
         if ((att_mech->attestation.x509 = x509Attestation_create(X509_CERTIFICATE_TYPE_CLIENT, primary_cert, secondary_cert)) == NULL)
         {
             LogError("Allocation of X509 Attestation failed");
-            attestationMechanism_free(att_mech);
+            attestationMechanism_destroy(att_mech);
             att_mech = NULL;
         }
         else
@@ -249,7 +248,7 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509ClientCert(const
 
 ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509SigningCert(const char* primary_cert, const char* secondary_cert)
 {
-    ATTESTATION_MECHANISM* att_mech = NULL;
+    ATTESTATION_MECHANISM_HANDLE att_mech = NULL;
 
     if (primary_cert == NULL)
     {
@@ -266,7 +265,7 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509SigningCert(cons
         if ((att_mech->attestation.x509 = x509Attestation_create(X509_CERTIFICATE_TYPE_SIGNING, primary_cert, secondary_cert)) == NULL)
         {
             LogError("Allocation of X509 Attestation failed");
-            attestationMechanism_free(att_mech);
+            attestationMechanism_destroy(att_mech);
             att_mech = NULL;
         }
         else
@@ -275,12 +274,12 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509SigningCert(cons
         }
     }
 
-    return (ATTESTATION_MECHANISM_HANDLE)att_mech;
+    return att_mech;
 }
 
 ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509CAReference(const char* primary_ref, const char* secondary_ref)
 {
-    ATTESTATION_MECHANISM* att_mech = NULL;
+    ATTESTATION_MECHANISM_HANDLE att_mech = NULL;
 
     if (primary_ref == NULL)
     {
@@ -297,7 +296,7 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509CAReference(cons
         if ((att_mech->attestation.x509 = x509Attestation_create(X509_CERTIFICATE_TYPE_CA_REFERENCES, primary_ref, secondary_ref)) == NULL)
         {
             LogError("Allocation of X509 Attestation failed");
-            attestationMechanism_free(att_mech);
+            attestationMechanism_destroy(att_mech);
             att_mech = NULL;
         }
         else
@@ -306,19 +305,13 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509CAReference(cons
         }
     }
 
-    return (ATTESTATION_MECHANISM_HANDLE)att_mech;
+    return att_mech;
 }
 
-void attestationMechanism_destroy(ATTESTATION_MECHANISM_HANDLE att_handle)
-{
-    ATTESTATION_MECHANISM* att_mech = (ATTESTATION_MECHANISM*)att_handle;
-    attestationMechanism_free(att_mech);
-}
 
-TPM_ATTESTATION_HANDLE attestationMechanism_getTpmAttestation(ATTESTATION_MECHANISM_HANDLE att_handle)
+TPM_ATTESTATION_HANDLE attestationMechanism_getTpmAttestation(ATTESTATION_MECHANISM_HANDLE att_mech)
 {
     TPM_ATTESTATION_HANDLE tpm_att = NULL;
-    ATTESTATION_MECHANISM* att_mech = (ATTESTATION_MECHANISM*)att_handle;
 
     if (att_mech == NULL)
     {
@@ -336,10 +329,9 @@ TPM_ATTESTATION_HANDLE attestationMechanism_getTpmAttestation(ATTESTATION_MECHAN
     return tpm_att;
 }
 
-X509_ATTESTATION_HANDLE attestationMechanism_getX509Attestation(ATTESTATION_MECHANISM_HANDLE att_handle)
+X509_ATTESTATION_HANDLE attestationMechanism_getX509Attestation(ATTESTATION_MECHANISM_HANDLE att_mech)
 {
     X509_ATTESTATION_HANDLE new_x509_att = NULL;
-    ATTESTATION_MECHANISM* att_mech = (ATTESTATION_MECHANISM*)att_handle;
 
     if (att_mech == NULL)
     {
@@ -388,10 +380,9 @@ bool attestationMechanism_isValidForIndividualEnrollment(ATTESTATION_MECHANISM_H
     return result;
 }
 
-bool attestationMechanism_isValidForEnrollmentGroup(ATTESTATION_MECHANISM_HANDLE att_handle)
+bool attestationMechanism_isValidForEnrollmentGroup(ATTESTATION_MECHANISM_HANDLE att_mech)
 {
     bool result;
-    ATTESTATION_MECHANISM* att_mech = (ATTESTATION_MECHANISM*)att_handle;
 
     if (att_mech == NULL)
     {
@@ -420,17 +411,17 @@ bool attestationMechanism_isValidForEnrollmentGroup(ATTESTATION_MECHANISM_HANDLE
     return result;
 }
 
-ATTESTATION_TYPE attestationMechanism_getType(ATTESTATION_MECHANISM_HANDLE att_handle)
+ATTESTATION_TYPE attestationMechanism_getType(ATTESTATION_MECHANISM_HANDLE att_mech)
 {
     ATTESTATION_TYPE result = ATTESTATION_TYPE_NONE;
 
-    if (att_handle == NULL)
+    if (att_mech == NULL)
     {
         LogError("attestation mechanism is NULL");
     }
     else
     {
-        result = ((ATTESTATION_MECHANISM*)att_handle)->type;
+        result = att_mech->type;
     }
 
     return result;

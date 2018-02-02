@@ -9,7 +9,7 @@
 #include "provisioning_sc_device_registration_state.h"
 #include "provisioning_sc_json_const.h"
 #include "provisioning_sc_models_internal.h"
-#include "provisioning_sc_private_utility.h"
+#include "provisioning_sc_shared_helpers.h"
 #include "parson.h"
 
 typedef struct DEVICE_REGISTRATION_STATE_TAG
@@ -61,7 +61,7 @@ static const REGISTRATION_STATUS registrationStatus_fromJson(const char* str_rep
     return new_status;
 }
 
-void deviceRegistrationState_free(DEVICE_REGISTRATION_STATE_HANDLE device_reg_state)
+void deviceRegistrationState_destroy(DEVICE_REGISTRATION_STATE_HANDLE device_reg_state)
 {
     if (device_reg_state != NULL)
     {
@@ -77,7 +77,7 @@ void deviceRegistrationState_free(DEVICE_REGISTRATION_STATE_HANDLE device_reg_st
 
 DEVICE_REGISTRATION_STATE_HANDLE deviceRegistrationState_fromJson(JSON_Object* root_object)
 {
-    DEVICE_REGISTRATION_STATE* new_device_reg_state = NULL;
+    DEVICE_REGISTRATION_STATE_HANDLE new_device_reg_state = NULL;
 
     if (root_object == NULL)
     {
@@ -94,43 +94,43 @@ DEVICE_REGISTRATION_STATE_HANDLE deviceRegistrationState_fromJson(JSON_Object* r
         if (copy_json_string_field(&(new_device_reg_state->registration_id), root_object, DEVICE_REGISTRATION_STATE_JSON_KEY_REG_ID) != 0)
         {
             LogError("Failed to set '%s' in Device Registration State", DEVICE_REGISTRATION_STATE_JSON_KEY_REG_ID);
-            deviceRegistrationState_free(new_device_reg_state);
+            deviceRegistrationState_destroy(new_device_reg_state);
             new_device_reg_state = NULL;
         }
         else if (copy_json_string_field(&(new_device_reg_state->created_date_time_utc), root_object, DEVICE_REGISTRATION_STATE_JSON_KEY_CREATED_TIME) != 0)
         {
             LogError("Failed to set '%s' in Device Registration State", DEVICE_REGISTRATION_STATE_JSON_KEY_CREATED_TIME);
-            deviceRegistrationState_free(new_device_reg_state);
+            deviceRegistrationState_destroy(new_device_reg_state);
             new_device_reg_state = NULL;
         }
         else if (copy_json_string_field(&(new_device_reg_state->device_id), root_object, DEVICE_REGISTRATION_STATE_JSON_KEY_DEVICE_ID) != 0)
         {
             LogError("Failed to set '%s' in Device Registration State", DEVICE_REGISTRATION_STATE_JSON_KEY_DEVICE_ID);
-            deviceRegistrationState_free(new_device_reg_state);
+            deviceRegistrationState_destroy(new_device_reg_state);
             new_device_reg_state = NULL;
         }
         else if ((new_device_reg_state->status = registrationStatus_fromJson(json_object_get_string(root_object, DEVICE_REGISTRATION_STATE_JSON_KEY_REG_STATUS))) == REGISTRATION_STATUS_ERROR)
         {
             LogError("Failed to set '%s' in Device Registration State", DEVICE_REGISTRATION_STATE_JSON_KEY_REG_STATUS);
-            deviceRegistrationState_free(new_device_reg_state);
+            deviceRegistrationState_destroy(new_device_reg_state);
             new_device_reg_state = NULL;
         }
         else if (copy_json_string_field(&(new_device_reg_state->updated_date_time_utc), root_object, DEVICE_REGISTRATION_STATE_JSON_KEY_UPDATED_TIME) != 0)
         {
             LogError("Failed to set '%s' in Device Registration State", DEVICE_REGISTRATION_STATE_JSON_KEY_UPDATED_TIME);
-            deviceRegistrationState_free(new_device_reg_state);
+            deviceRegistrationState_destroy(new_device_reg_state);
             new_device_reg_state = NULL;
         }
         else if (copy_json_string_field(&(new_device_reg_state->error_message), root_object, DEVICE_REGISTRATION_STATE_JSON_KEY_ERROR_MSG) != 0)
         {
             LogError("Failed to set '%s' in Device Registration State", DEVICE_REGISTRATION_STATE_JSON_KEY_ERROR_MSG);
-            deviceRegistrationState_free(new_device_reg_state);
+            deviceRegistrationState_destroy(new_device_reg_state);
             new_device_reg_state = NULL;
         }
         else if (copy_json_string_field(&(new_device_reg_state->etag), root_object, DEVICE_REGISTRATION_STATE_JSON_KEY_ETAG) != 0)
         {
             LogError("Failed to set '%s' in Device Registration State", DEVICE_REGISTRATION_STATE_JSON_KEY_ETAG);
-            deviceRegistrationState_free(new_device_reg_state);
+            deviceRegistrationState_destroy(new_device_reg_state);
             new_device_reg_state = NULL;
         }
         else
@@ -141,10 +141,9 @@ DEVICE_REGISTRATION_STATE_HANDLE deviceRegistrationState_fromJson(JSON_Object* r
 }
 
 /* Acessor Functions */
-const char* deviceRegistrationState_getRegistrationId(DEVICE_REGISTRATION_STATE_HANDLE handle)
+const char* deviceRegistrationState_getRegistrationId(DEVICE_REGISTRATION_STATE_HANDLE drs)
 {
     char* result = NULL;
-    DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
     {
@@ -158,10 +157,9 @@ const char* deviceRegistrationState_getRegistrationId(DEVICE_REGISTRATION_STATE_
     return result;
 }
 
-const char* deviceRegistrationState_getCreatedDateTime(DEVICE_REGISTRATION_STATE_HANDLE handle)
+const char* deviceRegistrationState_getCreatedDateTime(DEVICE_REGISTRATION_STATE_HANDLE drs)
 {
     char* result = NULL;
-    DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
     {
@@ -175,10 +173,9 @@ const char* deviceRegistrationState_getCreatedDateTime(DEVICE_REGISTRATION_STATE
     return result;
 }
 
-const char* deviceRegistrationState_getDeviceId(DEVICE_REGISTRATION_STATE_HANDLE handle)
+const char* deviceRegistrationState_getDeviceId(DEVICE_REGISTRATION_STATE_HANDLE drs)
 {
     char* result = NULL;
-    DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
     {
@@ -192,10 +189,9 @@ const char* deviceRegistrationState_getDeviceId(DEVICE_REGISTRATION_STATE_HANDLE
     return result;
 }
 
-REGISTRATION_STATUS deviceRegistrationState_getRegistrationStatus(DEVICE_REGISTRATION_STATE_HANDLE handle)
+REGISTRATION_STATUS deviceRegistrationState_getRegistrationStatus(DEVICE_REGISTRATION_STATE_HANDLE drs)
 {
     REGISTRATION_STATUS result = REGISTRATION_STATUS_ERROR;
-    DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
     {
@@ -209,10 +205,9 @@ REGISTRATION_STATUS deviceRegistrationState_getRegistrationStatus(DEVICE_REGISTR
     return result;
 }
 
-const char* deviceRegistrationState_getUpdatedDateTime(DEVICE_REGISTRATION_STATE_HANDLE handle)
+const char* deviceRegistrationState_getUpdatedDateTime(DEVICE_REGISTRATION_STATE_HANDLE drs)
 {
     char* result = NULL;
-    DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
     {
@@ -226,10 +221,9 @@ const char* deviceRegistrationState_getUpdatedDateTime(DEVICE_REGISTRATION_STATE
     return result;
 }
 
-int deviceRegistrationState_getErrorCode(DEVICE_REGISTRATION_STATE_HANDLE handle)
+int deviceRegistrationState_getErrorCode(DEVICE_REGISTRATION_STATE_HANDLE drs)
 {
     int result = 0;
-    DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
     {
@@ -243,10 +237,9 @@ int deviceRegistrationState_getErrorCode(DEVICE_REGISTRATION_STATE_HANDLE handle
     return result;
 }
 
-const char* deviceRegistrationState_getErrorMessage(DEVICE_REGISTRATION_STATE_HANDLE handle)
+const char* deviceRegistrationState_getErrorMessage(DEVICE_REGISTRATION_STATE_HANDLE drs)
 {
     char* result = NULL;
-    DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
     {
@@ -260,10 +253,9 @@ const char* deviceRegistrationState_getErrorMessage(DEVICE_REGISTRATION_STATE_HA
     return result;
 }
 
-const char* deviceRegistrationState_getEtag(DEVICE_REGISTRATION_STATE_HANDLE handle)
+const char* deviceRegistrationState_getEtag(DEVICE_REGISTRATION_STATE_HANDLE drs)
 {
     char* result = NULL;
-    DEVICE_REGISTRATION_STATE* drs = (DEVICE_REGISTRATION_STATE*)handle;
 
     if (drs == NULL)
     {

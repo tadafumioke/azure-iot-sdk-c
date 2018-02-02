@@ -7,7 +7,7 @@
 #include "azure_c_shared_utility/gballoc.h"
 #include "azure_c_shared_utility/crt_abstractions.h"
 
-#include "provisioning_sc_private_utility.h"
+#include "provisioning_sc_shared_helpers.h"
 #include "parson.h"
 
 int mallocAndStrcpy_overwrite(char** dest, const char* source)
@@ -50,7 +50,7 @@ int copy_json_string_field(char** dest, JSON_Object* root_object, const char* js
     return result;
 }
 
-int json_serialize_and_set_struct(JSON_Object* root_object, const char* json_key, void* structure, void*(*toJson)(void*), NECESSITY necessity)
+int json_serialize_and_set_struct(JSON_Object* root_object, const char* json_key, void* structure, TO_JSON_FUNCTION toJson, NECESSITY necessity)
 {
     int result;
 
@@ -85,7 +85,7 @@ int json_serialize_and_set_struct(JSON_Object* root_object, const char* json_key
     return result;
 }
 
-int json_deserialize_and_get_struct(void** dest, JSON_Object* root_object, const char* json_key, void*(*fromJson)(void*), NECESSITY necessity)
+int json_deserialize_and_get_struct(void** dest, JSON_Object* root_object, const char* json_key, FROM_JSON_FUNCTION fromJson, NECESSITY necessity)
 {
     int result;
 

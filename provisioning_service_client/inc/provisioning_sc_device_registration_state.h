@@ -4,11 +4,11 @@
 #ifndef PROVISIONING_SC_DEVICE_REGISTRATION_STATE_H
 #define PROVISIONING_SC_DEVICE_REGISTRATION_STATE_H
 
-#include "azure_c_shared_utility/macro_utils.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
+#include "azure_c_shared_utility/macro_utils.h"
 
 typedef struct DEVICE_REGISTRATION_STATE_TAG* DEVICE_REGISTRATION_STATE_HANDLE;
 
@@ -24,14 +24,14 @@ typedef struct DEVICE_REGISTRATION_STATE_TAG* DEVICE_REGISTRATION_STATE_HANDLE;
 DEFINE_ENUM(REGISTRATION_STATUS, REGISTRATION_STATUS_VALUES);
 
 /* Accessor Functions */
-MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getRegistrationId, DEVICE_REGISTRATION_STATE_HANDLE, handle);
-MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getCreatedDateTime, DEVICE_REGISTRATION_STATE_HANDLE, handle);
-MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getDeviceId, DEVICE_REGISTRATION_STATE_HANDLE, handle);
-MOCKABLE_FUNCTION(, REGISTRATION_STATUS, deviceRegistrationState_getRegistrationStatus, DEVICE_REGISTRATION_STATE_HANDLE, handle);
-MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getUpdatedDateTime, DEVICE_REGISTRATION_STATE_HANDLE, handle);
-MOCKABLE_FUNCTION(, int, deviceRegistrationState_getErrorCode, DEVICE_REGISTRATION_STATE_HANDLE, handle);
-MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getErrorMessage, DEVICE_REGISTRATION_STATE_HANDLE, handle);
-MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getEtag, DEVICE_REGISTRATION_STATE_HANDLE, handle);
+MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getRegistrationId, DEVICE_REGISTRATION_STATE_HANDLE, drs);
+MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getCreatedDateTime, DEVICE_REGISTRATION_STATE_HANDLE, drs);
+MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getDeviceId, DEVICE_REGISTRATION_STATE_HANDLE, drs);
+MOCKABLE_FUNCTION(, REGISTRATION_STATUS, deviceRegistrationState_getRegistrationStatus, DEVICE_REGISTRATION_STATE_HANDLE, drs);
+MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getUpdatedDateTime, DEVICE_REGISTRATION_STATE_HANDLE, drs);
+MOCKABLE_FUNCTION(, int, deviceRegistrationState_getErrorCode, DEVICE_REGISTRATION_STATE_HANDLE, drs);
+MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getErrorMessage, DEVICE_REGISTRATION_STATE_HANDLE, drs);
+MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getEtag, DEVICE_REGISTRATION_STATE_HANDLE, drs);
 
 #ifdef __cplusplus
 }

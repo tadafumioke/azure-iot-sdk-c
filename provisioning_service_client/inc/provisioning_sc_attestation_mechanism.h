@@ -4,14 +4,16 @@
 #ifndef PROVISIONING_SC_ATTESTATION_MECHANISM_H
 #define PROVISIONING_SC_ATTESTATION_MECHANISM_H
 
+#ifdef __cplusplus
+#include <cstdbool.h>
+extern "C" {
+#else
 #include <stdbool.h>
+#endif /* __cplusplus */
+
 #include "azure_c_shared_utility/macro_utils.h"
 #include "provisioning_sc_tpm_attestation.h"
 #include "provisioning_sc_x509_attestation.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
 
 typedef struct ATTESTATION_MECHANISM_TAG* ATTESTATION_MECHANISM_HANDLE;
 
@@ -66,27 +68,27 @@ MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWit
 *           cause any Enrollment that the Attestation Mechanism has been attached to to have unexpected behvaiours. Do not use this function
 *           unless the attestation mechanism is unattached.
 *
-* @param    att_handle          The handle of the Attestation Mechanism
+* @param    att_mech          The handle of the Attestation Mechanism
 */
-MOCKABLE_FUNCTION(, void, attestationMechanism_destroy, ATTESTATION_MECHANISM_HANDLE, att_handle);
+MOCKABLE_FUNCTION(, void, attestationMechanism_destroy, ATTESTATION_MECHANISM_HANDLE, att_mech);
 
 /** @brief  Returns result indicating if an attestation mechanism is valid to be attached to an Individual Enrollment
 * 
-* @param    att_handle          The handle of the Attestation Mechanism
+* @param    att_mech          The handle of the Attestation Mechanism
 */ 
-MOCKABLE_FUNCTION(, bool, attestationMechanism_isValidForIndividualEnrollment, ATTESTATION_MECHANISM_HANDLE, att_handle);
+MOCKABLE_FUNCTION(, bool, attestationMechanism_isValidForIndividualEnrollment, ATTESTATION_MECHANISM_HANDLE, att_mech);
 
 /** @brief  Returns result indicating if an attestation mechanism is valid to be attached to an Enrollment Group
 * 
-* @param    att_handle          The handle of the Attestation Mechanism
+* @param    att_mech          The handle of the Attestation Mechanism
 */ 
-MOCKABLE_FUNCTION(, bool, attestationMechanism_isValidForEnrollmentGroup, ATTESTATION_MECHANISM_HANDLE, att_handle);
+MOCKABLE_FUNCTION(, bool, attestationMechanism_isValidForEnrollmentGroup, ATTESTATION_MECHANISM_HANDLE, att_mech);
 
 
 /* Attestation Mechanism Accessor Functions */
-MOCKABLE_FUNCTION(, ATTESTATION_TYPE, attestationMechanism_getType, ATTESTATION_MECHANISM_HANDLE, att_handle);
-MOCKABLE_FUNCTION(, TPM_ATTESTATION_HANDLE, attestationMechanism_getTpmAttestation, ATTESTATION_MECHANISM_HANDLE, att_handle);
-MOCKABLE_FUNCTION(, X509_ATTESTATION_HANDLE, attestationMechanism_getX509Attestation, ATTESTATION_MECHANISM_HANDLE, att_handle);
+MOCKABLE_FUNCTION(, ATTESTATION_TYPE, attestationMechanism_getType, ATTESTATION_MECHANISM_HANDLE, att_mech);
+MOCKABLE_FUNCTION(, TPM_ATTESTATION_HANDLE, attestationMechanism_getTpmAttestation, ATTESTATION_MECHANISM_HANDLE, att_mech);
+MOCKABLE_FUNCTION(, X509_ATTESTATION_HANDLE, attestationMechanism_getX509Attestation, ATTESTATION_MECHANISM_HANDLE, att_mech);
 
 #ifdef __cplusplus
 }

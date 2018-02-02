@@ -4,11 +4,11 @@
 #ifndef PROVISIONING_SC_TWIN_H
 #define PROVISIONING_SC_TWIN_H
 
-#include "azure_c_shared_utility/macro_utils.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
+#include "azure_c_shared_utility/macro_utils.h"
 
 typedef struct INITIAL_TWIN_TAG* INITIAL_TWIN_HANDLE;
 
@@ -27,15 +27,15 @@ MOCKABLE_FUNCTION(, INITIAL_TWIN_HANDLE, initialTwin_create, const char*, tags, 
 *           that the Initial Twin has been attached to to have unexpected behvaiours. Do not use this function
 *           unless the Initial Twin is unattached.
 *
-* @param    handle      The handle of the Initial Twin to be destroyed
+* @param    twin      The handle of the Initial Twin to be destroyed
 */
-MOCKABLE_FUNCTION(, void, initialTwin_destroy, INITIAL_TWIN_HANDLE, handle);
+MOCKABLE_FUNCTION(, void, initialTwin_destroy, INITIAL_TWIN_HANDLE, twin);
 
 /* Initial Twin Accessor Functions */
-MOCKABLE_FUNCTION(, const char*, initialTwin_getTags, INITIAL_TWIN_HANDLE, handle);
-MOCKABLE_FUNCTION(, int, initialTwin_setTags, INITIAL_TWIN_HANDLE, handle, const char*, tags);
-MOCKABLE_FUNCTION(, const char*, initialTwin_getDesiredProperties, INITIAL_TWIN_HANDLE, handle);
-MOCKABLE_FUNCTION(, int, initialTwin_setDesiredProperties, INITIAL_TWIN_HANDLE, handle, const char*, desiredProperties);
+MOCKABLE_FUNCTION(, const char*, initialTwin_getTags, INITIAL_TWIN_HANDLE, twin);
+MOCKABLE_FUNCTION(, int, initialTwin_setTags, INITIAL_TWIN_HANDLE, twin, const char*, tags);
+MOCKABLE_FUNCTION(, const char*, initialTwin_getDesiredProperties, INITIAL_TWIN_HANDLE, twin);
+MOCKABLE_FUNCTION(, int, initialTwin_setDesiredProperties, INITIAL_TWIN_HANDLE, twin, const char*, desiredProperties);
 
 #ifdef __cplusplus
 }

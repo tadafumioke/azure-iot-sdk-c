@@ -4,11 +4,11 @@
 #ifndef PROVISIONING_SC_MODELS_SERIALIZER_H
 #define PROVISIONING_SC_MODELS_SERIALIZER_H
 
-#include "azure_c_shared_utility/macro_utils.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
+#include "azure_c_shared_utility/macro_utils.h"
 
 /** @brief  Serializes an Individual Enrollment into a JSON String.
 *
@@ -16,7 +16,7 @@ extern "C" {
 *
 * @return   A non-NULL string containing the serialized JSON String, and NULL on failure.
 */
-MOCKABLE_FUNCTION(, char*, individualEnrollment_serializeToJson, const INDIVIDUAL_ENROLLMENT_HANDLE, handle);
+MOCKABLE_FUNCTION(, char*, individualEnrollment_serializeToJson, const INDIVIDUAL_ENROLLMENT_HANDLE, enrollment);
 
 /** @brief  Deserializes a JSON String representation of an Individual Enrollment.
 *
@@ -32,7 +32,7 @@ MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT_HANDLE, individualEnrollment_deseriali
 *
 * @return   A non-NULL string containing the serialized JSON String, and NULL on failure.
 */
-MOCKABLE_FUNCTION(, char*, enrollmentGroup_serializeToJson, const ENROLLMENT_GROUP_HANDLE, handle);
+MOCKABLE_FUNCTION(, char*, enrollmentGroup_serializeToJson, const ENROLLMENT_GROUP_HANDLE, enrollment);
 
 /** @brief  Deserializes a JSON String representation of an Enrollment Group.
 *
@@ -46,4 +46,4 @@ MOCKABLE_FUNCTION(, ENROLLMENT_GROUP_HANDLE, enrollmentGroup_deserializeFromJson
 }
 #endif /* __cplusplus */
 
-#endif /* PROVISIONING_SC_ENROLLMENT_PRIVATE_H */
+#endif /* PROVISIONING_SC_MODELS_SERIALIZER_H */

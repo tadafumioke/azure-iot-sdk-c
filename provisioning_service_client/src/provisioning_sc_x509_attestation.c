@@ -10,7 +10,7 @@
 #include "provisioning_sc_x509_attestation.h"
 #include "provisioning_sc_models_internal.h"
 #include "provisioning_sc_json_const.h"
-#include "provisioning_sc_private_utility.h"
+#include "provisioning_sc_shared_helpers.h"
 #include "parson.h"
 
 DEFINE_ENUM_STRINGS(X509_CERTIFICATE_TYPE, X509_CERTIFICATE_TYPE_VALUES)
@@ -545,7 +545,7 @@ static X509_CERTIFICATES* x509Certificates_fromJson(JSON_Object* root_object)
     return new_x509certs;
 }
 
-void x509Attestation_free(X509_ATTESTATION* x509_att)
+void x509Attestation_destroy(X509_ATTESTATION_HANDLE x509_att)
 {
     if (x509_att != NULL)
     {
@@ -629,7 +629,7 @@ JSON_Value* x509Attestation_toJson(const X509_ATTESTATION_HANDLE x509_att)
 
 X509_ATTESTATION_HANDLE x509Attestation_fromJson(JSON_Object* root_object)
 {
-    X509_ATTESTATION* new_x509Att = NULL;
+    X509_ATTESTATION_HANDLE new_x509Att = NULL;
 
     if (root_object == NULL)
     {
@@ -648,7 +648,7 @@ X509_ATTESTATION_HANDLE x509Attestation_fromJson(JSON_Object* root_object)
             if (json_deserialize_and_get_struct(&(new_x509Att->certificates.client_certificates), root_object, X509_ATTESTATION_JSON_KEY_CLIENT_CERTS, x509Certificates_fromJson, REQUIRED) != 0)
             {
                 LogError("Failed to set '%s' in X509 Attestation", X509_ATTESTATION_JSON_KEY_CLIENT_CERTS);
-                x509Attestation_free(new_x509Att);
+                x509Attestation_destroy(new_x509Att);
                 new_x509Att = NULL;
             }
             else
@@ -661,7 +661,7 @@ X509_ATTESTATION_HANDLE x509Attestation_fromJson(JSON_Object* root_object)
             if (json_deserialize_and_get_struct(&(new_x509Att->certificates.signing_certificates), root_object, X509_ATTESTATION_JSON_KEY_SIGNING_CERTS, x509Certificates_fromJson, REQUIRED) != 0)
             {
                 LogError("Failed to set '%s' in X509 Attestation", X509_ATTESTATION_JSON_KEY_SIGNING_CERTS);
-                x509Attestation_free(new_x509Att);
+                x509Attestation_destroy(new_x509Att);
                 new_x509Att = NULL;
             }
             else
@@ -674,7 +674,7 @@ X509_ATTESTATION_HANDLE x509Attestation_fromJson(JSON_Object* root_object)
             if (json_deserialize_and_get_struct(&(new_x509Att->certificates.ca_references), root_object, X509_ATTESTATION_JSON_KEY_CA_REFERENCES, x509CAReferences_fromJson, OPTIONAL) != 0)
             {
                 LogError("Failed to set '%s' in X509 Attestation", X509_ATTESTATION_JSON_KEY_CA_REFERENCES);
-                x509Attestation_free(new_x509Att);
+                x509Attestation_destroy(new_x509Att);
                 new_x509Att = NULL;
             }
             else
@@ -685,7 +685,7 @@ X509_ATTESTATION_HANDLE x509Attestation_fromJson(JSON_Object* root_object)
         else
         {
             LogError("No client or signing certificates");
-            x509Attestation_free(new_x509Att);
+            x509Attestation_destroy(new_x509Att);
             new_x509Att = NULL;
         }
     }
@@ -695,7 +695,7 @@ X509_ATTESTATION_HANDLE x509Attestation_fromJson(JSON_Object* root_object)
 
 X509_ATTESTATION_HANDLE x509Attestation_create(X509_CERTIFICATE_TYPE cert_type, const char* primary_cert, const char* secondary_cert)
 {
-    X509_ATTESTATION* new_x509Att = NULL;
+    X509_ATTESTATION_HANDLE new_x509Att = NULL;
 
     if ((cert_type == X509_CERTIFICATE_TYPE_NONE) || (primary_cert == NULL))
     {
@@ -715,7 +715,7 @@ X509_ATTESTATION_HANDLE x509Attestation_create(X509_CERTIFICATE_TYPE cert_type, 
             if ((new_x509Att->certificates.client_certificates = x509Certificates_create(primary_cert, secondary_cert)) == NULL)
             {
                 LogError("Failed to create Client Certificates");
-                x509Attestation_free(new_x509Att);
+                x509Attestation_destroy(new_x509Att);
                 new_x509Att = NULL;
             }
         }
@@ -724,7 +724,7 @@ X509_ATTESTATION_HANDLE x509Attestation_create(X509_CERTIFICATE_TYPE cert_type, 
             if ((new_x509Att->certificates.signing_certificates = x509Certificates_create(primary_cert, secondary_cert)) == NULL)
             {
                 LogError("Failed to create Client Certificates");
-                x509Attestation_free(new_x509Att);
+                x509Attestation_destroy(new_x509Att);
                 new_x509Att = NULL;
             }
         }
@@ -733,7 +733,7 @@ X509_ATTESTATION_HANDLE x509Attestation_create(X509_CERTIFICATE_TYPE cert_type, 
             if ((new_x509Att->certificates.ca_references = x509CAReferences_create(primary_cert, secondary_cert)) == NULL)
             {
                 LogError("Failed to create CA References");
-                x509Attestation_free(new_x509Att);
+                x509Attestation_destroy(new_x509Att);
                 new_x509Att = NULL;
             }
         }
@@ -743,12 +743,10 @@ X509_ATTESTATION_HANDLE x509Attestation_create(X509_CERTIFICATE_TYPE cert_type, 
 }
 
 
-/*Acessor Functions - X509 Attestation*/
-
-X509_CERTIFICATE_TYPE x509Attestation_getCertificateType(X509_ATTESTATION_HANDLE handle)
+/*Acessor Functions*/
+X509_CERTIFICATE_TYPE x509Attestation_getCertificateType(X509_ATTESTATION_HANDLE x509_att)
 {
     X509_CERTIFICATE_TYPE result = X509_CERTIFICATE_TYPE_NONE;
-    X509_ATTESTATION* x509_att = (X509_ATTESTATION*)handle;
 
     if (x509_att == NULL)
     {
@@ -762,10 +760,9 @@ X509_CERTIFICATE_TYPE x509Attestation_getCertificateType(X509_ATTESTATION_HANDLE
     return result;
 }
 
-X509_CERTIFICATE_HANDLE x509Attestation_getPrimaryCertificate(X509_ATTESTATION_HANDLE handle)
+X509_CERTIFICATE_HANDLE x509Attestation_getPrimaryCertificate(X509_ATTESTATION_HANDLE x509_att)
 {
-    X509_CERTIFICATE_WITH_INFO* result = NULL;
-    X509_ATTESTATION* x509_att = (X509_ATTESTATION*)handle;
+    X509_CERTIFICATE_HANDLE result = NULL;
 
     if (x509_att == NULL)
     {
@@ -801,13 +798,12 @@ X509_CERTIFICATE_HANDLE x509Attestation_getPrimaryCertificate(X509_ATTESTATION_H
         }
     }
 
-    return (X509_CERTIFICATE_HANDLE)result;
+    return result;
 }
 
-X509_CERTIFICATE_HANDLE x509Attestation_getSecondaryCertificate(X509_ATTESTATION_HANDLE handle)
+X509_CERTIFICATE_HANDLE x509Attestation_getSecondaryCertificate(X509_ATTESTATION_HANDLE x509_att)
 {
-    X509_CERTIFICATE_WITH_INFO* result = NULL;
-    X509_ATTESTATION* x509_att = (X509_ATTESTATION*)handle;
+    X509_CERTIFICATE_HANDLE result = NULL;
 
     if (x509_att == NULL)
     {
@@ -843,140 +839,132 @@ X509_CERTIFICATE_HANDLE x509Attestation_getSecondaryCertificate(X509_ATTESTATION
         }
     }
 
-    return (X509_CERTIFICATE_HANDLE)result;
+    return result;
 }
 
-const char* x509Certificate_getSubjectName(X509_CERTIFICATE_HANDLE handle)
+const char* x509Certificate_getSubjectName(X509_CERTIFICATE_HANDLE x509_cert)
 {
     char* result = NULL;
-    X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
-    if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    if ((x509_cert == NULL) || (x509_cert->info == NULL))
     {
         LogError("Certificate Info is NULL");
     }
     else
     {
-        result = x509_certwinfo->info->subject_name;
+        result = x509_cert->info->subject_name;
     }
 
     return result;
 }
 
-const char* x509Certificate_getSha1Thumbprint(X509_CERTIFICATE_HANDLE handle)
+const char* x509Certificate_getSha1Thumbprint(X509_CERTIFICATE_HANDLE x509_cert)
 {
     char* result = NULL;
-    X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
-    if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    if ((x509_cert == NULL) || (x509_cert->info == NULL))
     {
         LogError("Certificate Info is NULL");
     }
     else
     {
-        result = x509_certwinfo->info->sha1_thumbprint;
+        result = x509_cert->info->sha1_thumbprint;
     }
 
     return result;
 }
 
-const char* x509Certificate_getSha256Thumbprint(X509_CERTIFICATE_HANDLE handle)
+const char* x509Certificate_getSha256Thumbprint(X509_CERTIFICATE_HANDLE x509_cert)
 {
     char* result = NULL;
-    X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
-    if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    if ((x509_cert == NULL) || (x509_cert->info == NULL))
     {
         LogError("Certificate Info is NULL");
     }
     else
     {
-        result = x509_certwinfo->info->sha256_thumbprint;
+        result = x509_cert->info->sha256_thumbprint;
     }
 
     return result;
 }
 
-const char* x509Certificate_getIssuerName(X509_CERTIFICATE_HANDLE handle)
+const char* x509Certificate_getIssuerName(X509_CERTIFICATE_HANDLE x509_cert)
 {
     char* result = NULL;
-    X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
-    if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    if ((x509_cert == NULL) || (x509_cert->info == NULL))
     {
         LogError("Certificate Info is NULL");
     }
     else
     {
-        result = x509_certwinfo->info->issuer_name;
+        result = x509_cert->info->issuer_name;
     }
 
     return result;
 }
 
-const char* x509Certificate_getNotBeforeUtc(X509_CERTIFICATE_HANDLE handle)
+const char* x509Certificate_getNotBeforeUtc(X509_CERTIFICATE_HANDLE x509_cert)
 {
     char* result = NULL;
-    X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
-    if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    if ((x509_cert == NULL) || (x509_cert->info == NULL))
     {
         LogError("Certificate Info is NULL");
     }
     else
     {
-        result = x509_certwinfo->info->not_before_utc;
+        result = x509_cert->info->not_before_utc;
     }
 
     return result;
 }
 
-const char* x509Certificate_getNotAfterUtc(X509_CERTIFICATE_HANDLE handle)
+const char* x509Certificate_getNotAfterUtc(X509_CERTIFICATE_HANDLE x509_cert)
 {
     char* result = NULL;
-    X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
-    if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    if ((x509_cert == NULL) || (x509_cert->info == NULL))
     {
         LogError("Certificate Info is NULL");
     }
     else
     {
-        result = x509_certwinfo->info->not_after_utc;
+        result = x509_cert->info->not_after_utc;
     }
 
     return result;
 }
 
-const char* x509Certificate_getSerialNumber(X509_CERTIFICATE_HANDLE handle)
+const char* x509Certificate_getSerialNumber(X509_CERTIFICATE_HANDLE x509_cert)
 {
     char* result = NULL;
-    X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
-    if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    if ((x509_cert == NULL) || (x509_cert->info == NULL))
     {
         LogError("Certificate Info is NULL");
     }
     else
     {
-        result = x509_certwinfo->info->serial_number;
+        result = x509_cert->info->serial_number;
     }
 
     return result;
 }
 
-int x509Certificate_getVersion(X509_CERTIFICATE_HANDLE handle)
+int x509Certificate_getVersion(X509_CERTIFICATE_HANDLE x509_cert)
 {
     int result = 0;
-    X509_CERTIFICATE_WITH_INFO* x509_certwinfo = (X509_CERTIFICATE_WITH_INFO*)handle;
 
-    if ((x509_certwinfo == NULL) || (x509_certwinfo->info == NULL))
+    if ((x509_cert == NULL) || (x509_cert->info == NULL))
     {
         LogError("Certificate Info is NULL");
     }
     else
     {
-        result = x509_certwinfo->info->version;
+        result = x509_cert->info->version;
     }
 
     return result;

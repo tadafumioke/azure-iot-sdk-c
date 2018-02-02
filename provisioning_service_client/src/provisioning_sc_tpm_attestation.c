@@ -10,7 +10,7 @@
 #include "provisioning_sc_tpm_attestation.h"
 #include "provisioning_sc_models_internal.h"
 #include "provisioning_sc_json_const.h"
-#include "provisioning_sc_private_utility.h"
+#include "provisioning_sc_shared_helpers.h"
 #include "parson.h"
 
 typedef struct TPM_ATTESTATION_TAG
@@ -19,7 +19,7 @@ typedef struct TPM_ATTESTATION_TAG
     char* storage_root_key;
 } TPM_ATTESTATION;
 
-void tpmAttestation_free(TPM_ATTESTATION* tpm_att)
+void tpmAttestation_destroy(TPM_ATTESTATION_HANDLE tpm_att)
 {
     if (tpm_att != NULL)
     {
@@ -63,9 +63,9 @@ JSON_Value* tpmAttestation_toJson(const TPM_ATTESTATION_HANDLE tpm_att)
     return root_value;
 }
 
-TPM_ATTESTATION* tpmAttestation_fromJson(JSON_Object * root_object)
+TPM_ATTESTATION_HANDLE tpmAttestation_fromJson(JSON_Object * root_object)
 {
-    TPM_ATTESTATION* new_tpmAtt = NULL;
+    TPM_ATTESTATION_HANDLE new_tpmAtt = NULL;
 
     if (root_object == NULL)
     {
@@ -82,13 +82,13 @@ TPM_ATTESTATION* tpmAttestation_fromJson(JSON_Object * root_object)
         if (copy_json_string_field(&(new_tpmAtt->endorsement_key), root_object, TPM_ATTESTATION_JSON_KEY_EK) != 0)
         {
             LogError("Failed to set '%s' in TPM Attestation", TPM_ATTESTATION_JSON_KEY_EK);
-            tpmAttestation_free(new_tpmAtt);
+            tpmAttestation_destroy(new_tpmAtt);
             new_tpmAtt = NULL;
         }
         else if (copy_json_string_field(&(new_tpmAtt->storage_root_key), root_object, TPM_ATTESTATION_JSON_KEY_SRK) != 0)
         {
             LogError("Failed to set '%s' in TPM Attestation", TPM_ATTESTATION_JSON_KEY_SRK);
-            tpmAttestation_free(new_tpmAtt);
+            tpmAttestation_destroy(new_tpmAtt);
             new_tpmAtt = NULL;
         }
     }
@@ -96,9 +96,9 @@ TPM_ATTESTATION* tpmAttestation_fromJson(JSON_Object * root_object)
     return new_tpmAtt;
 }
 
-TPM_ATTESTATION* tpmAttestation_create(const char* endorsement_key, const char* storage_root_key)
+TPM_ATTESTATION_HANDLE tpmAttestation_create(const char* endorsement_key, const char* storage_root_key)
 {
-    TPM_ATTESTATION* new_tpmAtt = NULL;
+    TPM_ATTESTATION_HANDLE new_tpmAtt = NULL;
 
     if (endorsement_key == NULL)
     {
@@ -115,13 +115,13 @@ TPM_ATTESTATION* tpmAttestation_create(const char* endorsement_key, const char* 
         if (mallocAndStrcpy_s(&(new_tpmAtt->endorsement_key), endorsement_key) != 0)
         {
             LogError("Setting endorsement key in TPM Attestation failed");
-            tpmAttestation_free(new_tpmAtt);
+            tpmAttestation_destroy(new_tpmAtt);
             new_tpmAtt = NULL;
         }
         else if ((storage_root_key != NULL) && (mallocAndStrcpy_s(&(new_tpmAtt->storage_root_key), storage_root_key) != 0))
         {
             LogError("Setting storage root key in TPM Attestation failed");
-            tpmAttestation_free(new_tpmAtt);
+            tpmAttestation_destroy(new_tpmAtt);
             new_tpmAtt = NULL;
         }
     }
@@ -129,11 +129,9 @@ TPM_ATTESTATION* tpmAttestation_create(const char* endorsement_key, const char* 
     return new_tpmAtt;
 }
 
-/* Exposed TPM API */
-const char* tpmAttestation_getEndorsementKey(TPM_ATTESTATION_HANDLE handle)
+const char* tpmAttestation_getEndorsementKey(TPM_ATTESTATION_HANDLE tpm_att)
 {
     char* result = NULL;
-    TPM_ATTESTATION* tpm_att = (TPM_ATTESTATION*)handle;
 
     if (tpm_att != NULL)
     {

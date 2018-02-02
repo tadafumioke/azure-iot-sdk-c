@@ -24,6 +24,7 @@ static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_ID = "registrationId";
 static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_DEVICE_ID = "deviceId";
 static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_STATE = "registrationState";
 static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_ATTESTATION = "attestation";
+static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_IOTHUB_HOSTNAME = "iotHubHostName";
 static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_INITIAL_TWIN = "initialTwin";
 static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_ETAG = "etag";
 static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_PROV_STATUS = "provisioningStatus";
@@ -32,6 +33,7 @@ static const char* INDIVIDUAL_ENROLLMENT_JSON_KEY_UPDATED_TIME = "lastUpdatedDat
 
 static const char* ENROLLMENT_GROUP_JSON_KEY_GROUP_ID = "enrollmentGroupId";
 static const char* ENROLLMENT_GROUP_JSON_KEY_ATTESTATION = "attestation";
+static const char* ENROLLMENT_GROUP_JSON_KEY_IOTHUB_HOSTNAME = "iotHubHostName";
 static const char* ENROLLMENT_GROUP_JSON_KEY_INITIAL_TWIN = "initialTwin";
 static const char* ENROLLMENT_GROUP_JSON_KEY_ETAG = "etag";
 static const char* ENROLLMENT_GROUP_JSON_KEY_PROV_STATUS = "provisioningStatus";

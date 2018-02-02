@@ -19,7 +19,7 @@ set(provisioning_service_client_c_files
 ./src/provisioning_sc_enrollment.c
 ./src/provisioning_sc_tpm_attestation.c
 ./src/provisioning_sc_twin.c
-./src/provisioning_sc_private_utility.c
+./src/provisioning_sc_shared_helpers.c
 ./src/provisioning_sc_x509_attestation.c
 ../deps/parson/parson.c
 )
@@ -38,7 +38,7 @@ set(provisioning_service_client_h_files
 ./inc/provisioning_sc_tpm_attestation.h
 ./inc/provisioning_sc_twin.h
 ./inc/provisioning_sc_x509_attestation.h
-./inc/provisioning_sc_private_utility.h
+./inc/provisioning_sc_shared_helpers.h
 ../deps/parson/parson.h
 )
 

@@ -19,7 +19,7 @@
 
 #include "provisioning_service_client.h"
 #include "provisioning_sc_models_serializer.h"
-#include "provisioning_sc_private_utility.h"
+#include "provisioning_sc_shared_helpers.h"
 
 typedef enum HTTP_CONNECTION_STATE_TAG
 {
