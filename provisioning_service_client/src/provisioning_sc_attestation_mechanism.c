@@ -10,7 +10,6 @@
 #include "provisioning_sc_attestation_mechanism.h"
 #include "provisioning_sc_tpm_attestation.h"
 #include "provisioning_sc_x509_attestation.h"
-#include "provisioning_sc_models_internal.h"
 #include "provisioning_sc_json_const.h"
 #include "provisioning_sc_shared_helpers.h"
 #include "parson.h"
@@ -212,7 +211,7 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithTpm(const char* endo
         att_mech->attestation.tpm = tpmAttestation_create(endorsement_key, NULL);
     }
 
-    return (ATTESTATION_MECHANISM_HANDLE)att_mech;
+    return att_mech;
 }
 
 ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509ClientCert(const char* primary_cert, const char* secondary_cert)

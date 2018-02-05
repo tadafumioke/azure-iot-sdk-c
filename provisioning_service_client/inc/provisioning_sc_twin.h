@@ -8,7 +8,9 @@
 extern "C" {
 #endif /* __cplusplus */
 
+#include "azure_c_shared_utility/umock_c_prod.h"
 #include "azure_c_shared_utility/macro_utils.h"
+#include "parson.h"
 
 typedef struct INITIAL_TWIN_TAG* INITIAL_TWIN_HANDLE;
 
@@ -36,6 +38,12 @@ MOCKABLE_FUNCTION(, const char*, initialTwin_getTags, INITIAL_TWIN_HANDLE, twin)
 MOCKABLE_FUNCTION(, int, initialTwin_setTags, INITIAL_TWIN_HANDLE, twin, const char*, tags);
 MOCKABLE_FUNCTION(, const char*, initialTwin_getDesiredProperties, INITIAL_TWIN_HANDLE, twin);
 MOCKABLE_FUNCTION(, int, initialTwin_setDesiredProperties, INITIAL_TWIN_HANDLE, twin, const char*, desiredProperties);
+
+
+
+/*---INTERNAL USAGE ONLY---*/
+MOCKABLE_FUNCTION(, INITIAL_TWIN_HANDLE, initialTwin_fromJson, JSON_Object*, root_object);
+MOCKABLE_FUNCTION(, JSON_Value*, initialTwin_toJson, const INITIAL_TWIN_HANDLE, twin);
 
 #ifdef __cplusplus
 }

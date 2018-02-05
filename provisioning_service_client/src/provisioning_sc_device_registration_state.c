@@ -8,7 +8,6 @@
 
 #include "provisioning_sc_device_registration_state.h"
 #include "provisioning_sc_json_const.h"
-#include "provisioning_sc_models_internal.h"
 #include "provisioning_sc_shared_helpers.h"
 #include "parson.h"
 

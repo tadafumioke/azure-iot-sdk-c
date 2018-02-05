@@ -8,7 +8,6 @@
 #include "azure_c_shared_utility/crt_abstractions.h"
 
 #include "provisioning_sc_tpm_attestation.h"
-#include "provisioning_sc_models_internal.h"
 #include "provisioning_sc_json_const.h"
 #include "provisioning_sc_shared_helpers.h"
 #include "parson.h"

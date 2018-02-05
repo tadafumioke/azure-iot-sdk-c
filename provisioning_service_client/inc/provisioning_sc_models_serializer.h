@@ -8,6 +8,7 @@
 extern "C" {
 #endif /* __cplusplus */
 
+#include "azure_c_shared_utility/umock_c_prod.h"
 #include "azure_c_shared_utility/macro_utils.h"
 
 /** @brief  Serializes an Individual Enrollment into a JSON String.

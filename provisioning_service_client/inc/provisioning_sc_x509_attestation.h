@@ -8,7 +8,9 @@
 extern "C" {
 #endif /* __cplusplus */
 
+#include "azure_c_shared_utility/umock_c_prod.h"
 #include "azure_c_shared_utility/macro_utils.h"
+#include "parson.h"
 
 #define X509_CERTIFICATE_TYPE_VALUES \
             X509_CERTIFICATE_TYPE_NONE, \
@@ -35,6 +37,14 @@ MOCKABLE_FUNCTION(, const char*, x509Certificate_getNotBeforeUtc, X509_CERTIFICA
 MOCKABLE_FUNCTION(, const char*, x509Certificate_getNotAfterUtc, X509_CERTIFICATE_HANDLE, x509_cert);
 MOCKABLE_FUNCTION(, const char*, x509Certificate_getSerialNumber, X509_CERTIFICATE_HANDLE, x509_cert);
 MOCKABLE_FUNCTION(, int, x509Certificate_getVersion, X509_CERTIFICATE_HANDLE, x509_cert);
+
+
+
+/*---INTERNAL USAGE ONLY---*/
+MOCKABLE_FUNCTION(, X509_ATTESTATION_HANDLE, x509Attestation_create, X509_CERTIFICATE_TYPE, cert_type, const char*, primary_cert, const char*, secondary_cert)
+MOCKABLE_FUNCTION(, void, x509Attestation_destroy, X509_ATTESTATION_HANDLE, x509_att);
+MOCKABLE_FUNCTION(, X509_ATTESTATION_HANDLE, x509Attestation_fromJson, JSON_Object*, root_object);
+MOCKABLE_FUNCTION(, JSON_Value*, x509Attestation_toJson, const X509_ATTESTATION_HANDLE, x509_att);
 
 #ifdef __cplusplus
 }

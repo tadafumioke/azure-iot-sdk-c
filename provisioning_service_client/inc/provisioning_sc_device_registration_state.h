@@ -8,7 +8,9 @@
 extern "C" {
 #endif /* __cplusplus */
 
+#include "azure_c_shared_utility/umock_c_prod.h"
 #include "azure_c_shared_utility/macro_utils.h"
+#include "parson.h"
 
 typedef struct DEVICE_REGISTRATION_STATE_TAG* DEVICE_REGISTRATION_STATE_HANDLE;
 
@@ -32,6 +34,12 @@ MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getUpdatedDateTime, DEV
 MOCKABLE_FUNCTION(, int, deviceRegistrationState_getErrorCode, DEVICE_REGISTRATION_STATE_HANDLE, drs);
 MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getErrorMessage, DEVICE_REGISTRATION_STATE_HANDLE, drs);
 MOCKABLE_FUNCTION(, const char*, deviceRegistrationState_getEtag, DEVICE_REGISTRATION_STATE_HANDLE, drs);
+
+
+
+/*---INTERNAL USAGE ONLY---*/
+MOCKABLE_FUNCTION(, void, deviceRegistrationState_destroy, DEVICE_REGISTRATION_STATE_HANDLE, device_reg_state);
+MOCKABLE_FUNCTION(, DEVICE_REGISTRATION_STATE_HANDLE, deviceRegistrationState_fromJson, JSON_Object*, root_object);
 
 #ifdef __cplusplus
 }

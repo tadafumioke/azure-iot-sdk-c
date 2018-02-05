@@ -8,12 +8,22 @@
 extern "C" {
 #endif /* __cplusplus */
 
+#include "azure_c_shared_utility/umock_c_prod.h"
 #include "azure_c_shared_utility/macro_utils.h"
+#include "parson.h"
 
 typedef struct TPM_ATTESTATION_TAG* TPM_ATTESTATION_HANDLE;
 
 /* TPM Attestation Accessor Functions */
 MOCKABLE_FUNCTION(, const char*, tpmAttestation_getEndorsementKey, TPM_ATTESTATION_HANDLE, tpm_att);
+
+
+
+/*---INTERNAL USAGE ONLY---*/
+MOCKABLE_FUNCTION(, TPM_ATTESTATION_HANDLE, tpmAttestation_create, const char*, endorsement_key, const char*, storage_root_key);
+MOCKABLE_FUNCTION(, void, tpmAttestation_destroy, TPM_ATTESTATION_HANDLE, tpm_att);
+MOCKABLE_FUNCTION(, TPM_ATTESTATION_HANDLE, tpmAttestation_fromJson, JSON_Object*, root_object);
+MOCKABLE_FUNCTION(, JSON_Value*, tpmAttestation_toJson, const TPM_ATTESTATION_HANDLE, tpm_att);
 
 #ifdef __cplusplus
 }

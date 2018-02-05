@@ -11,9 +11,11 @@ extern "C" {
 #include <stdbool.h>
 #endif /* __cplusplus */
 
+#include "azure_c_shared_utility/umock_c_prod.h"
 #include "azure_c_shared_utility/macro_utils.h"
 #include "provisioning_sc_tpm_attestation.h"
 #include "provisioning_sc_x509_attestation.h"
+#include "parson.h"
 
 typedef struct ATTESTATION_MECHANISM_TAG* ATTESTATION_MECHANISM_HANDLE;
 
@@ -89,6 +91,12 @@ MOCKABLE_FUNCTION(, bool, attestationMechanism_isValidForEnrollmentGroup, ATTEST
 MOCKABLE_FUNCTION(, ATTESTATION_TYPE, attestationMechanism_getType, ATTESTATION_MECHANISM_HANDLE, att_mech);
 MOCKABLE_FUNCTION(, TPM_ATTESTATION_HANDLE, attestationMechanism_getTpmAttestation, ATTESTATION_MECHANISM_HANDLE, att_mech);
 MOCKABLE_FUNCTION(, X509_ATTESTATION_HANDLE, attestationMechanism_getX509Attestation, ATTESTATION_MECHANISM_HANDLE, att_mech);
+
+
+
+/*---INTERNAL USAGE ONLY---*/
+MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, attestationMechanism_fromJson, JSON_Object*, root_object);
+MOCKABLE_FUNCTION(, JSON_Value*, attestationMechanism_toJson, const ATTESTATION_MECHANISM_HANDLE, att_mech);
 
 #ifdef __cplusplus
 }

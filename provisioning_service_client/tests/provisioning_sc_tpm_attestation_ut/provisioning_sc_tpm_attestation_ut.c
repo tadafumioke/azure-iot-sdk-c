@@ -47,7 +47,7 @@ MOCKABLE_FUNCTION(, JSON_Value*, json_object_get_wrapping_value, const JSON_Obje
 
 #undef ENABLE_MOCKS
 
-#include "provisioning_sc_models_internal.h"
+#include "provisioning_sc_tpm_attestation.h"
 
 static TEST_MUTEX_HANDLE g_testByTest;
 static TEST_MUTEX_HANDLE g_dllByDll;

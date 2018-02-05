@@ -34,7 +34,6 @@ set(provisioning_service_client_h_files
 ./inc/provisioning_sc_enrollment.h
 ./inc/provisioning_sc_models_serializer.h
 ./inc/provisioning_sc_json_const.h
-./inc/provisioning_sc_models_internal.h
 ./inc/provisioning_sc_tpm_attestation.h
 ./inc/provisioning_sc_twin.h
 ./inc/provisioning_sc_x509_attestation.h
