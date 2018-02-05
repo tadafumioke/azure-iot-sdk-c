@@ -30,10 +30,11 @@ DEFINE_ENUM(ATTESTATION_TYPE, ATTESTATION_TYPE_VALUES);
 /** @brief  Creates an Attestation Mechanism handle that uses a TPM Attestation for use in consequent APIs.
 *
 * @param    endorsement_key     An endorsement key to use with the TPM.
+* @param    storage_root_key    A storage root key to use with the TPM (optional).
 *
 * @return   A non NULL handle representing an Attestation Mechanism using a TPM Attestation, and NULL on failure.
 */
-MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWithTpm, const char*, endorsement_key);
+MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWithTpm, const char*, endorsement_key, const char*, storage_root_key);
 
 /** @brief  Creates an Attestation Mechanism handle that uses an x509 Attestation with client certificate(s) for use in consequent APIs.
 *           Please note that an x509 Attestation with a client certificate is NOT VALID when attached to an enrollment group.

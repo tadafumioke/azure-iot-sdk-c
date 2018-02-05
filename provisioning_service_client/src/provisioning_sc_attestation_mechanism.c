@@ -191,7 +191,7 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_fromJson(JSON_Object* root_obj
     return new_attMech;
 }
 
-ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithTpm(const char* endorsement_key)
+ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithTpm(const char* endorsement_key, const char* storage_root_key)
 {
     ATTESTATION_MECHANISM_HANDLE att_mech = NULL;
 
@@ -208,7 +208,7 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithTpm(const char* endo
         memset(att_mech, 0, sizeof(ATTESTATION_MECHANISM));
 
         att_mech->type = ATTESTATION_TYPE_TPM;
-        att_mech->attestation.tpm = tpmAttestation_create(endorsement_key, NULL);
+        att_mech->attestation.tpm = tpmAttestation_create(endorsement_key, storage_root_key);
     }
 
     return att_mech;
