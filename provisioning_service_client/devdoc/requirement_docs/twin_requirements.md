@@ -25,7 +25,7 @@ int initialTwin_setDesiredProperties(INITIAL_TWIN_HANDLE twin, const char* desir
 INITIAL_TWIN_HANDLE initialTwin_create(const char* tags, const char* desired_properties);
 ```
 
-**SRS_PROV_TWIN_22_001: [** If both `tags` and `desired_properties` are NULL, `initialTwin_create` shall fail and return `NULL` **]**
+**SRS_PROV_TWIN_22_001: [** If both `tags` and `desired_properties` are `NULL`, `initialTwin_create` shall fail and return `NULL` **]**
 
 **SRS_PROV_TWIN_22_002: [** Passing a value of `"{}"` for `tags` or `desired_properties` is the same as passing `NULL` **]**
 
