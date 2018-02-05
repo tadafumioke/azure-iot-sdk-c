@@ -7,7 +7,7 @@ This module is used to manage data related to the Attestation Mechanism model, u
 ## Exposed API
 
 ```c
-ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithTpm(const char* endorsement_key);
+ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithTpm(const char* endorsement_key, const char* storage_root_key);
 ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509ClientCert(const char* primary_cert, const char* secondary_cert);
 ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509SigningCert(const char* primary_cert, const char* secondary_cert);
 ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509CAReference(const char* primary_ref, const char* secondary_ref);
@@ -23,10 +23,12 @@ X509_ATTESTATION_HANDLE attestationMechanism_getX509Attestation(ATTESTATION_MECH
 ## attestationMechanism_createWithTpm
 
 ```c
-ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithTpm(const char* endorsement_key);
+ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithTpm(const char* endorsement_key, const char* storage_root_key);
 ```
 
 **SRS_PROV_ATTESTATION_22_001: [** If `endorsement_key` is `NULL`, `attestationMechanism_createWithTpm` shall fail and return `NULL` **]**
+
+**SRS_PROV_ATTESTATION_22_029: [** If `storage_root_key` is `NULL`, `attestationMechanism_createWithTpm` shall create a TPM attestation without a storage root key **]**
 
 **SRS_PROV_ATTESTATION_22_002: [** If allocating memory for the new attestation mechanism fails, `attestationMechanism_createWithTpm` shall fail and return `NULL` **]**
 
