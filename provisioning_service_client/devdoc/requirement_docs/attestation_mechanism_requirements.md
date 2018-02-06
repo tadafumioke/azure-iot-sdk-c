@@ -43,7 +43,7 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509ClientCert(const
 
 **SRS_PROV_ATTESTATION_22_004: [** If `primary_cert` is `NULL`, `attestationMechanism_createWithX509ClientCert` shall fail and return `NULL` **]**
 
-**SRS_PROV_ATTESTATION_22_005: [** If `secondary_cert` is `NULL`, the resulting attestation mechanism shall not have a secondary certificate **]**
+**SRS_PROV_ATTESTATION_22_005: [** If `secondary_cert` is `NULL`, `attestationMechanism_createWithX509ClientCert` shall create an X509 attestation without a secondary certificate **]**
 
 **SRS_PROV_ATTESTATION_22_006: [** If allocating memory for the new attestation mechanism fails, `attestationMechanism_createWithX509ClientCert` shall fail and return `NULL` **]**
 
@@ -58,14 +58,14 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509SigningCert(cons
 
 **SRS_PROV_ATTESTATION_22_008: [** If `primary_cert` is `NULL`, `attestationMechanism_createWithX509SigningCert` shall fail and return `NULL` **]**
 
-**SRS_PROV_ATTESTATION_22_009: [** If `secondary_cert` is `NULL`, the resulting attestation mechanism shall not have a secondary certificate **]**
+**SRS_PROV_ATTESTATION_22_009: [** If `secondary_cert` is `NULL`,`attestationMechanism_createWithX509SigningCert` shall create an X509 attestation without a secondary certificate  **]**
 
 **SRS_PROV_ATTESTATION_22_010: [** If allocating memory for the new attestation mechanism fails, `attestationMechanism_createWithX509SigningCert` shall fail and return `NULL` **]**
 
 **SRS_PROV_ATTESTATION_22_011: [** Upon successful creation of a new attestation mechanism (using an X509 attestation with signing certificates), `attestationMechanism_createWithX509SigningCert` shall return an `ATTESTATION_MECHANISM_HANDLE` to access the model **]**
 
 
-## attestationMechanism_createWithX509CAReferences
+## attestationMechanism_createWithX509CAReference
 
 ```c
 ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509CAReference(const char* primary_ref, const char* secondary_ref);
@@ -73,7 +73,7 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithX509CAReference(cons
 
 **SRS_PROV_ATTESTATION_22_012: [** If `primary_ref` is `NULL`, `attestationMechanism_createWithX509CAReference` shall fail and return `NULL` **]**
 
-**SRS_PROV_ATTESTATION_22_013: [** If `secondary_ref` is `NULL`, the resulting attestation mechanism shall not have a secondary CA reference **]**
+**SRS_PROV_ATTESTATION_22_013: [** If `secondary_ref` is `NULL`, `attestationMechanism_createWithX509CAReference` shall create an X509 attestation without a secondary CA reference **]**
 
 **SRS_PROV_ATTESTATION_22_014: [** If allocating memory for the new attestation mechanism fails, `attestationMechanism_createWithX509CAReference` shall fail and return `NULL` **]**
 

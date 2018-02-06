@@ -207,8 +207,16 @@ ATTESTATION_MECHANISM_HANDLE attestationMechanism_createWithTpm(const char* endo
     {
         memset(att_mech, 0, sizeof(ATTESTATION_MECHANISM));
 
-        att_mech->type = ATTESTATION_TYPE_TPM;
-        att_mech->attestation.tpm = tpmAttestation_create(endorsement_key, storage_root_key);
+        if ((att_mech->attestation.tpm = tpmAttestation_create(endorsement_key, storage_root_key)) == NULL)
+        {
+            LogError("Allocation of TPM Attestation failed");
+            attestationMechanism_destroy(att_mech);
+            att_mech = NULL;
+        }
+        else
+        {
+            att_mech->type = ATTESTATION_TYPE_TPM;
+        }
     }
 
     return att_mech;
