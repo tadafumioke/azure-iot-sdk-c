@@ -66,6 +66,8 @@ X509_CERTIFICATE_HANDLE x509Attestation_getSecondaryCertificate(X509_ATTESTATION
 
 **SRS_X509_ATTESTATION_22_007: [** If the given handle, `x509_att` is `NULL`, `x509Attestation_getSecondaryCertificate` shall fail and return `NULL` **]**
 
+**SRS_X509_ATTESTATION_22_035: [** If `x509_att` does not have a secondary certificate, `x509Attestation_getSecondaryCertificate` shall return `NULL` **]**
+
 **SRS_X509_ATTESTATION_22_008: [** If `x509_att` is an X509 attestation with client certificate(s), `x509Attestation_getSecondaryCertificate` shall return the secondary client certificate as an `X509_CERTIFICATE_HANDLE` **]**
 
 **SRS_X509_ATTESTATION_22_009: [** If `x509_att` is an X509 attestation with signing certificate(s), `x509Attestation_getSecondaryCertificate` shall return the secondary signing certificate as an `X509_CERTIFICATE_HANDLE` **]**

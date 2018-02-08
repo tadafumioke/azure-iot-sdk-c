@@ -87,7 +87,7 @@ static X509_CA_REFERENCES* x509CAReferences_create(const char* primary, const ch
             x509CAReferences_free(new_x509CARef);
             new_x509CARef = NULL;
         }
-        else if (mallocAndStrcpy_s(&(new_x509CARef->secondary), secondary) != 0)
+        else if ((secondary != NULL) && (mallocAndStrcpy_s(&(new_x509CARef->secondary), secondary) != 0))
         {
             LogError("Error setting secondary CA Reference in X509CAReferences");
             x509CAReferences_free(new_x509CARef);
@@ -103,11 +103,7 @@ static JSON_Value* x509CAReferences_toJson(const X509_CA_REFERENCES* x509_ca_ref
     JSON_Value* root_value = NULL;
     JSON_Object* root_object = NULL;
 
-    if (x509_ca_ref == NULL)
-    {
-        LogError("CA References is NULL");
-    }
-    else if ((root_value = json_value_init_object()) == NULL)
+    if ((root_value = json_value_init_object()) == NULL)
     {
         LogError("json_value_init_object failed");
     }
@@ -534,7 +530,7 @@ static X509_CERTIFICATES* x509Certificates_fromJson(JSON_Object* root_object)
             x509Certificates_free(new_x509certs);
             new_x509certs = NULL;
         }
-        if (json_deserialize_and_get_struct(&(new_x509certs->secondary), root_object, X509_CERTIFICATES_JSON_KEY_SECONDARY, x509CertificateWithInfo_fromJson, OPTIONAL) != 0)
+        else if (json_deserialize_and_get_struct(&(new_x509certs->secondary), root_object, X509_CERTIFICATES_JSON_KEY_SECONDARY, x509CertificateWithInfo_fromJson, OPTIONAL) != 0)
         {
             LogError("Failed to set '%s' in X509 Certificates", X509_CERTIFICATES_JSON_KEY_SECONDARY);
             x509Certificates_free(new_x509certs);
@@ -580,7 +576,11 @@ JSON_Value* x509Attestation_toJson(const X509_ATTESTATION_HANDLE x509_att)
     JSON_Object* root_object = NULL;
 
     //Setup
-    if ((root_value = json_value_init_object()) == NULL)
+    if (x509_att == NULL)
+    {
+        LogError("NULL x509 Attestation");
+    }
+    else if ((root_value = json_value_init_object()) == NULL)
     {
         LogError("json_value_init_object failed");
     }
@@ -670,7 +670,7 @@ X509_ATTESTATION_HANDLE x509Attestation_fromJson(JSON_Object* root_object)
         }
         else if (json_object_has_value(root_object, X509_ATTESTATION_JSON_KEY_CA_REFERENCES))
         {
-            if (json_deserialize_and_get_struct(&(new_x509Att->certificates.ca_references), root_object, X509_ATTESTATION_JSON_KEY_CA_REFERENCES, x509CAReferences_fromJson, OPTIONAL) != 0)
+            if (json_deserialize_and_get_struct(&(new_x509Att->certificates.ca_references), root_object, X509_ATTESTATION_JSON_KEY_CA_REFERENCES, x509CAReferences_fromJson, REQUIRED) != 0)
             {
                 LogError("Failed to set '%s' in X509 Attestation", X509_ATTESTATION_JSON_KEY_CA_REFERENCES);
                 x509Attestation_destroy(new_x509Att);
@@ -845,9 +845,13 @@ const char* x509Certificate_getSubjectName(X509_CERTIFICATE_HANDLE x509_cert)
 {
     char* result = NULL;
 
-    if ((x509_cert == NULL) || (x509_cert->info == NULL))
+    if (x509_cert == NULL)
     {
-        LogError("Certificate Info is NULL");
+        LogError("Certificate is NULL");
+    }
+    else if (x509_cert->info == NULL)
+    {
+        LogError("Certificate has not yet been processed");
     }
     else
     {
@@ -861,9 +865,13 @@ const char* x509Certificate_getSha1Thumbprint(X509_CERTIFICATE_HANDLE x509_cert)
 {
     char* result = NULL;
 
-    if ((x509_cert == NULL) || (x509_cert->info == NULL))
+    if (x509_cert == NULL)
     {
-        LogError("Certificate Info is NULL");
+        LogError("Certificate is NULL");
+    }
+    else if (x509_cert->info == NULL)
+    {
+        LogError("Certificate has not yet been processed");
     }
     else
     {
@@ -877,9 +885,13 @@ const char* x509Certificate_getSha256Thumbprint(X509_CERTIFICATE_HANDLE x509_cer
 {
     char* result = NULL;
 
-    if ((x509_cert == NULL) || (x509_cert->info == NULL))
+    if (x509_cert == NULL)
     {
-        LogError("Certificate Info is NULL");
+        LogError("Certificate is NULL");
+    }
+    else if (x509_cert->info == NULL)
+    {
+        LogError("Certificate has not yet been processed");
     }
     else
     {
@@ -893,9 +905,13 @@ const char* x509Certificate_getIssuerName(X509_CERTIFICATE_HANDLE x509_cert)
 {
     char* result = NULL;
 
-    if ((x509_cert == NULL) || (x509_cert->info == NULL))
+    if (x509_cert == NULL)
     {
-        LogError("Certificate Info is NULL");
+        LogError("Certificate is NULL");
+    }
+    else if (x509_cert->info == NULL)
+    {
+        LogError("Certificate has not yet been processed");
     }
     else
     {
@@ -909,9 +925,13 @@ const char* x509Certificate_getNotBeforeUtc(X509_CERTIFICATE_HANDLE x509_cert)
 {
     char* result = NULL;
 
-    if ((x509_cert == NULL) || (x509_cert->info == NULL))
+    if (x509_cert == NULL)
     {
-        LogError("Certificate Info is NULL");
+        LogError("Certificate is NULL");
+    }
+    else if (x509_cert->info == NULL)
+    {
+        LogError("Certificate has not yet been processed");
     }
     else
     {
@@ -925,9 +945,13 @@ const char* x509Certificate_getNotAfterUtc(X509_CERTIFICATE_HANDLE x509_cert)
 {
     char* result = NULL;
 
-    if ((x509_cert == NULL) || (x509_cert->info == NULL))
+    if (x509_cert == NULL)
     {
-        LogError("Certificate Info is NULL");
+        LogError("Certificate is NULL");
+    }
+    else if (x509_cert->info == NULL)
+    {
+        LogError("Certificate has not yet been processed");
     }
     else
     {
@@ -941,9 +965,13 @@ const char* x509Certificate_getSerialNumber(X509_CERTIFICATE_HANDLE x509_cert)
 {
     char* result = NULL;
 
-    if ((x509_cert == NULL) || (x509_cert->info == NULL))
+    if (x509_cert == NULL)
     {
-        LogError("Certificate Info is NULL");
+        LogError("Certificate is NULL");
+    }
+    else if (x509_cert->info == NULL)
+    {
+        LogError("Certificate has not yet been processed");
     }
     else
     {
@@ -957,9 +985,13 @@ int x509Certificate_getVersion(X509_CERTIFICATE_HANDLE x509_cert)
 {
     int result = 0;
 
-    if ((x509_cert == NULL) || (x509_cert->info == NULL))
+    if (x509_cert == NULL)
     {
-        LogError("Certificate Info is NULL");
+        LogError("Certificate is NULL");
+    }
+    else if (x509_cert->info == NULL)
+    {
+        LogError("Certificate has not yet been processed");
     }
     else
     {
