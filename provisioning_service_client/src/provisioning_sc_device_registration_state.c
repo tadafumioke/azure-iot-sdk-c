@@ -222,7 +222,7 @@ const char* deviceRegistrationState_getUpdatedDateTime(DEVICE_REGISTRATION_STATE
 
 int deviceRegistrationState_getErrorCode(DEVICE_REGISTRATION_STATE_HANDLE drs)
 {
-    int result = 0;
+    int result = -1;
 
     if (drs == NULL)
     {

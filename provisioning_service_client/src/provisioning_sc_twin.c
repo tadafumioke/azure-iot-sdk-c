@@ -208,7 +208,11 @@ JSON_Value* initialTwin_toJson(const INITIAL_TWIN_HANDLE twin)
     JSON_Value* root_value = NULL;
     JSON_Object* root_object = NULL;
 
-    if ((root_value = json_value_init_object()) == NULL)
+    if (twin == NULL)
+    {
+        LogError("twin is NULL");
+    }
+    else if ((root_value = json_value_init_object()) == NULL)
     {
         LogError("json_value_init_object failed");
     }
@@ -240,7 +244,11 @@ INITIAL_TWIN_HANDLE initialTwin_fromJson(JSON_Object* root_object)
 {
     INITIAL_TWIN_HANDLE new_initialTwin = NULL;
 
-    if ((new_initialTwin = malloc(sizeof(INITIAL_TWIN))) == NULL)
+    if (root_object == NULL)
+    {
+        LogError("No initialTwin in JSON");
+    }
+    else if ((new_initialTwin = malloc(sizeof(INITIAL_TWIN))) == NULL)
     {
         LogError("Allocation of Twin State failed");
     }

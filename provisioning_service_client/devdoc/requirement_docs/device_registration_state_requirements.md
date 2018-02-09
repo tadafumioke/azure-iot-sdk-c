@@ -69,7 +69,7 @@ const char* deviceRegistrationState_getDeviceId(DEVICE_REGISTRATION_STATE_HANDLE
 REGISTRATION_STATUS deviceRegistrationState_getRegistrationStatus(DEVICE_REGISTRATION_STATE_HANDLE drs);
 ```
 
-**SRS_PROV_DEVICE_REGISTRATION_STATE_22_007: [** If the given handle, `drs` is `NULL`, `deviceRegistrationState_getRegistrationStatus` shall fail and return `NULL` **]**
+**SRS_PROV_DEVICE_REGISTRATION_STATE_22_007: [** If the given handle, `drs` is `NULL`, `deviceRegistrationState_getRegistrationStatus` shall fail and return `REGISTRATION_STATUS_ERROR` **]**
 
 **SRS_PROV_DEVICE_REGISTRATION_STATE_22_008: [** Otherwise, `deviceRegistrationState_getRegistrationStatus` shall return the registration status contained in `drs` **]**
 
@@ -91,7 +91,7 @@ const char* deviceRegistrationState_getUpdatedDateTime(DEVICE_REGISTRATION_STATE
 int deviceRegistrationState_getErrorCode(DEVICE_REGISTRATION_STATE_HANDLE drs);
 ```
 
-**SRS_PROV_DEVICE_REGISTRATION_STATE_22_011: [** If the given handle, `drs` is `NULL`, `deviceRegistrationState_getErrorCode` shall fail and return `NULL` **]**
+**SRS_PROV_DEVICE_REGISTRATION_STATE_22_011: [** If the given handle, `drs` is `NULL`, `deviceRegistrationState_getErrorCode` shall fail and return `-1` **]**
 
 **SRS_PROV_DEVICE_REGISTRATION_STATE_22_012: [** Otherwise, `deviceRegistrationState_getErrorCode` shall return the error code contained in `drs` **]**
 

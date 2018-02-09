@@ -320,6 +320,20 @@ TEST_FUNCTION(tpmAttestation_destroy_null_ptr)
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 }
 
+TEST_FUNCTION(tpmAttestation_toJson_null)
+{
+    //arrange
+
+    //act
+    JSON_Value* json_val = tpmAttestation_toJson(NULL);
+
+    //assert
+    ASSERT_IS_NULL(json_val);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    //cleanup
+}
+
 TEST_FUNCTION(tpmAttestation_toJson_only_ek)
 {
     //arrange
@@ -409,6 +423,20 @@ TEST_FUNCTION(tpmAttestation_toJson_full_tpm_error)
     //cleanup
     tpmAttestation_destroy(tpm_att);
     umock_c_negative_tests_deinit();
+}
+
+TEST_FUNCTION(tpmAttestation_fromJson_null)
+{
+    //arrange
+
+    //act
+    TPM_ATTESTATION_HANDLE tpm_att = tpmAttestation_fromJson(NULL);
+
+    //assert
+    ASSERT_IS_NULL(tpm_att);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    //cleanup
 }
 
 TEST_FUNCTION(tpmAttestation_fromJson_min)

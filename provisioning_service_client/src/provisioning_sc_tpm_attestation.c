@@ -34,7 +34,11 @@ JSON_Value* tpmAttestation_toJson(const TPM_ATTESTATION_HANDLE tpm_att)
     JSON_Object* root_object = NULL;
 
     //Setup
-    if ((root_value = json_value_init_object()) == NULL)
+    if (tpm_att == NULL)
+    {
+        LogError("tpm attestation is NULL");
+    }
+    else if ((root_value = json_value_init_object()) == NULL)
     {
         LogError("json_value_init_object failed");
     }

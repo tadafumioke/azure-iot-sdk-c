@@ -959,6 +959,20 @@ TEST_FUNCTION(initialTwin_setDesiredProperties_overwrite_existing_desired_proper
     umock_c_negative_tests_deinit();
 }
 
+TEST_FUNCTION(initialTwin_toJson_null)
+{
+    //arrange
+
+    //act
+    JSON_Value* result = initialTwin_toJson(NULL);
+
+    //assert
+    ASSERT_IS_NULL(result);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    //cleanup
+}
+
 TEST_FUNCTION(initialTwin_toJson_only_tags)
 {
     //arrange
@@ -1057,6 +1071,20 @@ TEST_FUNCTION(initialTwin_toJson_failure)
     //cleanup
     initialTwin_destroy(twin);
     umock_c_negative_tests_deinit();
+}
+
+TEST_FUNCTION(initialTwin_fromJson_null)
+{
+    //arrange
+
+    //act
+    INITIAL_TWIN_HANDLE twin = initialTwin_fromJson(NULL);
+
+    //assert
+    ASSERT_IS_NULL(twin);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    //cleanup
 }
 
 TEST_FUNCTION(initialTwin_fromJson_only_tags)
