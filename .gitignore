@@ -205,3 +205,6 @@ build_all/windows/nuget.exe
 /cmake
 /build
 *.cert
+build_all/ios/samples/AMQPWS-Client-Sample/AMQPWS Client Sample.xcodeproj/xcuserdata
+build_all/ios/samples/AMQPWS-Client-Sample/Pods
+build_all/ios/samples/AMQPWS-Client-Sample/Podfile.lock
