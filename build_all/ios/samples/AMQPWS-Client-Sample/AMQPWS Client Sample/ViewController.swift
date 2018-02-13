@@ -6,7 +6,7 @@ import UIKit
 
 class ViewController: UIViewController {
 
-    private let connectionString = "HostName=MarkRadHub1.azure-devices.net;DeviceId=TestDevice2;SharedAccessKey=bP2GRbeqnX+05pEO/cvkECx59rh8swSeWFJCkh82wgM="
+    private let connectionString = "<insert connection string here>"
     
     // Select your protocol of choice: MQTT_Protocol, AMQP_Protocol or HTTP_Protocol
     // Note: HTTP_Protocol is not currently supported
