@@ -133,6 +133,7 @@ if [ "$make" = true ]
 then
   # Set the default cores
   MAKE_CORES=$(grep -c ^processor /proc/cpuinfo 2>/dev/null || sysctl -n hw.ncpu)
+  MAKE_CORES="$(($MAKE_CORES * 2))"
   
   # Make sure there is enough virtual memory on the device to handle more than one job  
   MINVSPACE="1500000"
