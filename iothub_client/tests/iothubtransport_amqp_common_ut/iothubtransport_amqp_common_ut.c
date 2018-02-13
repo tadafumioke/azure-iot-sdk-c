@@ -98,14 +98,7 @@ extern "C"
 #include "azure_c_shared_utility/socketio.h"
 
 #include "azure_uamqp_c/cbs.h"
-#include "azure_uamqp_c/link.h"
-#include "azure_uamqp_c/message.h"
 #include "azure_uamqp_c/amqpvalue.h"
-#include "azure_uamqp_c/message_receiver.h"
-#include "azure_uamqp_c/message_sender.h"
-#include "azure_uamqp_c/messaging.h"
-#include "azure_uamqp_c/sasl_mssbcbs.h"
-#include "azure_uamqp_c/saslclientio.h"
 
 #include "iothub_client_ll.h"
 #include "iothub_client_options.h"
@@ -392,9 +385,7 @@ static void on_umock_c_error(UMOCK_C_ERROR_CODE error_code)
 #define TEST_MESSAGING_SOURCE                      ((AMQP_VALUE)0x4254)
 #define TEST_MESSAGING_TARGET                      ((AMQP_VALUE)0x4255)
 #define TEST_BUFFER_HANDLE                         ((BUFFER_HANDLE)0x4256)
-#define TEST_LINK                                  ((LINK_HANDLE)0x4257)
 #define TEST_AMQP_MAP                              ((AMQP_VALUE)0x4258)
-#define TEST_MESSAGE_SENDER                        ((MESSAGE_SENDER_HANDLE)0x4259)
 #define TEST_AMQP_VALUE                            ((AMQP_VALUE)0x4260)
 
 #define TEST_UNDERLYING_IO_TRANSPORT               ((XIO_HANDLE)0x4261)
@@ -1082,14 +1073,10 @@ static void register_umock_alias_types()
     REGISTER_UMOCK_ALIAS_TYPE(IOTHUBMESSAGE_CONTENT_TYPE, int);
     REGISTER_UMOCK_ALIAS_TYPE(IOTHUBMESSAGE_DISPOSITION_RESULT, int);
     REGISTER_UMOCK_ALIAS_TYPE(IOTHUBTRANSPORT_AMQP_METHOD_HANDLE, void*);
-    REGISTER_UMOCK_ALIAS_TYPE(LINK_HANDLE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(LIST_ACTION_FUNCTION, void*);
     REGISTER_UMOCK_ALIAS_TYPE(LIST_MATCH_FUNCTION, void*);
     REGISTER_UMOCK_ALIAS_TYPE(MAP_HANDLE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(MAP_RESULT, int);
-    REGISTER_UMOCK_ALIAS_TYPE(MESSAGE_HANDLE, void*);
-    REGISTER_UMOCK_ALIAS_TYPE(MESSAGE_RECEIVER_HANDLE, void*);
-    REGISTER_UMOCK_ALIAS_TYPE(MESSAGE_SENDER_HANDLE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(METHOD_HANDLE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(ON_AMQP_CONNECTION_STATE_CHANGED, void*);
     REGISTER_UMOCK_ALIAS_TYPE(ON_AMQP_MANAGEMENT_STATE_CHANGED, void*);
@@ -1164,18 +1151,12 @@ static void register_global_mock_returns()
     REGISTER_GLOBAL_MOCK_RETURN(session_create, TEST_SESSION_HANDLE);
     REGISTER_GLOBAL_MOCK_RETURN(platform_get_default_tlsio, TEST_XIO_INTERFACE);
     REGISTER_GLOBAL_MOCK_RETURN(xio_create, TEST_XIO_HANDLE);
-    REGISTER_GLOBAL_MOCK_RETURN(saslmssbcbs_get_interface, TEST_SASL_MSSBCBS_INTERFACE);
-    REGISTER_GLOBAL_MOCK_RETURN(saslmechanism_create, TEST_SASL_MECHANISM);
     REGISTER_GLOBAL_MOCK_RETURN(connection_create2, TEST_CONNECTION_HANDLE);
     REGISTER_GLOBAL_MOCK_RETURN(cbs_create, TEST_CBS_HANDLE);
-    REGISTER_GLOBAL_MOCK_RETURN(messaging_create_source, TEST_MESSAGING_SOURCE);
-    REGISTER_GLOBAL_MOCK_RETURN(messaging_create_target, TEST_MESSAGING_TARGET);
     REGISTER_GLOBAL_MOCK_RETURN(BUFFER_new, TEST_BUFFER_HANDLE);
-    REGISTER_GLOBAL_MOCK_RETURN(link_create, TEST_LINK);
     REGISTER_GLOBAL_MOCK_RETURN(amqpvalue_create_map, TEST_AMQP_MAP);
     REGISTER_GLOBAL_MOCK_RETURN(amqpvalue_create_symbol, TEST_AMQP_VALUE);
     REGISTER_GLOBAL_MOCK_RETURN(amqpvalue_create_string, TEST_AMQP_VALUE);
-    REGISTER_GLOBAL_MOCK_RETURN(messagesender_create, TEST_MESSAGE_SENDER);
 
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(singlylinkedlist_create, NULL);
 
