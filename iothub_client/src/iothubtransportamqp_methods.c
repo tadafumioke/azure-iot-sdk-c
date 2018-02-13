@@ -439,7 +439,7 @@ static AMQP_VALUE on_message_received(const void* context, MESSAGE_HANDLE messag
                                         }
                                     }
 
-                                    application_properties_destroy(application_properties);
+                                    amqpvalue_destroy(application_properties);
                                 }
                             }
                         }

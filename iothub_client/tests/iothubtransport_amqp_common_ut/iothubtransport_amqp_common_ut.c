@@ -417,7 +417,7 @@ static const IOTHUB_CLIENT_LL_HANDLE TEST_IOTHUB_CLIENT_LL_HANDLE = (IOTHUB_CLIE
 static time_t TEST_current_time;
 static DLIST_ENTRY TEST_waitingToSend;
 
-static delivery_number TEST_MESSAGE_ID;
+static unsigned long TEST_MESSAGE_ID;
 
 
 // ---------- Helpers for Expected Calls ---------- //
@@ -1057,7 +1057,6 @@ static void register_umock_alias_types()
     REGISTER_UMOCK_ALIAS_TYPE(BUFFER_HANDLE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(CBS_HANDLE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(CONNECTION_HANDLE, void*);
-    REGISTER_UMOCK_ALIAS_TYPE(delivery_number, int);
     REGISTER_UMOCK_ALIAS_TYPE(DEVICE_HANDLE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(DEVICE_CONFIG, void*);
     REGISTER_UMOCK_ALIAS_TYPE(DEVICE_MESSAGE_DISPOSITION_RESULT, int);
@@ -1217,7 +1216,7 @@ static void initialize_static_variables()
     TEST_device_subscribe_message_saved_context = NULL;
     TEST_device_subscribe_message_return = 0;
 
-    TEST_MESSAGE_ID = (delivery_number)1234;
+    TEST_MESSAGE_ID = 1234;
     TEST_mallocAndStrcpy_s_return = 0;
 
     TEST_singlylinkedlist_foreach_list = NULL;
