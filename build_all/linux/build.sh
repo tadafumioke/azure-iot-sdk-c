@@ -133,7 +133,6 @@ if [ "$make" = true ]
 then
   # Set the default cores
   MAKE_CORES=$(grep -c ^processor /proc/cpuinfo 2>/dev/null || sysctl -n hw.ncpu)
-  MAKE_CORES="$(($MAKE_CORES * 2))"
   
   echo "Initial MAKE_CORES=$MAKE_CORES"
   
