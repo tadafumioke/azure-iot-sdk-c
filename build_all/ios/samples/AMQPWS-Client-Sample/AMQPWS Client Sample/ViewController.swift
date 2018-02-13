@@ -180,13 +180,8 @@ class ViewController: UIViewController {
     @IBAction func startSend(sender: UIButton!) {
         
         // Dialog box to show action received
-        let alertController = UIAlertController(title: "Starting...",
-                                                message: "We will begin sending messages now",
-                                                preferredStyle: UIAlertControllerStyle.alert)
-        alertController.addAction(UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler:nil))
         btnStart.isEnabled = false
         btnStop.isEnabled = true
-        present(alertController, animated: true, completion: nil)
         cntSent = 0
         lblSent.text = String(cntSent)
         cntGood = 0
@@ -229,13 +224,8 @@ class ViewController: UIViewController {
         timerMsgRate?.invalidate()
         timerDoWork?.invalidate()
         IoTHubClient_LL_Destroy(iotHubClientHandle)
-        let alertController = UIAlertController(title: "Stopping...",
-                                                message: "We will stop messages now",
-                                                preferredStyle: UIAlertControllerStyle.alert)
-        alertController.addAction(UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler:nil))
         btnStart.isEnabled = true
         btnStop.isEnabled = false
-        present(alertController, animated: true, completion: nil)
         
     }
 }
