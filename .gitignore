@@ -217,3 +217,5 @@ Manifest.lock
 build_all/ios/samples/HTTP-Client-Sample/Pods
 build_all/ios/samples/MQTT-Client-Sample/Pods
 build_all/ios/samples/MQTT-Client-Sample/MQTT Client Sample.xcodeproj/xcuserdata
+build_all/ios/samples/MQTTWS-Client-Sample/Pods
+build_all/ios/samples/MQTTWS-Client-Sample/MQTTWS Client Sample.xcodeproj/xcuserdata
