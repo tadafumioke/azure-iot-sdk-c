@@ -64,7 +64,7 @@ class ViewController: UIViewController {
         lblRcvd.text = String(cntRcvd)
     }
     /// Sends a message to the IoT hub
-    func sendMessage() {
+    @objc func sendMessage() {
         
         var message: String!
         
@@ -89,7 +89,7 @@ class ViewController: UIViewController {
     }
     
     /// Check for waiting messages and send any that have been buffered
-    func dowork() {
+    @objc func dowork() {
         IoTHubClient_LL_DoWork(iotHubClientHandle)
     }
     
