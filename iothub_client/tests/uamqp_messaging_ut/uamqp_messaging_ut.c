@@ -63,8 +63,8 @@ static void TEST_free(void* ptr)
 #include "azure_c_shared_utility/uuid.h"
 
 #include "iothub_message.h"
-#include "azure_uamqp_c/amqp_definitions_application_properties.h"
-#include "azure_uamqp_c/amqp_definitions_data.h"
+#include "azure_uamqp_c/amqp_generated_types/amqp_application_properties.h"
+#include "azure_uamqp_c/amqp_generated_types/amqp_data.h"
 #include "azure_uamqp_c/message.h"
 
 #undef ENABLE_MOCKS
