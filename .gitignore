@@ -212,3 +212,6 @@ build_all/ios/samples/AMQP-Client-Sample/Pods
 build_all/ios/samples/AMQP-Client-Sample/AMQP Client Sample.xcodeproj/xcuserdata
 build_all/ios/samples/File-Upload-Sample/Pods
 build_all/ios/samples/File-Upload-Sample/File Upload Sample.xcodeproj/xcuserdata
+build_all/ios/samples/HTTP-Client-Sample/HTTP Client Sample.xcodeproj/xcuserdata
+Manifest.lock
+build_all/ios/samples/HTTP-Client-Sample/Pods
