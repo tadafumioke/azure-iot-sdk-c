@@ -43,7 +43,7 @@ int main()
     /* Create an Individual Enrollment structure */
     printf("Creating an Individual Enrollment structure...\n");
 
-    if ((am_handle = attestationMechanism_createWithTpm(endorsementKey)) == NULL)
+    if ((am_handle = attestationMechanism_createWithTpm(endorsementKey, NULL)) == NULL)
     {
         printf("Failed calling attestationMechanism_createWithTpm\n");
         result = __FAILURE__;
