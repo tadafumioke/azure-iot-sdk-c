@@ -13,6 +13,7 @@ set(${theseTestsName}_test_files
 
 set(${theseTestsName}_c_files
     ../../src/provisioning_sc_enrollment.c
+    ../../src/provisioning_sc_shared_helpers.c
 )
 
 set(${theseTestsName}_h_files

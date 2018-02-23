@@ -93,6 +93,7 @@ void individualEnrollment_destroy(INDIVIDUAL_ENROLLMENT_HANDLE enrollment)
         free(enrollment->registration_id);
         free(enrollment->device_id);
         free(enrollment->etag);
+        free(enrollment->iothub_hostname);
         free(enrollment->created_date_time_utc);
         free(enrollment->updated_date_time_utc);
         attestationMechanism_destroy(enrollment->attestation_mechanism);
@@ -195,7 +196,7 @@ static INDIVIDUAL_ENROLLMENT_HANDLE individualEnrollment_fromJson(JSON_Object* r
             individualEnrollment_destroy(new_enrollment);
             new_enrollment = NULL;
         }
-        else if ((json_object_has_value(root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_STATE)) && (new_enrollment->registration_state = deviceRegistrationState_fromJson(json_object_get_object(root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_STATE))) == NULL)
+        else if (json_deserialize_and_get_struct(&(new_enrollment->registration_state), root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_STATE, deviceRegistrationState_fromJson, OPTIONAL) != 0)
         {
             LogError("Failed to set '%s' in Individual Enrollment", INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_STATE);
             individualEnrollment_destroy(new_enrollment);
@@ -256,6 +257,7 @@ void enrollmentGroup_destroy(ENROLLMENT_GROUP_HANDLE enrollment)
         attestationMechanism_destroy(enrollment->attestation_mechanism);
         initialTwin_destroy(enrollment->initial_twin);
         free(enrollment->etag);
+        free(enrollment->iothub_hostname);
         free(enrollment->created_date_time_utc);
         free(enrollment->updated_date_time_utc);
         free(enrollment);
@@ -383,7 +385,7 @@ static ENROLLMENT_GROUP_HANDLE enrollmentGroup_fromJson(JSON_Object* root_object
     return new_enrollment;
 }
 
-INDIVIDUAL_ENROLLMENT_HANDLE individualEnrollment_create(const char* reg_id, ATTESTATION_MECHANISM_HANDLE att_handle)
+INDIVIDUAL_ENROLLMENT_HANDLE individualEnrollment_create(const char* reg_id, ATTESTATION_MECHANISM_HANDLE att_mech)
 {
     INDIVIDUAL_ENROLLMENT_HANDLE new_enrollment = NULL;
 
@@ -391,7 +393,7 @@ INDIVIDUAL_ENROLLMENT_HANDLE individualEnrollment_create(const char* reg_id, ATT
     {
         LogError("reg_id invalid");
     }
-    else if (!attestationMechanism_isValidForIndividualEnrollment(att_handle))
+    else if (!attestationMechanism_isValidForIndividualEnrollment(att_mech))
     {
         LogError("attestation mechanism is invalid for Individual Enrollment");
     }
@@ -411,7 +413,7 @@ INDIVIDUAL_ENROLLMENT_HANDLE individualEnrollment_create(const char* reg_id, ATT
         }
         else
         {
-            new_enrollment->attestation_mechanism = att_handle;
+            new_enrollment->attestation_mechanism = att_mech;
             new_enrollment->provisioning_status = PROVISIONING_STATUS_ENABLED;
         }
     }
@@ -487,7 +489,7 @@ INDIVIDUAL_ENROLLMENT_HANDLE individualEnrollment_deserializeFromJson(const char
     return new_enrollment;
 }
 
-ENROLLMENT_GROUP_HANDLE enrollmentGroup_create(const char* group_id, ATTESTATION_MECHANISM_HANDLE att_handle)
+ENROLLMENT_GROUP_HANDLE enrollmentGroup_create(const char* group_id, ATTESTATION_MECHANISM_HANDLE att_mech)
 {
     ENROLLMENT_GROUP_HANDLE new_enrollment = NULL;
 
@@ -495,7 +497,7 @@ ENROLLMENT_GROUP_HANDLE enrollmentGroup_create(const char* group_id, ATTESTATION
     {
         LogError("group id is NULL");
     }
-    else if (!attestationMechanism_isValidForEnrollmentGroup(att_handle))
+    else if (!attestationMechanism_isValidForEnrollmentGroup(att_mech))
     {
         LogError("attestation mechanism is invalid for Enrollment Group");
     }
@@ -515,7 +517,7 @@ ENROLLMENT_GROUP_HANDLE enrollmentGroup_create(const char* group_id, ATTESTATION
         }
         else
         {
-            new_enrollment->attestation_mechanism = att_handle;
+            new_enrollment->attestation_mechanism = att_mech;
             new_enrollment->provisioning_status = PROVISIONING_STATUS_ENABLED;
         }
     }
@@ -725,8 +727,8 @@ int individualEnrollment_setDeviceId(INDIVIDUAL_ENROLLMENT_HANDLE enrollment, co
     }
     else if (device_id == NULL)
     {
-        LogError("Invalid device id");
-        result = __FAILURE__;
+        free(enrollment->device_id);
+        enrollment->device_id = NULL;
     }
     else if (mallocAndStrcpy_overwrite(&(enrollment->device_id), device_id) != 0)
     {
@@ -780,8 +782,8 @@ int individualEnrollment_setEtag(INDIVIDUAL_ENROLLMENT_HANDLE enrollment, const 
     }
     else if (etag == NULL)
     {
-        LogError("Invalid etag");
-        result = __FAILURE__;
+        free(enrollment->etag);
+        enrollment->etag = NULL;
     }
     else if (mallocAndStrcpy_overwrite(&(enrollment->etag), etag) != 0)
     {
@@ -995,8 +997,8 @@ int enrollmentGroup_setEtag(ENROLLMENT_GROUP_HANDLE enrollment, const char* etag
     }
     else if (etag == NULL)
     {
-        LogError("Invalid etag");
-        result = __FAILURE__;
+        free(enrollment->etag);
+        enrollment->etag = NULL;
     }
     else if (mallocAndStrcpy_overwrite(&(enrollment->etag), etag) != 0)
     {
@@ -1040,6 +1042,38 @@ int enrollmentGroup_setProvisioningStatus(ENROLLMENT_GROUP_HANDLE enrollment, PR
     else
     {
         enrollment->provisioning_status = prov_status;
+    }
+
+    return result;
+}
+
+const char* enrollmentGroup_getCreatedDateTime(ENROLLMENT_GROUP_HANDLE enrollment)
+{
+    char* result = NULL;
+
+    if (enrollment == NULL)
+    {
+        LogError("enrollment is NULL");
+    }
+    else
+    {
+        result = enrollment->created_date_time_utc;
+    }
+
+    return result;
+}
+
+const char* enrollmentGroup_getUpdatedDateTime(ENROLLMENT_GROUP_HANDLE enrollment)
+{
+    char* result = NULL;
+
+    if (enrollment == NULL)
+    {
+        LogError("enrollment is NULL");
+    }
+    else
+    {
+        result = enrollment->updated_date_time_utc;
     }
 
     return result;

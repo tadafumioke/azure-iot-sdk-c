@@ -38,40 +38,37 @@ DEFINE_ENUM(PROVISIONING_STATUS, PROVISIONING_STATUS_VALUES);
 */
 
 
-
-/* Enrollment Operation Functions */
-
 /** @brief  Creates an Individual Enrollment handle with a TPM Attestation for use in consequent APIs.
 *
 * @param    reg_id              A registration id for the Individual Enrollment.
-* @param    att_handle          The handle for the Attestation Mechanism to be used by the Individual Enrollment
+* @param    att_mech            The handle for the Attestation Mechanism to be used by the Individual Enrollment
 *
 * @return   A non-NULL handle representing an Individual Enrollment for use with the Provisioning Service, and NULL on failure.
 */
-MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT_HANDLE, individualEnrollment_create, const char*, reg_id, ATTESTATION_MECHANISM_HANDLE, att_handle);
+MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT_HANDLE, individualEnrollment_create, const char*, reg_id, ATTESTATION_MECHANISM_HANDLE, att_mech);
 
 /** @brief  Destroys an Individual Enrollment handle, freeing all associated memory. Please note that this also includes the attestation mechanism
 *           that was given in the constructor.
 *
-* @param    handle      A handle for the Individual Enrollment to be destroyed.
+* @param    enrollment      A handle for the Individual Enrollment to be destroyed.
 */
-MOCKABLE_FUNCTION(, void, individualEnrollment_destroy, INDIVIDUAL_ENROLLMENT_HANDLE, handle);
+MOCKABLE_FUNCTION(, void, individualEnrollment_destroy, INDIVIDUAL_ENROLLMENT_HANDLE, enrollment);
 
 /** @brief  Creates an Enrollment Group handle with an X509 Attestation for use in consequent APIs.
 *
 * @param    group_id        A group name for the Enrollment Group.
-* @param    att_handle      The handle for the Attestation Mechanism to be used by the Enrollment Group. Note: only valid with type: X509
+* @param    att_mech        The handle for the Attestation Mechanism to be used by the Enrollment Group. Note: only valid with type: X509
 *
 * @return   A non-NULL handle representing an Enrollment Group for use with the Provisioning Service, and NULL on failure.
 */
-MOCKABLE_FUNCTION(, ENROLLMENT_GROUP_HANDLE, enrollmentGroup_create, const char*, group_id, ATTESTATION_MECHANISM_HANDLE, att_handle);
+MOCKABLE_FUNCTION(, ENROLLMENT_GROUP_HANDLE, enrollmentGroup_create, const char*, group_id, ATTESTATION_MECHANISM_HANDLE, att_mech);
 
 /** @brief  Destorys an Enrollment Group handle, freeing all associated memory. Please note that this also includes the attestation mechanism
 *           that was given in the constructor.
 *
-* @param    handle      A handle for the Enrollment Group to be destroyed.
+* @param    enrollment      A handle for the Enrollment Group to be destroyed.
 */
-MOCKABLE_FUNCTION(, void, enrollmentGroup_destroy, ENROLLMENT_GROUP_HANDLE, handle);
+MOCKABLE_FUNCTION(, void, enrollmentGroup_destroy, ENROLLMENT_GROUP_HANDLE, enrollment);
 
 
 /* ACCESSOR FUNCTIONS
@@ -105,8 +102,8 @@ MOCKABLE_FUNCTION(, const char*, individualEnrollment_getUpdatedDateTime, INDIVI
 /* Enrollment Group Accessor Functions */
 MOCKABLE_FUNCTION(, ATTESTATION_MECHANISM_HANDLE, enrollmentGroup_getAttestationMechanism, ENROLLMENT_GROUP_HANDLE, enrollment);
 MOCKABLE_FUNCTION(, int, enrollmentGroup_setAttestationMechanism, ENROLLMENT_GROUP_HANDLE, enrollment, ATTESTATION_MECHANISM_HANDLE, att_mech);
-MOCKABLE_FUNCTION(, INITIAL_TWIN_HANDLE, enrollmentGroup_getInitialTwinState, ENROLLMENT_GROUP_HANDLE, enrollment);
-MOCKABLE_FUNCTION(, int, enrollmentGroup_setInitialTwinState, ENROLLMENT_GROUP_HANDLE, enrollment, INITIAL_TWIN_HANDLE, twin);
+MOCKABLE_FUNCTION(, INITIAL_TWIN_HANDLE, enrollmentGroup_getInitialTwin, ENROLLMENT_GROUP_HANDLE, enrollment);
+MOCKABLE_FUNCTION(, int, enrollmentGroup_setInitialTwin, ENROLLMENT_GROUP_HANDLE, enrollment, INITIAL_TWIN_HANDLE, twin);
 MOCKABLE_FUNCTION(, const char*, enrollmentGroup_getGroupId, ENROLLMENT_GROUP_HANDLE, enrollment);
 MOCKABLE_FUNCTION(, const char*, enrollmentGroup_getIotHubHostName, ENROLLMENT_GROUP_HANDLE, enrollment);
 MOCKABLE_FUNCTION(, const char*, enrollmentGroup_getEtag, ENROLLMENT_GROUP_HANDLE, enrollment);

@@ -9,6 +9,8 @@
 #include <stddef.h>
 #endif
 
+#define UNREFERENCED_PARAMETER(x) x
+
 void* real_malloc(size_t size)
 {
     return malloc(size);
@@ -26,7 +28,11 @@ void real_free(void* ptr)
 
 #define ENABLE_MOCKS
 #include "azure_c_shared_utility/gballoc.h"
+#include "azure_c_shared_utility/crt_abstractions.h"
 #include "parson.h"
+#include "provisioning_sc_device_registration_state.h"
+#include "provisioning_sc_twin.h"
+#include "provisioning_sc_attestation_mechanism.h"
 
 #include "azure_c_shared_utility/umock_c_prod.h"
 MOCKABLE_FUNCTION(, JSON_Value*, json_parse_string, const char*, string);
@@ -47,6 +53,7 @@ MOCKABLE_FUNCTION(, JSON_Value*, json_object_get_wrapping_value, const JSON_Obje
 #undef ENABLE_MOCKS
 
 #include "provisioning_sc_enrollment.h"
+#include "provisioning_sc_models_serializer.h"
 
 static TEST_MUTEX_HANDLE g_testByTest;
 static TEST_MUTEX_HANDLE g_dllByDll;
@@ -61,27 +68,83 @@ static void on_umock_c_error(UMOCK_C_ERROR_CODE error_code)
 }
 
 //Control Parameters
-static const char* TEST_EK = "test-ek";
-static const char* TEST_GROUPID = "test-groupid";
-static const char* TEST_DEVID = "test-devid";
-static const char* TEST_ETAG = "test-etag";
-static const char* TEST_REGID = "test-regid";
-static const char* TEST_CERT1 = "test-cert-1";
-static const char* TEST_CERT2 = "test-cert-2";
+static char* DUMMY_JSON = "{\"json\":\"dummy\"}";
+static const char* DUMMY_STRING = "dummy";
+static const char* DUMMY_REGISTRATION_ID = "REGISTRATION_ID";
+static const char* DUMMY_DEVICE_ID = "DEVICE_ID";
+static const char* DUMMY_GROUP_ID = "GROUP_ID";
+static const char* DUMMY_IOTHUB_HOSTNAME = "IOTHUB_HOSTNAME";
+static const char* DUMMY_ETAG = "ETAG";
+static const char* DUMMY_CREATED_TIME = "CREATED TIME";
+static const char* DUMMY_UPDATED_TIME = "UPDATED_TIME";
+static const char* DUMMY_PROVISIONING_STATUS = "enabled";
 
-static const char* retrieved_json_string = "somestrvalue";
 
-static void register_global_mock_hooks()
+#define TEST_JSON_VALUE (JSON_Value*)0x11111111
+#define TEST_JSON_OBJECT (JSON_Object*)0x11111112
+#define TEST_ATTESTATION_MECHANISM (ATTESTATION_MECHANISM_HANDLE)0x11111113
+#define TEST_INITIAL_TWIN (INITIAL_TWIN_HANDLE)0x11111114
+#define TEST_REGISTRATION_STATE (DEVICE_REGISTRATION_STATE_HANDLE)0x11111115
+#define TEST_ATTESTATION_MECHANISM_2 (ATTESTATION_MECHANISM_HANDLE)0x11111116
+#define TEST_INITIAL_TWIN_2 (INITIAL_TWIN_HANDLE)0x11111117
+
+static int my_mallocAndStrcpy_s(char** destination, const char* source)
 {
-    REGISTER_GLOBAL_MOCK_HOOK(gballoc_malloc, real_malloc);
-    REGISTER_GLOBAL_MOCK_HOOK(gballoc_free, real_free);
+    (void)source;
+    size_t src_len = strlen(source);
+    *destination = (char*)real_malloc(src_len + 1);
+    strcpy(*destination, source);
+    return 0;
 }
 
-static void register_global_mock_returns()
+static void register_global_mocks()
 {
+    REGISTER_UMOCK_ALIAS_TYPE(bool, unsigned int);
+    REGISTER_GLOBAL_MOCK_HOOK(gballoc_malloc, real_malloc);
+    REGISTER_GLOBAL_MOCK_HOOK(gballoc_free, real_free);
+    REGISTER_GLOBAL_MOCK_HOOK(mallocAndStrcpy_s, my_mallocAndStrcpy_s);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(mallocAndStrcpy_s, __FAILURE__);
+
     //parson
-    REGISTER_GLOBAL_MOCK_RETURN(json_object_get_string, retrieved_json_string);
+    REGISTER_GLOBAL_MOCK_RETURN(json_value_init_object, TEST_JSON_VALUE);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(json_value_init_object, NULL);
+    REGISTER_GLOBAL_MOCK_RETURN(json_value_get_object, TEST_JSON_OBJECT);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(json_value_get_object, NULL);
+    REGISTER_GLOBAL_MOCK_RETURN(json_object_get_string, DUMMY_STRING);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(json_object_get_string, NULL);
+    REGISTER_GLOBAL_MOCK_RETURN(json_object_get_object, TEST_JSON_OBJECT);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(json_object_get_object, NULL);
+    REGISTER_GLOBAL_MOCK_RETURN(json_parse_string, TEST_JSON_VALUE);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(json_parse_string, NULL);
+    REGISTER_GLOBAL_MOCK_RETURN(json_object_set_value, JSONSuccess);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(json_object_set_value, JSONFailure);
+    REGISTER_GLOBAL_MOCK_RETURN(json_object_set_string, JSONSuccess);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(json_object_set_string, JSONFailure);
+    REGISTER_GLOBAL_MOCK_RETURN(json_object_get_wrapping_value, TEST_JSON_VALUE);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(json_object_get_wrapping_value, NULL);
+    REGISTER_GLOBAL_MOCK_RETURN(json_serialize_to_string, DUMMY_JSON);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(json_serialize_to_string, NULL);
+    REGISTER_GLOBAL_MOCK_RETURN(json_object_set_number, JSONSuccess);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(json_object_set_number, JSONFailure);
+
+    //attestation mechanism
+    REGISTER_UMOCK_ALIAS_TYPE(ATTESTATION_MECHANISM_HANDLE, void*);
+    REGISTER_UMOCK_ALIAS_TYPE(const ATTESTATION_MECHANISM_HANDLE, void*);
+    REGISTER_GLOBAL_MOCK_RETURN(attestationMechanism_isValidForIndividualEnrollment, true);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(attestationMechanism_isValidForIndividualEnrollment, false);
+    REGISTER_GLOBAL_MOCK_RETURN(attestationMechanism_isValidForEnrollmentGroup, true);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(attestationMechanism_isValidForEnrollmentGroup, false);
+    REGISTER_GLOBAL_MOCK_RETURN(attestationMechanism_toJson, TEST_JSON_VALUE);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(attestationMechanism_toJson, NULL);
+
+    //twin
+    REGISTER_UMOCK_ALIAS_TYPE(INITIAL_TWIN_HANDLE, void*);
+    REGISTER_UMOCK_ALIAS_TYPE(const INITIAL_TWIN_HANDLE, void*);
+    REGISTER_GLOBAL_MOCK_RETURN(initialTwin_toJson, TEST_JSON_VALUE);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(initialTwin_toJson, NULL);
+
+    //device registration state
+    REGISTER_UMOCK_ALIAS_TYPE(DEVICE_REGISTRATION_STATE_HANDLE, void*);
 }
 
 BEGIN_TEST_SUITE(provisioning_sc_enrollment_ut)
@@ -94,8 +157,7 @@ TEST_SUITE_INITIALIZE(TestClassInitialize)
 
     umock_c_init(on_umock_c_error);
 
-    register_global_mock_hooks();
-    register_global_mock_returns();
+    register_global_mocks();
 }
 
 TEST_SUITE_CLEANUP(TestClassCleanup)
@@ -122,714 +184,246 @@ TEST_FUNCTION_CLEANUP(TestMethodCleanup)
     TEST_MUTEX_RELEASE(g_testByTest);
 }
 
-static int should_skip_index(size_t current_index, const size_t skip_array[], size_t length)
+static void individualEnrollment_deserializeFromJson_expected_calls(bool use_all_fields)
 {
-    int result = 0;
-    for (size_t index = 0; index < length; index++)
+    STRICT_EXPECTED_CALL(json_parse_string(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_value_get_object(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    if (use_all_fields)
     {
-        if (current_index == skip_array[index])
-        {
-            result = __LINE__;
-            break;
-        }
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_REGISTRATION_ID); //reg id //cannot fail
+        STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_DEVICE_ID); //device id //cannot fail
+        STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+        STRICT_EXPECTED_CALL(json_object_get_object(IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //reg state //cannot fail
+        STRICT_EXPECTED_CALL(deviceRegistrationState_fromJson(IGNORED_PTR_ARG)).SetReturn(TEST_REGISTRATION_STATE);
+        STRICT_EXPECTED_CALL(json_object_get_object(IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //attestation mechanism 
+        STRICT_EXPECTED_CALL(attestationMechanism_fromJson(IGNORED_PTR_ARG)).SetReturn(TEST_ATTESTATION_MECHANISM);
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_IOTHUB_HOSTNAME); //cannot fail
+        STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //iothub hostname
+        STRICT_EXPECTED_CALL(json_object_get_object(IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //twin //cannot fail
+        STRICT_EXPECTED_CALL(initialTwin_fromJson(IGNORED_PTR_ARG)).SetReturn(TEST_INITIAL_TWIN);
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_ETAG); //etag //cannot fail
+        STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_PROVISIONING_STATUS); //provisioning status
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_CREATED_TIME); //created time //cannot fail
+        STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_UPDATED_TIME); //updated time //cannot fail
+        STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
     }
+    else
+    {
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_REGISTRATION_ID); //reg id //cannot fail
+        STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(NULL); //device id //cannot fail
+        STRICT_EXPECTED_CALL(json_object_get_object(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(NULL); //reg state //cannot fail
+        STRICT_EXPECTED_CALL(json_object_get_object(IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //attestation mechanism
+        STRICT_EXPECTED_CALL(attestationMechanism_fromJson(IGNORED_PTR_ARG)).SetReturn(TEST_ATTESTATION_MECHANISM);
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(NULL); //iothub hostname //cannot fail
+        STRICT_EXPECTED_CALL(json_object_get_object(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(NULL); //twin //cannot fail
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(NULL); //etag //cannot fail
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_PROVISIONING_STATUS); //provisioning status
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(NULL); //created time //cannot fail
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(NULL); //updated time //cannot fail
+    }
+    STRICT_EXPECTED_CALL(json_value_free(IGNORED_PTR_ARG));
+}
+
+static void enrollmentGroup_deserializeFromJson_expected_calls(bool use_all_fields)
+{
+    STRICT_EXPECTED_CALL(json_parse_string(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_value_get_object(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    if (use_all_fields)
+    {
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_GROUP_ID); //group id
+        STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+        STRICT_EXPECTED_CALL(json_object_get_object(IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //attestation mechanism
+        STRICT_EXPECTED_CALL(attestationMechanism_fromJson(IGNORED_PTR_ARG)).SetReturn(TEST_ATTESTATION_MECHANISM);
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_IOTHUB_HOSTNAME);
+        STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //iothub hostname
+        STRICT_EXPECTED_CALL(json_object_get_object(IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //twin
+        STRICT_EXPECTED_CALL(initialTwin_fromJson(IGNORED_PTR_ARG)).SetReturn(TEST_INITIAL_TWIN);
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_ETAG); //etag
+        STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG)); 
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_PROVISIONING_STATUS); //provisioning status
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_CREATED_TIME); //created time
+        STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_UPDATED_TIME); //updated time
+        STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+    }
+    else
+    {
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_GROUP_ID); //group id
+        STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+        STRICT_EXPECTED_CALL(json_object_get_object(IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //attestation mechanism
+        STRICT_EXPECTED_CALL(attestationMechanism_fromJson(IGNORED_PTR_ARG)).SetReturn(TEST_ATTESTATION_MECHANISM);
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(NULL); //iothubhostname
+        STRICT_EXPECTED_CALL(json_object_get_object(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(NULL); //twin
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(NULL); //etag
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(DUMMY_PROVISIONING_STATUS); //provisioning status
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(NULL); //created time
+        STRICT_EXPECTED_CALL(json_object_get_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG)).SetReturn(NULL); //updated time
+
+    }
+    STRICT_EXPECTED_CALL(json_value_free(IGNORED_PTR_ARG));
+}
+
+static INDIVIDUAL_ENROLLMENT_HANDLE get_ie_from_json()
+{
+    individualEnrollment_deserializeFromJson_expected_calls(true);
+    INDIVIDUAL_ENROLLMENT_HANDLE result = individualEnrollment_deserializeFromJson(DUMMY_JSON);
+    umock_c_reset_all_calls();
     return result;
 }
 
-
-static void copy_string_expected_calls(void)
+static ENROLLMENT_GROUP_HANDLE get_eg_from_json()
 {
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    enrollmentGroup_deserializeFromJson_expected_calls(true);
+    ENROLLMENT_GROUP_HANDLE result = enrollmentGroup_deserializeFromJson(DUMMY_JSON);
+    umock_c_reset_all_calls();
+    return result;
 }
 
-static void attestationMechanism_free_expected_calls_tpm(void)
+static int should_skip_index(size_t current_index, const size_t skip_array[], size_t length)
 {
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    int result = 0;
+    if (skip_array != NULL)
+    {
+        for (size_t index = 0; index < length; index++)
+        {
+            if (current_index == skip_array[index])
+            {
+                result = __LINE__;
+                break;
+            }
+        }
+    }
+
+    return result;
 }
-
-static void attestationMechanism_createWithX509_expected_calls_OneCert(void)
-{
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-}
-
-static void attestationMechanism_createWithX509_expected_calls_TwoCerts(void)
-{
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-}
-
-static void attestationMechanism_free_expected_calls_x509OneCert(void)
-{
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-}
-
-static void attestationMechanism_free_expected_calls_x509TwoCerts(void)
-{
-    //cert 1
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-
-    //cert 2
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    //STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-
-    //rest of structure
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-}
-
 
 /* UNIT TESTS BEGIN */
 
-/* Tests_ENROLLMENTS_22_001: [If endorsement_key is NULL, attestationMechanism_createWithTpm shall fail and return NULL] */
-TEST_FUNCTION(attestationMechanism_createWithTpm_error_NULL_ek)
+/*Tests_ENROLLMENT_22_001: [ If reg_id is NULL, individualEnrollment_create shall fail and return NULL ]*/
+TEST_FUNCTION(individualEnrollment_create_null_reg_id)
 {
     //arrange
 
     //act
-    ATTESTATION_MECHANISM_HANDLE handle = attestationMechanism_createWithTpm(NULL);
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(NULL, TEST_ATTESTATION_MECHANISM);
 
     //assert
-    ASSERT_IS_NULL(handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    //cleanup
-    attestationMechanism_destroy(handle);
-}
-
-/* Tests_ENROLLMENTS_22_004: [ Upon successful creation of the new ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWithTpm shall return it ] */
-TEST_FUNCTION(attestationMechanism_createWithTpm_golden)
-{
-    //arrange
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
-    //act
-    ATTESTATION_MECHANISM_HANDLE am_handle = attestationMechanism_createWithTpm(TEST_EK);
-
-    //assert
-    ASSERT_IS_NOT_NULL(am_handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    ASSERT_IS_TRUE(attestationMechanism_getType(am_handle) == ATTESTATION_TYPE_TPM);
-    TPM_ATTESTATION_HANDLE tpm_handle = attestationMechanism_getTpmAttestation(am_handle);
-    ASSERT_ARE_EQUAL(char_ptr, TEST_EK, tpmAttestation_getEndorsementKey(tpm_handle));
-
-    //cleanup
-    attestationMechanism_destroy(am_handle);
-}
-
-/* Tests_ENROLLMENTS_22_002: [ If allocating memory for the new attestation mechanism fails, attestationMechanism_createWithTpm shall fail and return NULL ] */
-/* Tests_ENROLLMENTS_22_003: [ If setting initial values within the new attestation mechanism fails, attestationMechanism_createWithTpm shall fail and return NULL ] */
-TEST_FUNCTION(attestationMechanism_createWithTpm_fail)
-{
-    //arrange
-    int negativeTestsInitResult = umock_c_negative_tests_init();
-    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
-
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    //copy_string_expected_calls();
-
-    umock_c_negative_tests_snapshot();
-
-    //act
-    size_t count = umock_c_negative_tests_call_count();
-    for (size_t index = 0; index < count; index++)
-    {
-        char tmp_msg[128];
-        sprintf(tmp_msg, "attestationMechanism_createWithTpm failure in test %zu/%zu", index+1, count);
-
-        umock_c_negative_tests_reset();
-        umock_c_negative_tests_fail_call(index);
-
-        ATTESTATION_MECHANISM_HANDLE handle = attestationMechanism_createWithTpm(TEST_EK);
-
-        //assert
-        ASSERT_IS_NULL_WITH_MSG(handle, tmp_msg);
-
-        //cleanup
-        attestationMechanism_destroy(handle);
-    }
-
-    //cleanup
-    umock_c_negative_tests_deinit();
-}
-
-/* Tests_ENROLLMENTS_22_005: [If primary_cert is NULL, attestationMechanism_createWithX509 shall fail and return NULL] */
-TEST_FUNCTION(attestationMechanism_createWithX509ClientCert_error_NULL_certs)
-{
-    //arrange
-
-    //act
-    ATTESTATION_MECHANISM_HANDLE handle = attestationMechanism_createWithX509ClientCert(NULL, NULL);
-
-    //assert
-    ASSERT_IS_NULL(handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    //cleanup
-    attestationMechanism_destroy(handle);
-}
-
-/* Tests_ENROLLMENTS_22_005: [If primary_cert is NULL, attestationMechanism_createWithX509 shall fail and return NULL] */
-TEST_FUNCTION(attestationMechanism_createWithX509ClientCert_NULL_primary)
-{
-    //arrange
-
-    //act
-    ATTESTATION_MECHANISM_HANDLE handle = attestationMechanism_createWithX509ClientCert(NULL, TEST_CERT2);
-
-    //assert
-    ASSERT_IS_NULL(handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    //cleanup
-    attestationMechanism_destroy(handle);
-}
-
-/* Tests_ENROLLMENTS_22_008: [ Upon successful creation of the new ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWithX509 shall return it ] */
-/* Tests_ENROLLMENTS_22_040: [The new ATTESTATION_MECHANISM_HANDLE will have one certificate if it was only given primary_cert and two certificates if it was also given secondary_cert] */
-TEST_FUNCTION(attestationMechanism_createWithClientCertX509_golden_primary_cert)
-{
-    //arrange
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
-    //act
-    ATTESTATION_MECHANISM_HANDLE am_handle = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
-
-    //assert
-    ASSERT_IS_NOT_NULL(am_handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    ASSERT_IS_TRUE(attestationMechanism_getType(am_handle) == ATTESTATION_TYPE_X509);
-    X509_ATTESTATION_HANDLE x509_handle = attestationMechanism_getX509Attestation(am_handle);
-    ASSERT_IS_NOT_NULL(x509_handle);
-    X509_CERTIFICATE_HANDLE x509_cert_h = x509Attestation_getPrimaryCertificate(x509_handle);
-    ASSERT_IS_NOT_NULL(x509_cert_h); //Cert is not exposed in any way, can't actually check it equals TEST_CERT1
-    
-    //check that its client cert
-
-    //cleanup
-    attestationMechanism_destroy(am_handle);
-}
-
-/* Tests_ENROLLMENTS_22_006: [ If allocating memory for the new attestation mechanism fails, attestationMechanism_createWithX509 shall fail and return NULL ] */
-/* Tests_ENROLLMENTS_22_007: [ If setting initial values within the new attestation mechanism fails, attestationMechanism_createWithX509 shall fail and return NULL ] */
-TEST_FUNCTION(attestationMechanism_createWithX509ClientCert_primary_cert_fail)
-{
-    //arrange
-    int negativeTestsInitResult = umock_c_negative_tests_init();
-    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
-
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
-    umock_c_negative_tests_snapshot();
-
-    size_t calls_cannot_fail[] = { 5 };
-    size_t count = umock_c_negative_tests_call_count();
-    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
-
-    size_t test_num = 0;
-    size_t test_max = count - num_cannot_fail;
-
-    for (size_t index = 0; index < count; index++)
-    {
-        if (should_skip_index(index, calls_cannot_fail, sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0])) != 0)
-            continue;
-        test_num++;
-
-        char tmp_msg[128];
-        sprintf(tmp_msg, "attestationMechanism_createWithX509 failure in test %zu/%zu", test_num, test_max);
-
-        umock_c_negative_tests_reset();
-        umock_c_negative_tests_fail_call(index);
-
-        //act
-        ATTESTATION_MECHANISM_HANDLE handle = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
-
-        //assert
-        ASSERT_IS_NULL_WITH_MSG(handle, tmp_msg);
-
-        //cleanup
-        attestationMechanism_destroy(handle);
-    }
-
-    //cleanup
-    umock_c_negative_tests_deinit();
-}
-
-/* Tests_ENROLLMENTS_22_008: [ Upon successful creation of the new ATTESTATION_MECHANISM_HANDLE, attestationMechanism_createWithX509 shall return it ] */
-/* Tests_ENROLLMENTS_22_040: [The new ATTESTATION_MECHANISM_HANDLE will have one certificate if it was only given primary_cert and two certificates if it was also given secondary_cert] */
-TEST_FUNCTION(attestationMechanism_createWithX509ClientCert_golden_both_certs)
-{
-    //arrange
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
-    //act
-    ATTESTATION_MECHANISM_HANDLE am_handle = attestationMechanism_createWithX509ClientCert(TEST_CERT1, TEST_CERT2);
-
-    //assert
-    ASSERT_IS_NOT_NULL(am_handle);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    ASSERT_IS_TRUE(attestationMechanism_getType(am_handle) == ATTESTATION_TYPE_X509);
-    X509_ATTESTATION_HANDLE x509_handle = attestationMechanism_getX509Attestation(am_handle);
-    ASSERT_IS_NOT_NULL(x509_handle);
-    X509_CERTIFICATE_HANDLE x509_prim_cert_h = x509Attestation_getPrimaryCertificate(x509_handle);
-    X509_CERTIFICATE_HANDLE x509_sec_cert_h = x509Attestation_getSecondaryCertificate(x509_handle);
-    ASSERT_IS_NOT_NULL(x509_prim_cert_h); //Cert is not exposed in any way, can't actually check it equals TEST_CERT1
-    ASSERT_IS_NOT_NULL(x509_sec_cert_h); //Cert is not exposed in any way, can't actually check it equals TEST_CERT2
-    //if implemented in the future, check that is Client Cert type
-
-    //cleanup
-    attestationMechanism_destroy(am_handle);
-}
-
-/* Tests_ENROLLMENTS_22_006: [ If allocating memory for the new attestation mechanism fails, attestationMechanism_createWithX509 shall fail and return NULL ] */
-/* Tests_ENROLLMENTS_22_007: [ If setting initial values within the new attestation mechanism fails, attestationMechanism_createWithX509 shall fail and return NULL ] */
-TEST_FUNCTION(attestationMechanism_createWithX509_both_certs_fail)
-{
-    //arrange
-    int negativeTestsInitResult = umock_c_negative_tests_init();
-    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
-
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
-
-    umock_c_negative_tests_snapshot();
-
-    size_t calls_cannot_fail[] = { 5, 8 };
-    size_t count = umock_c_negative_tests_call_count();
-    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
-
-    size_t test_num = 0;
-    size_t test_max = count - num_cannot_fail;
-
-    for (size_t index = 0; index < count; index++)
-    {
-        if (should_skip_index(index, calls_cannot_fail, sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0])) != 0)
-            continue;
-        test_num++;
-
-        char tmp_msg[128];
-        sprintf(tmp_msg, "attestationMechanism_createWithX509 failure in test %zu/%zu", test_num, test_max);
-
-        umock_c_negative_tests_reset();
-        umock_c_negative_tests_fail_call(index);
-
-        ATTESTATION_MECHANISM_HANDLE handle = attestationMechanism_createWithX509ClientCert(TEST_CERT1, TEST_CERT2);
-
-        //assert
-        ASSERT_IS_NULL_WITH_MSG(handle, tmp_msg);
-
-        //cleanup
-        attestationMechanism_destroy(handle);
-    }
-
-    //cleanup
-    umock_c_negative_tests_deinit();
-}
-
-/* Tests_ENROLLMENTS_22_009: [ attestationMechanism_destroy shall free all memory contained within att_handle ] */
-TEST_FUNCTION(attestationMechanism_destroy_NULL)
-{
-    //arrange
-
-    //act
-    attestationMechanism_destroy(NULL);
-
-    //assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    //cleanup
-}
-
-/* Tests_ENROLLMENTS_22_009: [ attestationMechanism_destroy shall free all memory contained within att_handle ] */
-TEST_FUNCTION(attestationMechanism_destroy_golden_TPM)
-{
-    //arrange
-    ATTESTATION_MECHANISM_HANDLE am_handle = attestationMechanism_createWithTpm(TEST_EK);
-    umock_c_reset_all_calls();
-
-    attestationMechanism_free_expected_calls_tpm();
-
-    //act
-    attestationMechanism_destroy(am_handle);
-
-    //assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    //cleanup
-}
-
-/* Tests_ENROLLMENTS_22_009: [ attestationMechanism_destroy shall free all memory contained within att_handle ] */
-TEST_FUNCTION(attestationMechanism_destroy_golden_x509_one_cert)
-{
-    //arrange
-    ATTESTATION_MECHANISM_HANDLE am_handle = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
-    umock_c_reset_all_calls();
-
-    attestationMechanism_free_expected_calls_x509OneCert();
-
-    //act
-    attestationMechanism_destroy(am_handle);
-
-    //assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    //cleanup
-}
-
-/* Tests_ENROLLMENTS_22_009: [ attestationMechanism_destroy shall free all memory contained within att_handle ] */
-TEST_FUNCTION(attestationMechanism_destroy_golden_x509_two_certs)
-{
-    //arrange
-    ATTESTATION_MECHANISM_HANDLE am_handle = attestationMechanism_createWithX509ClientCert(TEST_CERT1, TEST_CERT2);
-    umock_c_reset_all_calls();
-
-    attestationMechanism_free_expected_calls_x509TwoCerts();
-
-    //act
-    attestationMechanism_destroy(am_handle);
-
-    //assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    //cleanup
-}
-
-/* Tests_ENROLLMENTS_22_010: [ If att_handle is NULL, attestationMechanism_getTpmAttestation shall fail and return NULL ] */
-TEST_FUNCTION(attestationMechanism_getTpmAttestation_error_NULL_handle)
-{
-    //arrange
-
-    //act
-    TPM_ATTESTATION_HANDLE tpm = attestationMechanism_getTpmAttestation(NULL);
-
-    //assert
-    ASSERT_IS_NULL(tpm);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    //cleanup
-    
-}
-
-/* Tests_ENROLLMENTS_22_011: [ If the attestation type of att_handle is not TPM, attestationMechanism_getTpmAttestation shall fail and return NULL ] */
-TEST_FUNCTION(attestationMechanism_getTpmAttestation_error_X509_handle)
-{
-    //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
-    umock_c_reset_all_calls();
-
-    //act
-    TPM_ATTESTATION_HANDLE tpm = attestationMechanism_getTpmAttestation(am);
-
-    //assert
-    ASSERT_IS_NULL(tpm);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    //cleanup
-    attestationMechanism_destroy(am);
-
-}
-
-/* Tests_ENROLLMENTS_22_012: [ Upon success, attestationMechanism_getTpmAttestation shall return a handle for the TPM Attestation contained in att_handle ] */
-TEST_FUNCTION(attestationMechanism_getTpmAttestation_golden)
-{
-    //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithTpm(TEST_EK);
-    umock_c_reset_all_calls();
-
-    //act
-    TPM_ATTESTATION_HANDLE tpm = attestationMechanism_getTpmAttestation(am);
-
-    //assert
-    ASSERT_IS_NOT_NULL(tpm);
-    ASSERT_ARE_EQUAL(char_ptr, TEST_EK, tpmAttestation_getEndorsementKey(tpm));
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    //cleanup
-    attestationMechanism_destroy(am);
-
-}
-
-/* Tests_ENROLLMENTS_22_013: [ If att_handle is NULL, attestationMechanism_getX509Attestation shall fail and return NULL ] */
-TEST_FUNCTION(attestationMechanism_getX509Attestation_error_NULL_handle)
-{
-    //arrange
-
-    //act
-    X509_ATTESTATION_HANDLE x509 = attestationMechanism_getX509Attestation(NULL);
-
-    //assert
-    ASSERT_IS_NULL(x509);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    //cleanup
-
-}
-
-/* Tests_ENROLLMENTS_22_014: [ If the attestation type of att_handle is not X509, attestationMechanism_getX509Attestation shall fail and return NULL ] */
-TEST_FUNCTION(attestationMechanism_getX509Attestation_error_TPM_handle)
-{
-    //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithTpm(TEST_EK);
-    umock_c_reset_all_calls();
-
-    //act
-    X509_ATTESTATION_HANDLE x509 = attestationMechanism_getX509Attestation(am);
-
-    //assert
-    ASSERT_IS_NULL(x509);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    //cleanup
-    attestationMechanism_destroy(am);
-
-}
-
-/* Tests_SRS_ENROLLMENTS_22_015: [ Upon success attestationMechanism_getTpmAttestation shall return a handle for the X509 Attestation contained in att_handle ] */
-TEST_FUNCTION(attestationMechanism_getX509Attestation_golden)
-{
-    //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, TEST_CERT2);
-    umock_c_reset_all_calls();
-
-    //act
-    X509_ATTESTATION_HANDLE x509 = attestationMechanism_getX509Attestation(am);
-
-    //assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-    ASSERT_IS_NOT_NULL(x509);
-    X509_CERTIFICATE_HANDLE x509_cert = x509Attestation_getPrimaryCertificate(x509);
-    ASSERT_IS_NOT_NULL(x509_cert);
-
-    //cleanup
-    attestationMechanism_destroy(am);
-
-}
-
-/* Tests_ENROLLMENTS_22_016: [ If reg_id is NULL, individualEnrollment_create shall fail and return NULL ] */
-TEST_FUNCTION(individualEnrollment_create_error_NULL_regid)
-{
-    //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithTpm(TEST_EK);
-    umock_c_reset_all_calls();
-
-    //act
-    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(NULL, am);
-
-    //assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-    ASSERT_IS_NOT_NULL(am);
     ASSERT_IS_NULL(ie);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     //cleanup
-    if (ie != NULL)
-        individualEnrollment_destroy(ie);
-    else
-        attestationMechanism_destroy(am);
 }
 
-/* Tests_ENROLLMENTS_22_017: [ If att_handle is NULL, individualEnrollment_create shall fail and return NULL ] */
-TEST_FUNCTION(individualEnrollment_create_error_NULL_att_handle)
+/*Tests_ENROLLMENT_22_002: [ If att_mech is NULL, individualEnrollment_create shall fail and return NULL ]*/
+TEST_FUNCTION(individualEnrollment_create_null_attestation)
 {
     //arrange
+    STRICT_EXPECTED_CALL(attestationMechanism_isValidForIndividualEnrollment(NULL)).SetReturn(false);
 
     //act
-    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, NULL);
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, NULL);
 
     //assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
     ASSERT_IS_NULL(ie);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_003: [ If att_mech has an invalid Attestation Type for Individual Enrollment, individualEnrollment_create shall fail and return NULL ]*/
+TEST_FUNCTION(individualEnrollment_create_invalid_attestation)
+{
+    //arrange
+    STRICT_EXPECTED_CALL(attestationMechanism_isValidForIndividualEnrollment(TEST_ATTESTATION_MECHANISM)).SetReturn(false);
+
+    //act
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+
+    //assert
+    ASSERT_IS_NULL(ie);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_005: [ Upon success, individualEnrollment_create shall return a handle for the new individual enrollment ]*/
+TEST_FUNCTION(individualEnrollment_create_success)
+{
+    //arrange
+    STRICT_EXPECTED_CALL(attestationMechanism_isValidForIndividualEnrollment(TEST_ATTESTATION_MECHANISM));
+    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+
+    //act
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+
+    //assert
+    ASSERT_IS_NOT_NULL(ie);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_REGISTRATION_ID, individualEnrollment_getRegistrationId(ie));
+    ASSERT_IS_TRUE(individualEnrollment_getProvisioningStatus(ie) == PROVISIONING_STATUS_ENABLED);
+    ASSERT_IS_TRUE(individualEnrollment_getAttestationMechanism(ie) == TEST_ATTESTATION_MECHANISM);
+    ASSERT_IS_NULL(individualEnrollment_getInitialTwin(ie));
+    ASSERT_IS_NULL(individualEnrollment_getDeviceRegistrationState(ie));
+    ASSERT_IS_NULL(individualEnrollment_getIotHubHostName(ie));
+    ASSERT_IS_NULL(individualEnrollment_getDeviceId(ie));
+    ASSERT_IS_NULL(individualEnrollment_getEtag(ie));
+    ASSERT_IS_NULL(individualEnrollment_getCreatedDateTime(ie));
+    ASSERT_IS_NULL(individualEnrollment_getUpdatedDateTime(ie));
 
     //cleanup
     individualEnrollment_destroy(ie);
 }
 
-/* Test_ENROLLMENTS_22_018: [ If allocating memory for the new individual enrollment fails, individualEnrollment_create shall fail and return NULL ] */
-/* Test_ENROLLMENTS_22_019: [ If setting initial values within the new individual enrollment fails, individualEnrollment_create shall fail and return NULL ] */
-TEST_FUNCTION(individualEnrollment_create_fail)
+/*Tests_ENROLLMENT_22_004: [ If allocating memory for the new individual enrollment fails, individualEnrollment_create shall fail and return NULL ]*/
+TEST_FUNCTION(individualEnrollment_create_error)
 {
     //arrange
     int negativeTestsInitResult = umock_c_negative_tests_init();
     ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
 
-    //TPM Attestation calls to be skipped
+    STRICT_EXPECTED_CALL(attestationMechanism_isValidForIndividualEnrollment(TEST_ATTESTATION_MECHANISM));
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
-    //actual individualEnrollment calls
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 0, 1, 2, 3, 6 };
+    //size_t calls_cannot_fail[] = { };
+    size_t num_cannot_fail = 0; //sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
     size_t count = umock_c_negative_tests_call_count();
-    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
-
     size_t test_num = 0;
     size_t test_max = count - num_cannot_fail;
 
     for (size_t index = 0; index < count; index++)
     {
-        if (should_skip_index(index, calls_cannot_fail, sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0])) != 0)
+        if (should_skip_index(index, NULL, num_cannot_fail) != 0)
             continue;
         test_num++;
 
         char tmp_msg[128];
-        char tmp_msg2[128];
-        sprintf(tmp_msg, "individualEnrollment_create failure in test %zu/%zu", test_num, test_max);
-        sprintf(tmp_msg2, "Unexpected attestationMechanism create failure in individualEnrollment failure test %zu/%zu", test_num, test_max);
+        sprintf(tmp_msg, "individualEnrollment_create_error failure in test %zu/%zu", test_num, test_max);
 
         umock_c_negative_tests_reset();
         umock_c_negative_tests_fail_call(index);
 
         //act
-        ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithTpm(TEST_EK); //all calls in here will be skipped so will not fail
-        INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, am);
+        INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
 
         //assert
-        ASSERT_IS_NOT_NULL_WITH_MSG(am, tmp_msg2); //this failing indicates bug in test, not fn being tested
         ASSERT_IS_NULL_WITH_MSG(ie, tmp_msg);
-
-        //cleanup
-        if (ie != NULL)
-            individualEnrollment_destroy(ie);
-        else
-            attestationMechanism_destroy(am);
     }
-
-    //cleanup
-    umock_c_negative_tests_deinit();
 }
 
-/* Test_ENROLLMENTS_22_020: [ Upon success, individualEnrollment_create shall return a handle for the new individual enrollment ] */
-TEST_FUNCTION(individualEnrollment_create_golden_tpm)
+/*Tests_ENROLLMENT_22_006: [ individualEnrollment_destroy shall free all memory contained within enrollment ]*/
+TEST_FUNCTION(individualEnrollment_destroy_NULL)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithTpm(TEST_EK);
-    umock_c_reset_all_calls();
-
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
-    //act
-    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, am);
-
-    //assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-    ASSERT_IS_NOT_NULL(ie);
-    ASSERT_ARE_EQUAL(char_ptr, individualEnrollment_getRegistrationId(ie), TEST_REGID);
-    ASSERT_IS_TRUE(individualEnrollment_getProvisioningStatus(ie) == PROVISIONING_STATUS_ENABLED);
-    ASSERT_IS_TRUE(individualEnrollment_getAttestationMechanism(ie) == am);
-
-    //cleanup
-    if (ie != NULL)
-        individualEnrollment_destroy(ie);
-    else
-        attestationMechanism_destroy(am);
-}
-
-/* Test_ENROLLMENTS_22_020: [ Upon success, individualEnrollment_create shall return a handle for the new individual enrollment ] */
-TEST_FUNCTION(individualEnrollment_create_golden_x509)
-{
-    //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
-    umock_c_reset_all_calls();
-
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
-    //act
-    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, am);
-
-    //assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-    ASSERT_IS_NOT_NULL(ie);
-    ASSERT_ARE_EQUAL(char_ptr, individualEnrollment_getRegistrationId(ie), TEST_REGID);
-    ASSERT_IS_TRUE(individualEnrollment_getProvisioningStatus(ie) == PROVISIONING_STATUS_ENABLED);
-    ASSERT_IS_TRUE(individualEnrollment_getAttestationMechanism(ie) == am);
-
-    //cleanup
-    if (ie != NULL)
-        individualEnrollment_destroy(ie);
-    else
-        attestationMechanism_destroy(am);
-}
-
-/* Test_ENROLLMENTS_22_021: [ individualEnrollment_destroy shall free all memory contained within handle ] */
-TEST_FUNCTION(individualEnrollment_destroy_error_NULL)
-{
-    //arrange
-
+    
     //act
     individualEnrollment_destroy(NULL);
 
@@ -839,21 +433,23 @@ TEST_FUNCTION(individualEnrollment_destroy_error_NULL)
     //cleanup
 }
 
-/* Test_ENROLLMENTS_22_021: [ individualEnrollment_destroy shall free all memory contained within handle ] */
-TEST_FUNCTION(individualEnrollment_destroy_golden_TPM_attestation)
+/*Tests_ENROLLMENT_22_006: [ individualEnrollment_destroy shall free all memory contained within enrollment ]*/
+TEST_FUNCTION(individualEnrollment_destroy_min_ie)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithTpm(TEST_EK);
-    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, am);
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    attestationMechanism_free_expected_calls_tpm();
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //registration id
+    STRICT_EXPECTED_CALL(gballoc_free(NULL)); //device id
+    STRICT_EXPECTED_CALL(gballoc_free(NULL)); //etag
+    STRICT_EXPECTED_CALL(gballoc_free(NULL)); //iothubhostname
+    STRICT_EXPECTED_CALL(gballoc_free(NULL)); //created date time
+    STRICT_EXPECTED_CALL(gballoc_free(NULL)); //updated date time
+    STRICT_EXPECTED_CALL(attestationMechanism_destroy(TEST_ATTESTATION_MECHANISM)); //attestation mechanism
+    STRICT_EXPECTED_CALL(initialTwin_destroy(NULL)); //initialTwin
+    STRICT_EXPECTED_CALL(deviceRegistrationState_destroy(NULL)); //deviceRegistrationState
+    STRICT_EXPECTED_CALL(gballoc_free(ie)); //individualEnrollment
 
     //act
     individualEnrollment_destroy(ie);
@@ -864,21 +460,23 @@ TEST_FUNCTION(individualEnrollment_destroy_golden_TPM_attestation)
     //cleanup
 }
 
-/* Test_ENROLLMENTS_22_021: [ individualEnrollment_destroy shall free all memory contained within handle ] */
-TEST_FUNCTION(individualEnrollment_destroy_golden_X509_attestation_one_cert)
+/*Tests_ENROLLMENT_22_006: [ individualEnrollment_destroy shall free all memory contained within enrollment ]*/
+TEST_FUNCTION(individualEnrollment_destroy_max_ie)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
-    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, am);
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = get_ie_from_json();
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    attestationMechanism_free_expected_calls_x509OneCert();
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //registration id
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //device id
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //etag
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //iothubhostname
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //created date time
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //updated date time
+    STRICT_EXPECTED_CALL(attestationMechanism_destroy(TEST_ATTESTATION_MECHANISM)); //attestation mechanism
+    STRICT_EXPECTED_CALL(initialTwin_destroy(TEST_INITIAL_TWIN)); //initialTwin
+    STRICT_EXPECTED_CALL(deviceRegistrationState_destroy(TEST_REGISTRATION_STATE)); //deviceRegistrationState
+    STRICT_EXPECTED_CALL(gballoc_free(ie)); //individualEnrollment
 
     //act
     individualEnrollment_destroy(ie);
@@ -889,258 +487,119 @@ TEST_FUNCTION(individualEnrollment_destroy_golden_X509_attestation_one_cert)
     //cleanup
 }
 
-/* Test_ENROLLMENTS_22_021: [ individualEnrollment_destroy shall free all memory contained within handle ] */
-TEST_FUNCTION(individualEnrollment_destroy_golden_X509_attestation_two_certs)
+/*Tests_ENROLLMENT_22_007: [ If group_id is NULL, enrollmentGroup_create shall fail and return NULL ]*/
+TEST_FUNCTION(enrollmentGroup_create_null_group_id)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, TEST_CERT2);
-    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, am);
-    umock_c_reset_all_calls();
-
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    attestationMechanism_free_expected_calls_x509TwoCerts();
 
     //act
-    individualEnrollment_destroy(ie);
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(NULL, TEST_ATTESTATION_MECHANISM);
 
     //assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    //cleanup
-}
-
-/* Tests_ENROLLMENTS_22_022: [ If group_id is NULL, enrollmentGroup_create shall fail and return NULL ] */
-TEST_FUNCTION(enrollmentGroup_create_error_NULL_groupid)
-{
-    //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509SigningCert(TEST_CERT1, NULL);
-    umock_c_reset_all_calls();
-
-    //act
-    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(NULL, am);
-
-    //assert
     ASSERT_IS_NULL(eg);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     //cleanup
-    if (eg != NULL)
-        enrollmentGroup_destroy(eg);
-    else
-        attestationMechanism_destroy(am);
 }
 
-/* Tests_ENROLLMENTS_22_023: [ If att_handle is NULL, enrollmentGroup_create shall fail and return NULL ] */
-TEST_FUNCTION(enrollmentGroup_create_error_NULL_attmech)
+/*Tests_ENROLLMENT_22_008: [ If att_mech is NULL, enrollmentGroup_create shall fail and return NULL ]*/
+TEST_FUNCTION(enrollmentGroup_create_null_attestation)
 {
     //arrange
+    STRICT_EXPECTED_CALL(attestationMechanism_isValidForEnrollmentGroup(NULL)).SetReturn(false);
 
     //act
-    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(TEST_GROUPID, NULL);
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, NULL);
 
     //assert
-    ASSERT_IS_NULL(eg);
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(eg);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_009: [ If att_mech has an invalid Attestation Type for Enrollment Group, enrollmentGroup_create shall fail and return NULL ]*/
+TEST_FUNCTION(enrollmentGroup_create_invalid_attestation)
+{
+    //arrange
+    STRICT_EXPECTED_CALL(attestationMechanism_isValidForEnrollmentGroup(TEST_ATTESTATION_MECHANISM)).SetReturn(false);
+
+    //act
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(eg);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_011: [ Upon success, enrollmentGroup_create shall return a handle for the new enrollment group ]*/
+TEST_FUNCTION(enrollmentGroup_create_success)
+{
+    //arrange
+    STRICT_EXPECTED_CALL(attestationMechanism_isValidForEnrollmentGroup(TEST_ATTESTATION_MECHANISM));
+    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, DUMMY_GROUP_ID));
+
+    //act
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(eg);
+    ASSERT_IS_TRUE(enrollmentGroup_getAttestationMechanism(eg) == TEST_ATTESTATION_MECHANISM);
+    ASSERT_IS_NULL(enrollmentGroup_getInitialTwin(eg));
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_GROUP_ID, enrollmentGroup_getGroupId(eg));
+    ASSERT_IS_NULL(enrollmentGroup_getEtag(eg));
+    ASSERT_IS_TRUE(enrollmentGroup_getProvisioningStatus(eg) == PROVISIONING_STATUS_ENABLED);
+    ASSERT_IS_NULL(enrollmentGroup_getCreatedDateTime(eg));
+    ASSERT_IS_NULL(enrollmentGroup_getUpdatedDateTime(eg));
 
     //cleanup
     enrollmentGroup_destroy(eg);
 }
 
-/* Tests_ENROLLMENTS_22_041: [ If att_handle has an invalid Attestation Type (e.g. TPM), enrollmentGroup_create shall fail and return NULL ] */
-TEST_FUNCTION(enrollmentGroup_create_error_TPM_attmech)
-{
-    //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithTpm(TEST_EK);
-    umock_c_reset_all_calls();
-
-    //act
-    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(TEST_GROUPID, am);
-
-    //assert
-    ASSERT_IS_NULL(eg);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-
-    //cleanup
-    if (eg != NULL)
-        enrollmentGroup_destroy(eg);
-    else
-        attestationMechanism_destroy(am);
-
-}
-
-/* Tests_ENROLLMENTS_22_026: [Upon success, enrollmentGroup_create shall return a handle for the new enrollment group] */
-TEST_FUNCTION(enrollmentGroup_create_golden_X509_one_cert)
-{
-    //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509SigningCert(TEST_CERT1, NULL);
-    umock_c_reset_all_calls();
-
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
-    //act
-    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(TEST_GROUPID, am);
-
-    //assert
-    ASSERT_IS_NOT_NULL(eg);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-    ASSERT_ARE_EQUAL(char_ptr, enrollmentGroup_getGroupId(eg), TEST_GROUPID);
-    ASSERT_IS_TRUE(enrollmentGroup_getProvisioningStatus(eg) == PROVISIONING_STATUS_ENABLED);
-
-    //cleanup
-    if (eg != NULL)
-        enrollmentGroup_destroy(eg);
-    else
-        attestationMechanism_destroy(am);
-}
-
-/* Tests_ENROLLMENTS_22_026: [Upon success, enrollmentGroup_create shall return a handle for the new enrollment group] */
-TEST_FUNCTION(enrollmentGroup_create_golden_X509_two_certs)
-{
-    //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509SigningCert(TEST_CERT1, TEST_CERT2);
-    umock_c_reset_all_calls();
-
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
-    //act
-    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(TEST_GROUPID, am);
-
-    //assert
-    ASSERT_IS_NOT_NULL(eg);
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-    ASSERT_ARE_EQUAL(char_ptr, enrollmentGroup_getGroupId(eg), TEST_GROUPID);
-    ASSERT_IS_TRUE(enrollmentGroup_getProvisioningStatus(eg) == PROVISIONING_STATUS_ENABLED);
-
-    //cleanup
-    if (eg != NULL)
-        enrollmentGroup_destroy(eg);
-    else
-        attestationMechanism_destroy(am);
-}
-
-/* Tests_ENROLLMENTS_22_024: [ If allocating memory for the new enrollment group fails, enrollmentGroup_create shall fail and return NULL ] */
-/* Tests_ENROLLMENTS_22_025: [ If setting initial values within the new enrollment group fails, enrollmentGroup_create shall fail and return NULL ] */
-TEST_FUNCTION(enrollmentGroup_create_fail_x509_one_cert)
+/*Tests_ENROLLMENT_22_010: [ If allocating memory for the new enrollment group fails, enrollmentGroup_create shall fail and return NULL ]*/
+TEST_FUNCTION(enrollmentGroup_create_error)
 {
     //arrange
     int negativeTestsInitResult = umock_c_negative_tests_init();
     ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
 
-    //x509 Attestation calls to be skipped
-    attestationMechanism_createWithX509_expected_calls_OneCert();
-
-    //actual individualEnrollment calls
+    STRICT_EXPECTED_CALL(attestationMechanism_isValidForEnrollmentGroup(TEST_ATTESTATION_MECHANISM));
     STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, DUMMY_GROUP_ID));
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 0, 1, 2, 3, 4, 5, 8 };
-    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
+    //size_t calls_cannot_fail[] = { };
+    size_t num_cannot_fail = 0; //sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
     size_t count = umock_c_negative_tests_call_count();
-
     size_t test_num = 0;
     size_t test_max = count - num_cannot_fail;
 
     for (size_t index = 0; index < count; index++)
     {
-        if (should_skip_index(index, calls_cannot_fail, num_cannot_fail) != 0)
+        if (should_skip_index(index, NULL, num_cannot_fail) != 0)
             continue;
         test_num++;
 
         char tmp_msg[128];
-        char tmp_msg2[128];
-        sprintf(tmp_msg, "individualEnrollment_create failure in test %zu/%zu", test_num, test_max);
-        sprintf(tmp_msg2, "Unexpected attestationMechanism create failure in individualEnrollment failure test %zu/%zu", test_num, test_max);
+        sprintf(tmp_msg, "enrollmentGroup_create_error failure in test %zu/%zu", test_num, test_max);
 
         umock_c_negative_tests_reset();
         umock_c_negative_tests_fail_call(index);
 
         //act
-        ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL); //all calls in here will be skipped so will not fail
-        INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, am);
+        ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
 
         //assert
-        ASSERT_IS_NOT_NULL_WITH_MSG(am, tmp_msg2); //this failing indicates bug in test, not fn being tested
-        ASSERT_IS_NULL_WITH_MSG(ie, tmp_msg);
-
-        //cleanup
-        if (ie != NULL)
-            individualEnrollment_destroy(ie);
-        else
-            attestationMechanism_destroy(am);
+        ASSERT_IS_NULL_WITH_MSG(eg, tmp_msg);
     }
-
-    //cleanup
-    umock_c_negative_tests_deinit();
 }
 
-/* Tests_ENROLLMENTS_22_024: [ If allocating memory for the new enrollment group fails, enrollmentGroup_create shall fail and return NULL ] */
-/* Tests_ENROLLMENTS_22_025: [ If setting initial values within the new enrollment group fails, enrollmentGroup_create shall fail and return NULL ] */
-TEST_FUNCTION(enrollmentGroup_create_fail_x509_two_certs)
-{
-    //arrange
-    int negativeTestsInitResult = umock_c_negative_tests_init();
-    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
-
-    //x509 Attestation calls to be skipped
-    attestationMechanism_createWithX509_expected_calls_TwoCerts();
-
-    //actual individualEnrollment calls
-    STRICT_EXPECTED_CALL(gballoc_malloc(IGNORED_NUM_ARG));
-    copy_string_expected_calls();
-
-    umock_c_negative_tests_snapshot();
-
-    size_t calls_cannot_fail[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 11 };
-    size_t count = umock_c_negative_tests_call_count();
-    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
-
-    size_t test_num = 0;
-    size_t test_max = count - num_cannot_fail;
-
-    for (size_t index = 0; index < count; index++)
-    {
-        if (should_skip_index(index, calls_cannot_fail, num_cannot_fail) != 0)
-            continue;
-        
-        test_num++;
-        char tmp_msg[128];
-        char tmp_msg2[128];
-        sprintf(tmp_msg, "individualEnrollment_create failure in test %zu/%zu", test_num, test_max);
-        sprintf(tmp_msg2, "Unexpected attestationMechanism create failure in individualEnrollment failure test %zu/%zu", test_num, test_max);
-
-        umock_c_negative_tests_reset();
-        umock_c_negative_tests_fail_call(index);
-
-        //act
-        ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509SigningCert(TEST_CERT1, TEST_CERT2); //all calls in here will be skipped so will not fail
-        INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, am);
-
-        //assert
-        ASSERT_IS_NOT_NULL_WITH_MSG(am, tmp_msg2); //this failing indicates bug in test, not fn being tested
-        ASSERT_IS_NULL_WITH_MSG(ie, tmp_msg);
-
-        //cleanup
-        if (ie != NULL)
-            individualEnrollment_destroy(ie);
-        else
-            attestationMechanism_destroy(am);
-    }
-
-    //cleanup
-    umock_c_negative_tests_deinit();
-}
-
-/* Tests_ENROLLMENTS_22_027: [ enrollmentGroup_destroy shall free all memory contained within handle ] */
-TEST_FUNCTION(enrollmentGroup_destroy_NULL)
+/*Tests_ENROLLMENT_22_012: [ enrollmentGroup_destroy shall free all memory contained within handle ]*/
+TEST_FUNCTION(enrollmentGroup_destroy_null)
 {
     //arrange
 
@@ -1153,20 +612,21 @@ TEST_FUNCTION(enrollmentGroup_destroy_NULL)
     //cleanup
 }
 
-/* Tests_ENROLLMENTS_22_027: [ enrollmentGroup_destroy shall free all memory contained within handle ] */
-TEST_FUNCTION(enrollmentGroup_destroy_x509_one_cert)
+/*Tests_ENROLLMENT_22_012: [ enrollmentGroup_destroy shall free all memory contained within handle ]*/
+TEST_FUNCTION(enrollmentGroup_destroy_min_eg)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509SigningCert(TEST_CERT1, NULL);
-    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(TEST_REGID, am);
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    attestationMechanism_free_expected_calls_x509OneCert();
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //group id
+    STRICT_EXPECTED_CALL(attestationMechanism_destroy(TEST_ATTESTATION_MECHANISM)); //attestationMechanism
+    STRICT_EXPECTED_CALL(initialTwin_destroy(NULL)); //initialTwin
+    STRICT_EXPECTED_CALL(gballoc_free(NULL)); //etag
+    STRICT_EXPECTED_CALL(gballoc_free(NULL)); //iothub hostname
+    STRICT_EXPECTED_CALL(gballoc_free(NULL)); //created date time
+    STRICT_EXPECTED_CALL(gballoc_free(NULL)); //updated date time
+    STRICT_EXPECTED_CALL(gballoc_free(eg)); //enrollmentGroup
 
     //act
     enrollmentGroup_destroy(eg);
@@ -1177,20 +637,21 @@ TEST_FUNCTION(enrollmentGroup_destroy_x509_one_cert)
     //cleanup
 }
 
-/* Tests_ENROLLMENTS_22_027: [ enrollmentGroup_destroy shall free all memory contained within handle ] */
-TEST_FUNCTION(enrollmentGroup_destroy_x509_two_certs)
+/*Tests_ENROLLMENT_22_012: [ enrollmentGroup_destroy shall free all memory contained within handle ]*/
+TEST_FUNCTION(enrollmentGroup_destroy_max_eg)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE am = attestationMechanism_createWithX509SigningCert(TEST_CERT1, TEST_CERT2);
-    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(TEST_REGID, am);
+    ENROLLMENT_GROUP_HANDLE eg = get_eg_from_json();
     umock_c_reset_all_calls();
 
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    attestationMechanism_free_expected_calls_x509TwoCerts();
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //group id
+    STRICT_EXPECTED_CALL(attestationMechanism_destroy(TEST_ATTESTATION_MECHANISM)); //attestationMechanism
+    STRICT_EXPECTED_CALL(initialTwin_destroy(TEST_INITIAL_TWIN)); //initialTwin
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //etag
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //iothub hostname
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //created date time
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //updated date time
+    STRICT_EXPECTED_CALL(gballoc_free(eg)); //enrollmentGroup
 
     //act
     enrollmentGroup_destroy(eg);
@@ -1201,67 +662,2155 @@ TEST_FUNCTION(enrollmentGroup_destroy_x509_two_certs)
     //cleanup
 }
 
-/* Tests_ENROLLMENTS_22_042 : [When <RETURN_TYPE> is ATTESTATION_TYPE, the default return value is ATTESTATION_TYPE_NONE] */
-/* Tests_ENROLLMENTS_22_028 : [If handle is NULL, the function shall return the default return value of <RETURN_TYPE>] */
-/* Tests_ENROLLMENTS_22_034 : [Otherwise the function shall return the specified property, which may or may not be the same as the default value] */
-TEST_FUNCTION(attestationMechanism_accessors_get)
+/*Tests_ENROLLMENT_22_013: [ If enrollment is NULL, individualEnrollment_getAttestationMechanism shall fail and return NULL ]*/
+TEST_FUNCTION(individualEnrollment_getAttestationMechanism_null)
 {
     //arrange
-    ATTESTATION_MECHANISM_HANDLE tpm = attestationMechanism_createWithTpm(TEST_EK);
-    ATTESTATION_MECHANISM_HANDLE x509one = attestationMechanism_createWithX509ClientCert(TEST_CERT1, NULL);
-    ATTESTATION_MECHANISM_HANDLE x509two = attestationMechanism_createWithX509ClientCert(TEST_CERT1, TEST_CERT2);
 
     //act
-    ATTESTATION_TYPE t1 = attestationMechanism_getType(tpm);
-    ATTESTATION_TYPE t2 = attestationMechanism_getType(x509one);
-    ATTESTATION_TYPE t3 = attestationMechanism_getType(x509two);
-    ATTESTATION_TYPE t4 = attestationMechanism_getType(NULL);
+    ATTESTATION_MECHANISM_HANDLE att = individualEnrollment_getAttestationMechanism(NULL);
 
     //assert
-    ASSERT_IS_TRUE(t1 == ATTESTATION_TYPE_TPM);
-    ASSERT_IS_TRUE(t2 == ATTESTATION_TYPE_X509);
-    ASSERT_IS_TRUE(t3 == ATTESTATION_TYPE_X509);
-    ASSERT_IS_TRUE(t4 == ATTESTATION_TYPE_NONE);
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(att);
 
     //cleanup
-    attestationMechanism_destroy(tpm);
-    attestationMechanism_destroy(x509one);
-    attestationMechanism_destroy(x509two);
 }
 
-TEST_FUNCTION(individualEnrollment_accessors_get_golden)
+/*Tests_ENROLLMENT_22_014: [ Otherwise, individualEnrollment_getAttestationMechanism shall return the attestation mechanism contained within enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getAttestationMechanism_success)
 {
-    //assert
-    ATTESTATION_MECHANISM_HANDLE tpm = attestationMechanism_createWithTpm(TEST_EK);
-    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, tpm);
-    individualEnrollment_setDeviceId(ie, TEST_DEVID);
-    individualEnrollment_setEtag(ie, TEST_ETAG);
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
 
     //act
-    ATTESTATION_MECHANISM_HANDLE am = individualEnrollment_getAttestationMechanism(ie);
-    const char* regid = individualEnrollment_getRegistrationId(ie);
-    const char* devid = individualEnrollment_getDeviceId(ie);
-    DEVICE_REGISTRATION_STATE_HANDLE drs = individualEnrollment_getDeviceRegistrationState(ie); //Note this will be null as there's no way to set it manually right now
-    const char* etag = individualEnrollment_getEtag(ie);
-    PROVISIONING_STATUS ps = individualEnrollment_getProvisioningStatus(ie);
-    const char* created = individualEnrollment_getCreatedDateTime(ie); //Note this will be null as there's no way to set it manually (generated by provisioning client)
-    const char* updated = individualEnrollment_getUpdatedDateTime(ie); //Note this will be null as there's no way to set it manually (generated by provisioning client)
+    ATTESTATION_MECHANISM_HANDLE att = individualEnrollment_getAttestationMechanism(ie);
 
     //assert
-    ASSERT_IS_TRUE(tpm == am);
-    ASSERT_ARE_EQUAL(char_ptr, regid, TEST_REGID);
-    ASSERT_ARE_EQUAL(char_ptr, devid, TEST_DEVID);
-    ASSERT_IS_TRUE(drs == NULL);
-    ASSERT_ARE_EQUAL(char_ptr, etag, TEST_ETAG);
-    ASSERT_IS_TRUE(ps == PROVISIONING_STATUS_ENABLED);
-    ASSERT_IS_NULL(created); //note this is not a good test because while NULL is correct return val, NULL also could be incorrect - cover these cases in future integration tests
-    ASSERT_IS_NULL(updated); //as above
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(att);
+    ASSERT_IS_TRUE(att == TEST_ATTESTATION_MECHANISM);
 
     //cleanup
     individualEnrollment_destroy(ie);
-
-    //finish this test when serializer works
-
 }
 
-END_TEST_SUITE(provisioning_sc_enrollment_ut)
+/*Tests_ENROLLMENT_22_015: [ If enrollment is NULL, individualEnrollment_setAttestationMechanism shall fail and return a non-zero number ]*/
+TEST_FUNCTION(individualEnrollment_setAttestationMechanism_null_enrollment)
+{
+    //arrange
+
+    //act
+    int result = individualEnrollment_setAttestationMechanism(NULL, TEST_ATTESTATION_MECHANISM);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_016: [ If att_mech is NULL or has an invalid type (e.g. X509 Signing Certificate), individualEnrollment_setAttestationMechanism shall fail and return a non-zero number ]*/
+TEST_FUNCTION(individualEnrollment_setAttestationMechanism_null_att)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(attestationMechanism_isValidForIndividualEnrollment(NULL)).SetReturn(false);
+
+    //act
+    int result = individualEnrollment_setAttestationMechanism(ie, NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    ASSERT_IS_TRUE(individualEnrollment_getAttestationMechanism(ie) == TEST_ATTESTATION_MECHANISM)
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_016: [ If att_mech is NULL or has an invalid type (e.g. X509 Signing Certificate), individualEnrollment_setAttestationMechanism shall fail and return a non-zero number ]*/
+TEST_FUNCTION(individualEnrollment_setAttestationMechanism_invalid_att)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(attestationMechanism_isValidForIndividualEnrollment(TEST_ATTESTATION_MECHANISM_2)).SetReturn(false);
+
+    //act
+    int result = individualEnrollment_setAttestationMechanism(ie, TEST_ATTESTATION_MECHANISM_2);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    ASSERT_IS_TRUE(individualEnrollment_getAttestationMechanism(ie) == TEST_ATTESTATION_MECHANISM);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_017: [ The new attestation mechanism, att_mech, will be attached to the individual enrollment enrollment, and any existing attestation mechanism will have its memory freed. Then individualEnrollment_setAttestationMechanism shall return 0 ]*/
+TEST_FUNCTION(individualEnrollment_setAttestationMechanism_success)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(attestationMechanism_isValidForIndividualEnrollment(TEST_ATTESTATION_MECHANISM_2)).SetReturn(true);
+    STRICT_EXPECTED_CALL(attestationMechanism_destroy(TEST_ATTESTATION_MECHANISM));
+
+    //act
+    int result = individualEnrollment_setAttestationMechanism(ie, TEST_ATTESTATION_MECHANISM_2);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_IS_TRUE(individualEnrollment_getAttestationMechanism(ie) == TEST_ATTESTATION_MECHANISM_2);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_018: [ If enrollment is NULL, individualEnrollment_getInitialTwin shall fail and return NULL ]*/
+TEST_FUNCTION(individualEnrollment_getInitialTwin_null)
+{
+    //arrange
+
+    //act
+    INITIAL_TWIN_HANDLE twin = individualEnrollment_getInitialTwin(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(twin);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_019: [ Otherwise, individualEnrollment_getInitialTwin shall return the initial twin contained within enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getInitialTwin_no_twin)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    INITIAL_TWIN_HANDLE twin = individualEnrollment_getInitialTwin(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(twin);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_019: [ Otherwise, individualEnrollment_getInitialTwin shall return the initial twin contained within enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getInitialTwin_success)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    individualEnrollment_setInitialTwin(ie, TEST_INITIAL_TWIN);
+    umock_c_reset_all_calls();
+
+    //act
+    INITIAL_TWIN_HANDLE twin = individualEnrollment_getInitialTwin(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(twin);
+    ASSERT_IS_TRUE(twin == TEST_INITIAL_TWIN);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_020: [ If enrollment is NULL, individualEnrollment_setInitialTwin shall fail and return a non-zero number ]*/
+TEST_FUNCTION(individualEnrollment_setInitialTwin_null_enrollment)
+{
+    //arrange
+
+    //act
+    int result = individualEnrollment_setInitialTwin(NULL, TEST_INITIAL_TWIN);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_021: [ Upon success, the new initial twin, twin, will be attached to the individual enrollment enrollment, and any existing initial twin will have its memory freed. Then individualEnrollment_setInitialTwin shall return 0 ]*/
+TEST_FUNCTION(individualEnrollment_setInitialTwin_success_first_set)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(initialTwin_destroy(NULL));
+
+    //act
+    int result = individualEnrollment_setInitialTwin(ie, TEST_INITIAL_TWIN);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_IS_TRUE(individualEnrollment_getInitialTwin(ie) == TEST_INITIAL_TWIN);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_021: [ Upon success, the new initial twin, twin, will be attached to the individual enrollment enrollment, and any existing initial twin will have its memory freed. Then individualEnrollment_setInitialTwin shall return 0 ]*/
+TEST_FUNCTION(individualEnrollment_setInitialTwin_success_overwrite)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    individualEnrollment_setInitialTwin(ie, TEST_INITIAL_TWIN);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(initialTwin_destroy(TEST_INITIAL_TWIN));
+
+    //act
+    int result = individualEnrollment_setInitialTwin(ie, TEST_INITIAL_TWIN_2);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_IS_TRUE(individualEnrollment_getInitialTwin(ie) == TEST_INITIAL_TWIN_2);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_021: [ Upon success, the new initial twin, twin, will be attached to the individual enrollment enrollment, and any existing initial twin will have its memory freed. Then individualEnrollment_setInitialTwin shall return 0 ]*/
+TEST_FUNCTION(individualEnrollment_setInitialTwin_success_delete)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    individualEnrollment_setInitialTwin(ie, TEST_INITIAL_TWIN);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(initialTwin_destroy(TEST_INITIAL_TWIN));
+
+    //act
+    int result = individualEnrollment_setInitialTwin(ie, NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_IS_NULL(individualEnrollment_getInitialTwin(ie));
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_022: [ If enrollment is NULL, individualEnrollment_getDeviceRegistrationState shall fail and return NULL ]*/
+TEST_FUNCTION(individualEnrollment_getDeviceRegistrationState_null)
+{
+    //arrange
+
+    //act
+    DEVICE_REGISTRATION_STATE_HANDLE drs = individualEnrollment_getDeviceRegistrationState(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(drs);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_023: [ Otherwise, individualEnrollment_getDeviceRegistrationState shall return the device registration state contained within enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getDeviceRegistrationState_success_no_drs)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    DEVICE_REGISTRATION_STATE_HANDLE drs = individualEnrollment_getDeviceRegistrationState(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(drs);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_023: [ Otherwise, individualEnrollment_getDeviceRegistrationState shall return the device registration state contained within enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getDeviceRegistrationState_success_return)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = get_ie_from_json();
+    umock_c_reset_all_calls();
+
+    //act
+    DEVICE_REGISTRATION_STATE_HANDLE drs = individualEnrollment_getDeviceRegistrationState(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(drs);
+    ASSERT_IS_TRUE(drs == TEST_REGISTRATION_STATE);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_024: [ If enrollment is NULL, individualEnrollment_getRegistrationId shall fail and return NULL ]*/
+TEST_FUNCTION(individualEnrollment_getRegistrationId_null)
+{
+    //arrange
+    
+    //act
+    const char* reg_id = individualEnrollment_getRegistrationId(NULL);
+    
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(reg_id);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_025: [ Otherwise, individualEnrollment_getRegistrationId shall return the registartion id of enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getRegistrationId_success)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    const char* reg_id = individualEnrollment_getRegistrationId(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(reg_id);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_REGISTRATION_ID, reg_id);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_026: [ If enrollment is NULL, individualEnrollment_getDeviceId shall fail and return NULL ]*/
+TEST_FUNCTION(individualEnrollment_getDeviceId_null)
+{
+    //arrange
+
+    //act
+    const char* device_id = individualEnrollment_getDeviceId(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(device_id);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_027: [ Otherwise, individualEnrollment_getDeviceId shall return the device id of enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getDeviceId_success_no_value)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    const char* device_id = individualEnrollment_getDeviceId(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(device_id);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_027: [ Otherwise, individualEnrollment_getDeviceId shall return the device id of enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getDeviceId_success_return)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    individualEnrollment_setDeviceId(ie, DUMMY_DEVICE_ID);
+    umock_c_reset_all_calls();
+
+    //act
+    const char* device_id = individualEnrollment_getDeviceId(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(device_id);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_DEVICE_ID, device_id);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_028: [ If enrollment is NULL, individualEnrollment_setDeviceId shall fail and return a non-zero number ]*/
+TEST_FUNCTION(individualEnrollment_setDeviceId_null_enrollment)
+{
+    //arrange
+
+    //act
+    int result = individualEnrollment_setDeviceId(NULL, DUMMY_DEVICE_ID);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_029: [ Otherwise, device_id will be set as the device id of enrollment and individualEnrollment_setDeviceId shall return 0 ]*/
+TEST_FUNCTION(individualEnrollment_setDeviceId_first_set)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, DUMMY_DEVICE_ID));
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+
+    //act
+    int result = individualEnrollment_setDeviceId(ie, DUMMY_DEVICE_ID);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_DEVICE_ID, individualEnrollment_getDeviceId(ie));
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_029: [ Otherwise, device_id will be set as the device id of enrollment and individualEnrollment_setDeviceId shall return 0 ]*/
+TEST_FUNCTION(individualEnrollment_setDeviceId_overwrite)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    individualEnrollment_setDeviceId(ie, DUMMY_STRING);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, DUMMY_DEVICE_ID));
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+
+    //act
+    int result = individualEnrollment_setDeviceId(ie, DUMMY_DEVICE_ID);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_DEVICE_ID, individualEnrollment_getDeviceId(ie));
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_029: [ Otherwise, device_id will be set as the device id of enrollment and individualEnrollment_setDeviceId shall return 0 ]*/
+TEST_FUNCTION(individualEnrollment_setDeviceId_erase)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    individualEnrollment_setDeviceId(ie, DUMMY_DEVICE_ID);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+
+    //act
+    int result = individualEnrollment_setDeviceId(ie, NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_IS_NULL(individualEnrollment_getDeviceId(ie));
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_030: [ If enrollment is NULL, individualEnrollment_getIotHubHostName shall fail and return NULL ]*/
+TEST_FUNCTION(individualEnrollment_getIotHubHostName_null)
+{
+    //arrange
+
+    //act
+    const char* hostname = individualEnrollment_getIotHubHostName(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(hostname);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_031: [ Otherwise, individualEnrollment_getIotHubHostName shall return the IoT Hub hostname of enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getIotHubHostName_success_no_hostname)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    const char* hostname = individualEnrollment_getIotHubHostName(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(hostname);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_031: [ Otherwise, individualEnrollment_getIotHubHostName shall return the IoT Hub hostname of enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getIotHubHostName_success_return)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = get_ie_from_json();
+    umock_c_reset_all_calls();
+
+    //act
+    const char* hostname = individualEnrollment_getIotHubHostName(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(hostname);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_IOTHUB_HOSTNAME, hostname);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_032: [ If enrollment is NULL, individualEnrollment_getEtag shall fail and return NULL ]*/
+TEST_FUNCTION(individualEnrollment_getEtag_null)
+{
+    //arrange
+
+    //act
+    const char* etag = individualEnrollment_getEtag(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(etag);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_033: [ Otherwise, individualEnrollment_getEtag shall return the etag of enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getEtag_success_no_etag)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    const char* etag = individualEnrollment_getEtag(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(etag);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_033: [ Otherwise, individualEnrollment_getEtag shall return the etag of enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getEtag_success_return)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    individualEnrollment_setEtag(ie, DUMMY_ETAG);
+    umock_c_reset_all_calls();
+
+    //act
+    const char* etag = individualEnrollment_getEtag(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(etag);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_ETAG, etag);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_034: [ If enrollment is NULL, individualEnrollment_setEtag shall fail and return a non-zero number ]*/
+TEST_FUNCTION(individualEnrollment_setEtag_null_enrollment)
+{
+    //arrange
+
+    //act
+    int result = individualEnrollment_setEtag(NULL, DUMMY_ETAG);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_035: [ Otherwise, etag will be set as the etag of enrollment and individualEnrollment_setEtag shall return 0 ]*/
+TEST_FUNCTION(individualEnrollment_setEtag_first_set)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, DUMMY_ETAG));
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+
+    //act
+    int result = individualEnrollment_setEtag(ie, DUMMY_ETAG);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_ETAG, individualEnrollment_getEtag(ie));
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_035: [ Otherwise, etag will be set as the etag of enrollment and individualEnrollment_setEtag shall return 0 ]*/
+TEST_FUNCTION(individualEnrollment_setEtag_overwrite)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    individualEnrollment_setEtag(ie, DUMMY_STRING);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, DUMMY_ETAG));
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+
+    //act
+    int result = individualEnrollment_setEtag(ie, DUMMY_ETAG);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_ETAG, individualEnrollment_getEtag(ie));
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_035: [ Otherwise, etag will be set as the etag of enrollment and individualEnrollment_setEtag shall return 0 ]*/
+TEST_FUNCTION(individualEnrollment_setEtag_erase)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    individualEnrollment_setEtag(ie, DUMMY_ETAG);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+
+    //act
+    int result = individualEnrollment_setEtag(ie, NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_IS_NULL(individualEnrollment_getEtag(ie));
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_036: [ If enrollment is NULL, individualEnrollment_getProvisioningStatus shall fail and return PROVISIONING_STATUS_NONE ]*/
+TEST_FUNCTION(individualEnrollment_getProvisioningStatus_null)
+{
+    //arrange
+
+    //act
+    PROVISIONING_STATUS ps = individualEnrollment_getProvisioningStatus(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_TRUE(ps == PROVISIONING_STATUS_NONE);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_037: [ Otherwise, individualEnrollment_getProvisioningStatus shall return the provisioning status of enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getProvisioningStatus_success)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    PROVISIONING_STATUS ps = individualEnrollment_getProvisioningStatus(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_TRUE(ps == PROVISIONING_STATUS_ENABLED);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_038: [ If enrollment is NULL, individualEnrollment_setProvisioningStatus shall fail and return a non-zero number ]*/
+TEST_FUNCTION(individualEnrollment_setProvisioningStatus_null_enrollment)
+{
+    //arrange
+
+    //act
+    int result = individualEnrollment_setProvisioningStatus(NULL, PROVISIONING_STATUS_ENABLED);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_039: [ If prov_status is invalid type (i.e. PROVISIONING_STATUS_NONE), individualEnrollment_setProvisioningStatus shall fail and return a non-zero number ]*/
+TEST_FUNCTION(individualEnrollment_setProvisioningStatus_STATUS_NONE)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    int result = individualEnrollment_setProvisioningStatus(NULL, PROVISIONING_STATUS_NONE);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*ENROLLMENT_22_040: [ Otherwise, prov_status will be set as the provisioning status of enrollment and individualEnrollment_setProvisioningStatus shall return 0 ]*/
+TEST_FUNCTION(individualEnrollment_setProvisioningStatus_success)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    int result = individualEnrollment_setProvisioningStatus(ie, PROVISIONING_STATUS_DISABLED);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_IS_TRUE(individualEnrollment_getProvisioningStatus(ie) == PROVISIONING_STATUS_DISABLED);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_041: [ If enrollment is NULL, individualEnrollment_getCreatedDateTime shall fail and return NULL ]*/
+TEST_FUNCTION(individualEnrollment_getCreatedDateTime_null)
+{
+    //arrange
+
+    //act
+    const char* created = individualEnrollment_getCreatedDateTime(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(created);
+    
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_042: [ Otherwise, individualEnrollment_getCreatedDateTime shall return the created date time of enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getCreatedDateTime_success_no_value)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    const char* created = individualEnrollment_getCreatedDateTime(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(created);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+
+/*Tests_ENROLLMENT_22_042: [ Otherwise, individualEnrollment_getCreatedDateTime shall return the created date time of enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getCreatedDateTime_success_return)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = get_ie_from_json();
+    umock_c_reset_all_calls();
+
+    //act
+    const char* created = individualEnrollment_getCreatedDateTime(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(created);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_CREATED_TIME, created);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_043: [ If enrollment is NULL, individualEnrollment_getUpdatedDateTime shall fail and return NULL ]*/
+TEST_FUNCTION(individualEnrollment_getUpdatedDateTime_null)
+{
+    //arrange
+
+    //act
+    const char* updated = individualEnrollment_getUpdatedDateTime(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(updated);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_044: [ Otherwise, individualEnrollment_getUpdatedDateTime shall return the updated date time of enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getUpdatedDateTime_success_no_value)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    const char* updated = individualEnrollment_getUpdatedDateTime(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(updated);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_044: [ Otherwise, individualEnrollment_getUpdatedDateTime shall return the updated date time of enrollment ]*/
+TEST_FUNCTION(individualEnrollment_getUpdatedDateTime_success_return_value)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = get_ie_from_json();
+    umock_c_reset_all_calls();
+
+    //act
+    const char* updated = individualEnrollment_getUpdatedDateTime(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(updated);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_UPDATED_TIME, updated);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+/*Tests_ENROLLMENT_22_045: [ If enrollment is NULL, enrollmentGroup_getAttestationMechanism shall fail and return NULL ]*/
+TEST_FUNCTION(enrollmentGroup_getAttestationMechanism_null)
+{
+    //arrange
+
+    //act
+    ATTESTATION_MECHANISM_HANDLE att = enrollmentGroup_getAttestationMechanism(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(att);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_046: [ Otherwise, enrollmentGroup_getAttestationMechanism shall return the attestation mechanism contained within enrollment ]*/
+TEST_FUNCTION(enrollmentGroup_getAttestationMechanism_success)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    ATTESTATION_MECHANISM_HANDLE att = enrollmentGroup_getAttestationMechanism(eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(att);
+    ASSERT_IS_TRUE(att == TEST_ATTESTATION_MECHANISM);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_047: [ If enrollment is NULL, enrollmentGroup_setAttestationMechanism shall fail and return a non-zero number ]*/
+TEST_FUNCTION(enrollmentGroup_setAttestationMechanism_null_enrollment)
+{
+    //arrange
+
+    //act
+    int result = enrollmentGroup_setAttestationMechanism(NULL, TEST_ATTESTATION_MECHANISM);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_048: [ If att_mech is NULL or has an invalid type (e.g. X509 Signing Certificate), enrollmentGroup_setAttestationMechanism shall fail and return a non-zero number ]*/
+TEST_FUNCTION(enrollmentGroup_setAttestationMechanism_null_att)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(attestationMechanism_isValidForEnrollmentGroup(NULL)).SetReturn(false);
+
+    //act
+    int result = enrollmentGroup_setAttestationMechanism(eg, NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    ASSERT_IS_TRUE(enrollmentGroup_getAttestationMechanism(eg) == TEST_ATTESTATION_MECHANISM);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_048: [ If att_mech is NULL or has an invalid type (e.g. X509 Signing Certificate), enrollmentGroup_setAttestationMechanism shall fail and return a non-zero number ]*/
+TEST_FUNCTION(enrollmentGroup_setAttestationMechanism_invalid_att)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(attestationMechanism_isValidForEnrollmentGroup(TEST_ATTESTATION_MECHANISM_2)).SetReturn(false);
+
+    //act
+    int result = enrollmentGroup_setAttestationMechanism(eg, TEST_ATTESTATION_MECHANISM_2);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    ASSERT_IS_TRUE(enrollmentGroup_getAttestationMechanism(eg) == TEST_ATTESTATION_MECHANISM);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_049: [ The new attestation mechanism, att_mech, will be attached to the individual enrollment enrollment, and any existing attestation mechanism will have its memory freed. Then enrollmentGroup_setAttestationMechanism shall return 0 ]*/
+TEST_FUNCTION(enrollmentGroup_setAttestationMechanism_success)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(attestationMechanism_isValidForEnrollmentGroup(TEST_ATTESTATION_MECHANISM_2)).SetReturn(true);
+    STRICT_EXPECTED_CALL(attestationMechanism_destroy(TEST_ATTESTATION_MECHANISM));
+
+    //act
+    int result = enrollmentGroup_setAttestationMechanism(eg, TEST_ATTESTATION_MECHANISM_2);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_IS_TRUE(enrollmentGroup_getAttestationMechanism(eg) == TEST_ATTESTATION_MECHANISM_2);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_050: [ If enrollment is NULL, enrollmentGroup_getInitialTwin shall fail and return NULL ]*/
+TEST_FUNCTION(enrollmentGroup_getInitialTwin_null)
+{
+    //arrange
+
+    //act
+    INITIAL_TWIN_HANDLE twin = enrollmentGroup_getInitialTwin(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(twin);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_051: [ Otherwise, enrollmentGroup_getInitialTwin shall return the initial twin contained within enrollment ]*/
+TEST_FUNCTION(enrollmentGroup_getInitialTwin_success_no_twin)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    INITIAL_TWIN_HANDLE twin = enrollmentGroup_getInitialTwin(eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(twin);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_051: [ Otherwise, enrollmentGroup_getInitialTwin shall return the initial twin contained within enrollment ]*/
+TEST_FUNCTION(enrollmentGroup_getInitialTwin_success_has_twin)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    enrollmentGroup_setInitialTwin(eg, TEST_INITIAL_TWIN);
+    umock_c_reset_all_calls();
+
+    //act
+    INITIAL_TWIN_HANDLE twin = enrollmentGroup_getInitialTwin(eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(twin);
+    ASSERT_IS_TRUE(twin == TEST_INITIAL_TWIN);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_052: [ If enrollment is NULL, enrollmentGroup_setInitialTwin shall fail and return a non-zero number ]*/
+TEST_FUNCTION(enrollmentGroup_setInitialTwin_null_enrollment)
+{
+    //arrange
+
+    //act
+    int result = enrollmentGroup_setInitialTwin(NULL, TEST_INITIAL_TWIN);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_053: [ Upon success, the new initial twin, twin, will be attached to the enrollment group enrollment, and any existing initial twin will have its memory freed. Then enrollmentGroup_setInitialTwin shall return 0 ]*/
+TEST_FUNCTION(enrollmentGroup_setInitialTwin_success_first_set)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(initialTwin_destroy(NULL));
+
+    //act
+    int result = enrollmentGroup_setInitialTwin(eg, TEST_INITIAL_TWIN);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_IS_TRUE(enrollmentGroup_getInitialTwin(eg) == TEST_INITIAL_TWIN);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_053: [ Upon success, the new initial twin, twin, will be attached to the enrollment group enrollment, and any existing initial twin will have its memory freed. Then enrollmentGroup_setInitialTwin shall return 0 ]*/
+TEST_FUNCTION(enrollmentGroup_setInitialTwin_success_overwrite)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    enrollmentGroup_setInitialTwin(eg, TEST_INITIAL_TWIN);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(initialTwin_destroy(TEST_INITIAL_TWIN));
+
+    //act
+    int result = enrollmentGroup_setInitialTwin(eg, TEST_INITIAL_TWIN_2);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_IS_TRUE(enrollmentGroup_getInitialTwin(eg) == TEST_INITIAL_TWIN_2);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_053: [ Upon success, the new initial twin, twin, will be attached to the enrollment group enrollment, and any existing initial twin will have its memory freed. Then enrollmentGroup_setInitialTwin shall return 0 ]*/
+TEST_FUNCTION(enrollmentGroup_setInitialTwin_success_erase)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    enrollmentGroup_setInitialTwin(eg, TEST_INITIAL_TWIN);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(initialTwin_destroy(TEST_INITIAL_TWIN));
+
+    //act
+    int result = enrollmentGroup_setInitialTwin(eg, NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_IS_TRUE(enrollmentGroup_getInitialTwin(eg) == NULL);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_054: [ If enrollment is NULL, enrollmentGroup_getGroupId shall fail and return NULL ]*/
+TEST_FUNCTION(enrollmentGroup_getGroupId_null)
+{
+    //arrange
+
+    //act
+    const char* group_id = enrollmentGroup_getGroupId(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(group_id);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_055: [ Otherwise, enrollmentGroup_getGroupId shall return the group id of enrollment ]*/
+TEST_FUNCTION(enrollmentGroup_getGroupId_success)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    const char* group_id = enrollmentGroup_getGroupId(eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(group_id);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_GROUP_ID, group_id);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_056: [ If enrollment is NULL, enrollmentGroup_getIotHubHostName shall fail and return NULL ]*/
+TEST_FUNCTION(enrollmentGroup_getIotHubHostName_null)
+{
+    //arrange
+
+    //act
+    const char* hostname = enrollmentGroup_getIotHubHostName(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(hostname);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_057: [ Otherwise, enrollmentGroup_getIotHubHostName shall return the IoT Hub hostname of enrollment ]*/
+TEST_FUNCTION(enrollmentGroup_getIotHubHostName_success_no_hostname)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    const char* hostname = enrollmentGroup_getIotHubHostName(eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(hostname);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_057: [ Otherwise, enrollmentGroup_getIotHubHostName shall return the IoT Hub hostname of enrollment ]*/
+TEST_FUNCTION(enrollmentGroup_getIotHubHostName_success_return_hostname)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = get_eg_from_json();
+    umock_c_reset_all_calls();
+
+    //act
+    const char* hostname = enrollmentGroup_getIotHubHostName(eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(hostname);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_IOTHUB_HOSTNAME, hostname);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_058: [ If enrollment is NULL, enrollmentGroup_getEtag shall fail and return NULL ]*/
+TEST_FUNCTION(enrollmentGroup_getEtag_null)
+{
+    //arrange
+
+    //act
+    const char* etag = enrollmentGroup_getEtag(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(etag);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_059: [ Otherwise, enrollmentGroup_getEtag shall return the etag of enrollment ]*/
+TEST_FUNCTION(enrollmentGroup_getEtag_success_no_etag)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    const char* etag = enrollmentGroup_getEtag(eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(etag);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_059: [ Otherwise, enrollmentGroup_getEtag shall return the etag of enrollment ]*/
+TEST_FUNCTION(enrollmentGroup_getEtag_success_return_etag)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    enrollmentGroup_setEtag(eg, DUMMY_ETAG);
+    umock_c_reset_all_calls();
+
+    //act
+    const char* etag = enrollmentGroup_getEtag(eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(etag);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_ETAG, etag);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_060: [ If enrollment is NULL, enrollmentGroup_setEtag shall fail and return a non-zero number ]*/
+TEST_FUNCTION(enrollmentGroup_setEtag_null_enrollment)
+{
+    //arrange
+
+    //act
+    int result = enrollmentGroup_setEtag(NULL, DUMMY_ETAG);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_061: [ Otherwise, etag will be set as the etag of enrollment and enrollmentGroup_setEtag shall return 0 ]*/
+TEST_FUNCTION(enrollmentGroup_setEtag_success_first_set)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, DUMMY_ETAG));
+    STRICT_EXPECTED_CALL(gballoc_free(NULL));
+
+    //act
+    int result = enrollmentGroup_setEtag(eg, DUMMY_ETAG);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_ETAG, enrollmentGroup_getEtag(eg));
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_061: [ Otherwise, etag will be set as the etag of enrollment and enrollmentGroup_setEtag shall return 0 ]*/
+TEST_FUNCTION(enrollmentGroup_setEtag_success_overwrite)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    enrollmentGroup_setEtag(eg, DUMMY_STRING);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, DUMMY_ETAG));
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+
+    //act
+    int result = enrollmentGroup_setEtag(eg, DUMMY_ETAG);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_ETAG, enrollmentGroup_getEtag(eg));
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_061: [ Otherwise, etag will be set as the etag of enrollment and enrollmentGroup_setEtag shall return 0 ]*/
+TEST_FUNCTION(enrollmentGroup_setEtag_success_erase)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    enrollmentGroup_setEtag(eg, DUMMY_ETAG);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG));
+
+    //act
+    int result = enrollmentGroup_setEtag(eg, NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_IS_NULL(enrollmentGroup_getEtag(eg));
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_062: [ If enrollment is NULL, enrollmentGroup_getProvisioningStatus shall fail and return PROVISIONING_STATUS_NONE ]*/
+TEST_FUNCTION(enrollmentGroup_getProvisioningStatus_null)
+{
+    //arrange
+
+    //act
+    PROVISIONING_STATUS ps = enrollmentGroup_getProvisioningStatus(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_TRUE(ps == PROVISIONING_STATUS_NONE);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_063: [ Otherwise, enrollmentGroup_getProvisioningStatus shall return the provisioning status of enrollment ]*/
+TEST_FUNCTION(enrollmentGroup_getProvisioningStatus_success)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    PROVISIONING_STATUS ps = enrollmentGroup_getProvisioningStatus(eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_TRUE(ps == PROVISIONING_STATUS_ENABLED);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_064: [ If enrollment is NULL, enrollmentGroup_setProvisioningStatus shall fail and return a non-zero number ]*/
+TEST_FUNCTION(enrollmentGroup_setProvisioningStatus_null_enrollment)
+{
+    //arrange
+
+    //act
+    int result = enrollmentGroup_setProvisioningStatus(NULL, PROVISIONING_STATUS_ENABLED);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_065: [ If prov_status is invalid type (i.e. PROVISIONING_STATUS_NONE), enrollmentGroup_setProvisioningStatus shall fail and return a non-zero number ]*/
+TEST_FUNCTION(enrollmentGroup_setProvisioningStatus_PROVISIONING_STATUS_NONE)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    int result = enrollmentGroup_setProvisioningStatus(eg, PROVISIONING_STATUS_NONE);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_NOT_EQUAL(int, 0, result);
+    ASSERT_IS_TRUE(enrollmentGroup_getProvisioningStatus(eg) == PROVISIONING_STATUS_ENABLED);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_066: [ Otherwise, prov_status will be set as the provisioning status of enrollment and enrollmentGroup_setProvisioningStatus shall return 0 ]*/
+TEST_FUNCTION(enrollmentGroup_setProvisioningStatus_success)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    int result = enrollmentGroup_setProvisioningStatus(eg, PROVISIONING_STATUS_DISABLED);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, 0, result);
+    ASSERT_IS_TRUE(enrollmentGroup_getProvisioningStatus(eg) == PROVISIONING_STATUS_DISABLED);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_067: [ If enrollment is NULL, enrollmentGroup_getCreatedDateTime shall fail and return NULL ]*/
+TEST_FUNCTION(enrollmentGroup_getCreatedDateTime_null)
+{
+    //arrange
+
+    //act
+    const char* created = enrollmentGroup_getCreatedDateTime(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(created);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_068: [ Otherwise, enrollmentGroup_getCreatedDateTime shall return the created date time of enrollment ]*/
+TEST_FUNCTION(enrollmentGroup_getCreatedDateTime_success_no_value)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    const char* created = enrollmentGroup_getCreatedDateTime(eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(created);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_068: [ Otherwise, enrollmentGroup_getCreatedDateTime shall return the created date time of enrollment ]*/
+TEST_FUNCTION(enrollmentGroup_getCreatedDateTime_success_return_value)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = get_eg_from_json();
+    umock_c_reset_all_calls();
+
+    //act
+    const char* created = enrollmentGroup_getCreatedDateTime(eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(created);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_CREATED_TIME, created);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_069: [ If enrollment is NULL, enrollmentGroup_getUpdatedDateTime shall fail and return NULL ]*/
+TEST_FUNCTION(enrollmentGroup_getUpdatedDateTime_null)
+{
+    //arrange
+
+    //act
+    const char* updated = enrollmentGroup_getUpdatedDateTime(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(updated);
+
+    //cleanup
+}
+
+/*Tests_ENROLLMENT_22_070: [ Otherwise, enrollmentGroup_getUpdatedDateTime shall return the updated date time of enrollment ]*/
+TEST_FUNCTION(enrollmentGroup_getUpdatedDateTime_success_no_value)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    //act
+    const char* updated = enrollmentGroup_getUpdatedDateTime(eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(updated);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+/*Tests_ENROLLMENT_22_070: [ Otherwise, enrollmentGroup_getUpdatedDateTime shall return the updated date time of enrollment ]*/
+TEST_FUNCTION(enrollmentGroup_getUpdatedDateTime_success_return_value)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = get_eg_from_json();
+    umock_c_reset_all_calls();
+
+    //act
+    const char* updated = enrollmentGroup_getUpdatedDateTime(eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(updated);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_UPDATED_TIME, updated);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+TEST_FUNCTION(individualEnrollment_serializeToJson_null)
+{
+    //arrange
+
+    //act
+    char* json = individualEnrollment_serializeToJson(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(json);
+
+    //cleanup
+}
+
+TEST_FUNCTION(individualEnrollment_serializeToJson_min_success)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(json_value_init_object());
+    STRICT_EXPECTED_CALL(json_value_get_object(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //reg id
+    STRICT_EXPECTED_CALL(attestationMechanism_toJson(TEST_ATTESTATION_MECHANISM));
+    STRICT_EXPECTED_CALL(json_object_set_value(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //att mech
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //provisioning status
+    STRICT_EXPECTED_CALL(json_serialize_to_string(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_value_free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_free_serialized_string(IGNORED_PTR_ARG));
+
+    //act
+    char* json = individualEnrollment_serializeToJson(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_JSON, json);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+    free(json);
+}
+
+TEST_FUNCTION(individualEnrollment_serializeToJson_min_error)
+{
+    //arrange
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(json_value_init_object());
+    STRICT_EXPECTED_CALL(json_value_get_object(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //reg id
+    STRICT_EXPECTED_CALL(attestationMechanism_toJson(TEST_ATTESTATION_MECHANISM));
+    STRICT_EXPECTED_CALL(json_object_set_value(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //att mech
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //provisioning status
+    STRICT_EXPECTED_CALL(json_serialize_to_string(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_value_free(IGNORED_PTR_ARG)); //cannot fail
+    STRICT_EXPECTED_CALL(json_free_serialized_string(IGNORED_PTR_ARG)); //cannot fail
+    umock_c_negative_tests_snapshot();
+
+    size_t calls_cannot_fail[] = { 8, 9 };
+    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
+    size_t count = umock_c_negative_tests_call_count();
+    size_t test_num = 0;
+    size_t test_max = count - num_cannot_fail;
+
+    for (size_t index = 0; index < count; index++)
+    {
+        if (should_skip_index(index, calls_cannot_fail, num_cannot_fail) != 0)
+            continue;
+        test_num++;
+
+        char tmp_msg[128];
+        sprintf(tmp_msg, "individualEnrollment_serializeToJson_min_error failure in test %zu/%zu", test_num, test_max);
+
+        umock_c_negative_tests_reset();
+        umock_c_negative_tests_fail_call(index);
+
+        //act
+        char* json = individualEnrollment_serializeToJson(ie);
+
+        //assert
+        ASSERT_IS_NULL_WITH_MSG(json, tmp_msg);
+    }
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+TEST_FUNCTION(individualEnrollment_serializeToJson_max_success)
+{
+    //arrange
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    individualEnrollment_setDeviceId(ie, DUMMY_DEVICE_ID);
+    individualEnrollment_setInitialTwin(ie, TEST_INITIAL_TWIN);
+    individualEnrollment_setEtag(ie, DUMMY_ETAG);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(json_value_init_object());
+    STRICT_EXPECTED_CALL(json_value_get_object(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //reg id
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //device id
+    STRICT_EXPECTED_CALL(attestationMechanism_toJson(TEST_ATTESTATION_MECHANISM));
+    STRICT_EXPECTED_CALL(json_object_set_value(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //att mech
+    STRICT_EXPECTED_CALL(initialTwin_toJson(TEST_INITIAL_TWIN));
+    STRICT_EXPECTED_CALL(json_object_set_value(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //twin
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //etag
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //provisioning status
+    STRICT_EXPECTED_CALL(json_serialize_to_string(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_value_free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_free_serialized_string(IGNORED_PTR_ARG));
+
+    //act
+    char* json = individualEnrollment_serializeToJson(ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_JSON, json);
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+    free(json);
+}
+
+TEST_FUNCTION(individualEnrollment_deserializeToJson_max_error)
+{
+    //arrange
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(DUMMY_REGISTRATION_ID, TEST_ATTESTATION_MECHANISM);
+    individualEnrollment_setDeviceId(ie, DUMMY_DEVICE_ID);
+    individualEnrollment_setInitialTwin(ie, TEST_INITIAL_TWIN);
+    individualEnrollment_setEtag(ie, DUMMY_ETAG);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(json_value_init_object());
+    STRICT_EXPECTED_CALL(json_value_get_object(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //reg id
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //device id
+    STRICT_EXPECTED_CALL(attestationMechanism_toJson(TEST_ATTESTATION_MECHANISM));
+    STRICT_EXPECTED_CALL(json_object_set_value(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //att mech
+    STRICT_EXPECTED_CALL(initialTwin_toJson(TEST_INITIAL_TWIN));
+    STRICT_EXPECTED_CALL(json_object_set_value(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //twin
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //etag
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //provisioning status
+    STRICT_EXPECTED_CALL(json_serialize_to_string(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_value_free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_free_serialized_string(IGNORED_PTR_ARG));
+    umock_c_negative_tests_snapshot();
+
+    size_t calls_cannot_fail[] = { 12, 13 };
+    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
+    size_t count = umock_c_negative_tests_call_count();
+    size_t test_num = 0;
+    size_t test_max = count - num_cannot_fail;
+
+    for (size_t index = 0; index < count; index++)
+    {
+        if (should_skip_index(index, calls_cannot_fail, num_cannot_fail) != 0)
+            continue;
+        test_num++;
+
+        char tmp_msg[128];
+        sprintf(tmp_msg, "individualEnrollment_serializeToJson_max_error failure in test %zu/%zu", test_num, test_max);
+
+        umock_c_negative_tests_reset();
+        umock_c_negative_tests_fail_call(index);
+
+        //act
+        char* json = individualEnrollment_serializeToJson(ie);
+
+        //assert
+        ASSERT_IS_NULL_WITH_MSG(json, tmp_msg);
+    }
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+TEST_FUNCTION(individualEnrollment_deserializeFromJson_null)
+{
+    //arrange
+
+    //act
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_deserializeFromJson(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(ie);
+
+    //cleanup
+}
+
+TEST_FUNCTION(individualEnrollment_deserializeFromJson_min_success)
+{
+    //arrange
+    individualEnrollment_deserializeFromJson_expected_calls(false);
+
+    //act
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_deserializeFromJson(DUMMY_JSON);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_REGISTRATION_ID, individualEnrollment_getRegistrationId(ie));
+    ASSERT_IS_NULL(individualEnrollment_getDeviceId(ie));
+    ASSERT_IS_NULL(individualEnrollment_getDeviceRegistrationState(ie));
+    ASSERT_IS_TRUE(individualEnrollment_getAttestationMechanism(ie) == TEST_ATTESTATION_MECHANISM);
+    ASSERT_IS_NULL(individualEnrollment_getIotHubHostName(ie));
+    ASSERT_IS_NULL(individualEnrollment_getInitialTwin(ie));
+    ASSERT_IS_NULL(individualEnrollment_getEtag(ie));
+    ASSERT_IS_TRUE(individualEnrollment_getProvisioningStatus(ie) == PROVISIONING_STATUS_ENABLED);
+    ASSERT_IS_NULL(individualEnrollment_getCreatedDateTime(ie));
+    ASSERT_IS_NULL(individualEnrollment_getUpdatedDateTime(ie));
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+TEST_FUNCTION(individualEnrollment_deserializeFromJson_min_error)
+{
+    //arrange
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    umock_c_reset_all_calls();
+
+    individualEnrollment_deserializeFromJson_expected_calls(false);
+    umock_c_negative_tests_snapshot();
+
+    size_t calls_cannot_fail[] = { 3, 5, 6, 9, 10, 11, 13, 14, 15 };
+    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
+    size_t count = umock_c_negative_tests_call_count();
+    size_t test_num = 0;
+    size_t test_max = count - num_cannot_fail;
+
+    for (size_t index = 0; index < count; index++)
+    {
+        if (should_skip_index(index, calls_cannot_fail, num_cannot_fail) != 0)
+            continue;
+        test_num++;
+
+        char tmp_msg[128];
+        sprintf(tmp_msg, "individualEnrollment_deserializeFromJson_min_error failure in test %zu/%zu", test_num, test_max);
+
+        umock_c_negative_tests_reset();
+        umock_c_negative_tests_fail_call(index);
+
+        //act
+        INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_deserializeFromJson(DUMMY_JSON);
+
+        //assert
+        ASSERT_IS_NULL_WITH_MSG(ie, tmp_msg);
+    }
+
+    //cleanup
+}
+
+TEST_FUNCTION(individualEnrollment_deserializeFromJson_max_success)
+{
+    //arrange
+    individualEnrollment_deserializeFromJson_expected_calls(true);
+
+    //act
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_deserializeFromJson(DUMMY_JSON);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_REGISTRATION_ID, individualEnrollment_getRegistrationId(ie));
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_DEVICE_ID, individualEnrollment_getDeviceId(ie));
+    ASSERT_IS_TRUE(individualEnrollment_getDeviceRegistrationState(ie) == TEST_REGISTRATION_STATE);
+    ASSERT_IS_TRUE(individualEnrollment_getAttestationMechanism(ie) == TEST_ATTESTATION_MECHANISM);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_IOTHUB_HOSTNAME, individualEnrollment_getIotHubHostName(ie));
+    ASSERT_IS_TRUE(individualEnrollment_getInitialTwin(ie) == TEST_INITIAL_TWIN);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_ETAG, individualEnrollment_getEtag(ie));
+    ASSERT_IS_TRUE(individualEnrollment_getProvisioningStatus(ie) == PROVISIONING_STATUS_ENABLED);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_CREATED_TIME, individualEnrollment_getCreatedDateTime(ie));
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_UPDATED_TIME, individualEnrollment_getUpdatedDateTime(ie));
+
+    //cleanup
+    individualEnrollment_destroy(ie);
+}
+
+TEST_FUNCTION(individualEnrollment_deserializeFromJson_max_error)
+{
+    //arrange
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    umock_c_reset_all_calls();
+
+    individualEnrollment_deserializeFromJson_expected_calls(true);
+    umock_c_negative_tests_snapshot();
+
+    size_t calls_cannot_fail[] = { 3, 5, 7, 11, 13, 15, 18, 20, 22 };
+    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
+    size_t count = umock_c_negative_tests_call_count();
+    size_t test_num = 0;
+    size_t test_max = count - num_cannot_fail;
+
+    for (size_t index = 0; index < count; index++)
+    {
+        if (should_skip_index(index, calls_cannot_fail, num_cannot_fail) != 0)
+            continue;
+        test_num++;
+
+        char tmp_msg[128];
+        sprintf(tmp_msg, "individualEnrollment_deserializeFromJson_max_error failure in test %zu/%zu", test_num, test_max);
+
+        umock_c_negative_tests_reset();
+        umock_c_negative_tests_fail_call(index);
+
+        //act
+        INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_deserializeFromJson(DUMMY_JSON);
+
+        //assert
+        ASSERT_IS_NULL_WITH_MSG(ie, tmp_msg);
+    }
+
+    //cleanup
+}
+
+TEST_FUNCTION(enrollmentGroup_serializeToJson_null)
+{
+    //arrange
+
+    //act
+    char* json = enrollmentGroup_serializeToJson(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(json);
+
+    //cleanup
+}
+
+TEST_FUNCTION(enrollmentGroup_serializeToJson_min_success)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(json_value_init_object());
+    STRICT_EXPECTED_CALL(json_value_get_object(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //group id
+    STRICT_EXPECTED_CALL(attestationMechanism_toJson(TEST_ATTESTATION_MECHANISM));
+    STRICT_EXPECTED_CALL(json_object_set_value(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //attestation
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //provisioning status
+    STRICT_EXPECTED_CALL(json_serialize_to_string(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_value_free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_free_serialized_string(IGNORED_PTR_ARG));
+
+    //act
+    char* json = enrollmentGroup_serializeToJson(eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(json);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+    free(json);
+}
+
+TEST_FUNCTION(enrollmentGroup_serializeToJson_min_error)
+{
+    //arrange
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(json_value_init_object());
+    STRICT_EXPECTED_CALL(json_value_get_object(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //group id
+    STRICT_EXPECTED_CALL(attestationMechanism_toJson(TEST_ATTESTATION_MECHANISM));
+    STRICT_EXPECTED_CALL(json_object_set_value(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //attestation
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //provisioning status
+    STRICT_EXPECTED_CALL(json_serialize_to_string(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_value_free(IGNORED_PTR_ARG)); //cannot fail
+    STRICT_EXPECTED_CALL(json_free_serialized_string(IGNORED_PTR_ARG)); //cannot fail
+    umock_c_negative_tests_snapshot();
+
+    size_t calls_cannot_fail[] = { 8, 9 };
+    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
+    size_t count = umock_c_negative_tests_call_count();
+    size_t test_num = 0;
+    size_t test_max = count - num_cannot_fail;
+
+    for (size_t index = 0; index < count; index++)
+    {
+        if (should_skip_index(index, calls_cannot_fail, num_cannot_fail) != 0)
+            continue;
+        test_num++;
+
+        char tmp_msg[128];
+        sprintf(tmp_msg, "enrollmentGroup_serializeToJson_min_error failure in test %zu/%zu", test_num, test_max);
+
+        umock_c_negative_tests_reset();
+        umock_c_negative_tests_fail_call(index);
+
+        //act
+        char* json = enrollmentGroup_serializeToJson(eg);
+
+        //assert
+        ASSERT_IS_NULL_WITH_MSG(json, tmp_msg);
+    }
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+TEST_FUNCTION(enrollmentGroup_serializeToJson_max_success)
+{
+    //arrange
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    enrollmentGroup_setInitialTwin(eg, TEST_INITIAL_TWIN);
+    enrollmentGroup_setEtag(eg, DUMMY_ETAG);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(json_value_init_object());
+    STRICT_EXPECTED_CALL(json_value_get_object(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //group id
+    STRICT_EXPECTED_CALL(attestationMechanism_toJson(TEST_ATTESTATION_MECHANISM));
+    STRICT_EXPECTED_CALL(json_object_set_value(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //attestation
+    STRICT_EXPECTED_CALL(initialTwin_toJson(TEST_INITIAL_TWIN));
+    STRICT_EXPECTED_CALL(json_object_set_value(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //twin
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //etag
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //provisioning status
+    STRICT_EXPECTED_CALL(json_serialize_to_string(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_value_free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_free_serialized_string(IGNORED_PTR_ARG));
+
+    //act
+    char* json = enrollmentGroup_serializeToJson(eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(json);
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+    free(json);
+}
+
+TEST_FUNCTION(enrollmentGroup_serializeToJson_max_error)
+{
+    //arrange
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(DUMMY_GROUP_ID, TEST_ATTESTATION_MECHANISM);
+    enrollmentGroup_setInitialTwin(eg, TEST_INITIAL_TWIN);
+    enrollmentGroup_setEtag(eg, DUMMY_ETAG);
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(json_value_init_object());
+    STRICT_EXPECTED_CALL(json_value_get_object(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //group id
+    STRICT_EXPECTED_CALL(attestationMechanism_toJson(TEST_ATTESTATION_MECHANISM));
+    STRICT_EXPECTED_CALL(json_object_set_value(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //attestation
+    STRICT_EXPECTED_CALL(initialTwin_toJson(TEST_INITIAL_TWIN));
+    STRICT_EXPECTED_CALL(json_object_set_value(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //twin
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //etag
+    STRICT_EXPECTED_CALL(json_object_set_string(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG)); //provisioning status
+    STRICT_EXPECTED_CALL(json_serialize_to_string(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_s(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(json_value_free(IGNORED_PTR_ARG)); //cannot fail
+    STRICT_EXPECTED_CALL(json_free_serialized_string(IGNORED_PTR_ARG)); //cannot fail
+    umock_c_negative_tests_snapshot();
+
+    size_t calls_cannot_fail[] = { 11, 12 };
+    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
+    size_t count = umock_c_negative_tests_call_count();
+    size_t test_num = 0;
+    size_t test_max = count - num_cannot_fail;
+
+    for (size_t index = 0; index < count; index++)
+    {
+        if (should_skip_index(index, calls_cannot_fail, num_cannot_fail) != 0)
+            continue;
+        test_num++;
+
+        char tmp_msg[128];
+        sprintf(tmp_msg, "enrollmentGroup_serializeToJson_max_error failure in test %zu/%zu", test_num, test_max);
+
+        umock_c_negative_tests_reset();
+        umock_c_negative_tests_fail_call(index);
+
+        //act
+        char* json = enrollmentGroup_serializeToJson(eg);
+
+        //assert
+        ASSERT_IS_NULL_WITH_MSG(json, tmp_msg);
+    }
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+TEST_FUNCTION(enrollmentGroup_deserializeFromJson_null)
+{
+    //arrange
+
+    //act
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_deserializeFromJson(NULL);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NULL(eg);
+
+    //cleanup
+}
+
+TEST_FUNCTION(enrollmentGroup_deserializeFromJson_min_success)
+{
+    //arrange
+    enrollmentGroup_deserializeFromJson_expected_calls(false);
+
+    //act
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_deserializeFromJson(DUMMY_JSON);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(eg);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_GROUP_ID, enrollmentGroup_getGroupId(eg));
+    ASSERT_IS_TRUE(enrollmentGroup_getAttestationMechanism(eg) == TEST_ATTESTATION_MECHANISM);
+    ASSERT_IS_NULL(enrollmentGroup_getIotHubHostName(eg));
+    ASSERT_IS_NULL(enrollmentGroup_getInitialTwin(eg));
+    ASSERT_IS_NULL(enrollmentGroup_getEtag(eg));
+    ASSERT_IS_TRUE(enrollmentGroup_getProvisioningStatus(eg) == PROVISIONING_STATUS_ENABLED);
+    ASSERT_IS_NULL(enrollmentGroup_getCreatedDateTime(eg));
+    ASSERT_IS_NULL(enrollmentGroup_getUpdatedDateTime(eg));
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+TEST_FUNCTION(enrollmentGroup_deserializeFromJson_min_error)
+{
+    //arrange
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    umock_c_reset_all_calls();
+
+    enrollmentGroup_deserializeFromJson_expected_calls(false);
+    umock_c_negative_tests_snapshot();
+
+    size_t calls_cannot_fail[] = { 3, 7, 8, 9, 11, 12, 13 };
+    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
+    size_t count = umock_c_negative_tests_call_count();
+    size_t test_num = 0;
+    size_t test_max = count - num_cannot_fail;
+
+    for (size_t index = 0; index < count; index++)
+    {
+        if (should_skip_index(index, calls_cannot_fail, num_cannot_fail) != 0)
+            continue;
+        test_num++;
+
+        char tmp_msg[128];
+        sprintf(tmp_msg, "enrollmentGroup_deserializeFromJson_min_error failure in test %zu/%zu", test_num, test_max);
+
+        umock_c_negative_tests_reset();
+        umock_c_negative_tests_fail_call(index);
+
+        //act
+        ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_deserializeFromJson(DUMMY_JSON);
+
+        //assert
+        ASSERT_IS_NULL_WITH_MSG(eg, tmp_msg);
+    }
+
+    //cleanup
+}
+
+TEST_FUNCTION(enrollmentGroup_deserializeFromJson_max_success)
+{
+    //arrange
+    enrollmentGroup_deserializeFromJson_expected_calls(true);
+
+    //act
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_deserializeFromJson(DUMMY_JSON);
+
+    //assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_IS_NOT_NULL(eg);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_GROUP_ID, enrollmentGroup_getGroupId(eg));
+    ASSERT_IS_TRUE(enrollmentGroup_getAttestationMechanism(eg) == TEST_ATTESTATION_MECHANISM);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_IOTHUB_HOSTNAME, enrollmentGroup_getIotHubHostName(eg));
+    ASSERT_IS_TRUE(enrollmentGroup_getInitialTwin(eg) == TEST_INITIAL_TWIN);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_ETAG, enrollmentGroup_getEtag(eg));
+    ASSERT_IS_TRUE(enrollmentGroup_getProvisioningStatus(eg) == PROVISIONING_STATUS_ENABLED);
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_CREATED_TIME, enrollmentGroup_getCreatedDateTime(eg));
+    ASSERT_ARE_EQUAL(char_ptr, DUMMY_UPDATED_TIME, enrollmentGroup_getUpdatedDateTime(eg));
+
+    //cleanup
+    enrollmentGroup_destroy(eg);
+}
+
+TEST_FUNCTION(enrollmentGroup_deserializeFromJson_max_error)
+{
+    //arrange
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    umock_c_reset_all_calls();
+
+    enrollmentGroup_deserializeFromJson_expected_calls(true);
+    umock_c_negative_tests_snapshot();
+
+    size_t calls_cannot_fail[] = { 3, 7, 8, 9, 11, 13, 14, 16, 18 };
+    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
+    size_t count = umock_c_negative_tests_call_count();
+    size_t test_num = 0;
+    size_t test_max = count - num_cannot_fail;
+
+    for (size_t index = 0; index < count; index++)
+    {
+        if (should_skip_index(index, calls_cannot_fail, num_cannot_fail) != 0)
+            continue;
+        test_num++;
+
+        char tmp_msg[128];
+        sprintf(tmp_msg, "enrollmentGroup_deserializeFromJson_max_error failure in test %zu/%zu", test_num, test_max);
+
+        umock_c_negative_tests_reset();
+        umock_c_negative_tests_fail_call(index);
+
+        //act
+        ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_deserializeFromJson(DUMMY_JSON);
+
+        //assert
+        ASSERT_IS_NULL_WITH_MSG(eg, tmp_msg);
+    }
+
+    //cleanup
+}
+
+END_TEST_SUITE(provisioning_sc_enrollment_ut);
