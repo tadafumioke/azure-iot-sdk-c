@@ -11,3 +11,4 @@ endfunction()
 
 add_sample_directory(prov_sc_individual_enrollment_sample)
 add_sample_directory(prov_sc_enrollment_group_sample)
+add_sample_directory(prov_sc_bulk_operation_sample)

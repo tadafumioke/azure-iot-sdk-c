@@ -66,8 +66,11 @@ typedef struct HANDLE_FUNCTION_VECTOR_TAG
 #define IOTHUBSHAREDACESSKEY "SharedAccessKey"
 
 #define PROVISIONING_SERVICE_API_VERSION    "2017-11-15"
-#define ENROLL_GROUP_PROVISION_PATH_FMT     "/enrollmentGroups/%s?api-version=%s"
-#define INDV_ENROLL_PROVISION_PATH_FMT      "/enrollments/%s?api-version=%s"
+#define ENROLL_GROUP_PROVISION_PATH_FMT     "/enrollmentGroups/%s"
+#define INDV_ENROLL_PROVISION_PATH_FMT      "/enrollments/%s"
+#define INDV_ENROLL_BULK_PATH_FMT           "/enrollments/"
+#define INDV_ENROLL_QUERY_PATH_FMT          "/enrollments/query"
+#define API_VERSION_QUERY_PARAM             "?api-version=%s"
 #define HEADER_KEY_AUTHORIZATION            "Authorization"
 #define HEADER_KEY_IF_MATCH                 "If-Match"
 #define HEADER_KEY_USER_AGENT               "UserAgent"
@@ -217,28 +220,76 @@ static HTTP_HEADERS_HANDLE construct_http_headers(const PROV_SERVICE_CLIENT* pro
     return result;
 }
 
-static STRING_HANDLE construct_registration_path(const char* registration_id, const char* path_fmt)
+//static STRING_HANDLE construct_registration_path(const char* registration_id, const char* path_fmt)
+//{
+//    STRING_HANDLE result;
+//    STRING_HANDLE registration_encode;
+//
+//    if (registration_id == NULL)
+//    {
+//        LogError("invalid registration id");
+//        result = NULL;
+//    }
+//    else if ((registration_encode = URL_EncodeString(registration_id)) == NULL)
+//    {
+//        LogError("Failed encode registration Id");
+//        result = NULL;
+//    }
+//    else
+//    {
+//        if ((result = STRING_construct_sprintf(path_fmt, STRING_c_str(registration_encode), PROVISIONING_SERVICE_API_VERSION)) == NULL)
+//        {
+//            LogError("Failed constructing provisioning path");
+//        }
+//        STRING_delete(registration_encode);
+//    }
+//    return result;
+//}
+
+static int format_path_args(STRING_HANDLE path, const char* registration_id)
 {
-    STRING_HANDLE result;
+    int result;
     STRING_HANDLE registration_encode;
 
     if (registration_id == NULL)
     {
         LogError("invalid registration id");
-        result = NULL;
+        result = __FAILURE__;
     }
     else if ((registration_encode = URL_EncodeString(registration_id)) == NULL)
     {
         LogError("Failed encode registration Id");
-        result = NULL;
+        result = __FAILURE__;
+    }
+    else if (STRING_sprintf(path, STRING_c_str(registration_encode)) != 0)
+    {
+        LogError("Failed to format path arguments");
+        result = __FAILURE__;
     }
     else
     {
-        if ((result = STRING_construct_sprintf(path_fmt, STRING_c_str(registration_encode), PROVISIONING_SERVICE_API_VERSION)) == NULL)
-        {
-            LogError("Failed constructing provisioning path");
-        }
         STRING_delete(registration_encode);
+        result = 0;
+    }
+    return result;
+}
+
+static int add_path_query_params(STRING_HANDLE path)
+{
+    int result;
+    if (STRING_concat(path, API_VERSION_QUERY_PARAM) != 0)
+    {
+        LogError("Unable to add query paramters");
+        result = __FAILURE__;
+    }
+    else if (STRING_sprintf(path, PROVISIONING_SERVICE_API_VERSION) != 0)
+    {
+        LogError("Unable to add query paramters");
+        result = __FAILURE__;
+    }
+    else
+    {
+        result = 0;
     }
     return result;
 }
@@ -384,7 +435,17 @@ static int prov_sc_create_or_update_record(PROVISIONING_SERVICE_CLIENT_HANDLE pr
         else
         {
             STRING_HANDLE registration_path;
-            if ((registration_path = construct_registration_path(vector.getId(handle), path_format)) == NULL)
+            if ((registration_path = STRING_construct(path_format)) == NULL)
+            {
+                LogError("Failed constructing provisioning path");
+                result = __FAILURE__;
+            }
+            else if (format_path_args(registration_path, vector.getId(handle)) != 0)
+            {
+                LogError("Failed constructing provisioning path");
+                result = __FAILURE__;
+            }
+            else if (add_path_query_params(registration_path) != 0)
             {
                 LogError("Failed constructing provisioning path");
                 result = __FAILURE__;
@@ -449,7 +510,17 @@ static int prov_sc_delete_record_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE pro
     else
     {
         STRING_HANDLE registration_path;
-        if ((registration_path = construct_registration_path(id, path_format)) == NULL)
+        if ((registration_path = STRING_construct(path_format)) == NULL)
+        {
+            LogError("Failed constructing provisioning path");
+            result = __FAILURE__;
+        }
+        else if (format_path_args(registration_path, id) != 0)
+        {
+            LogError("Failed constructing provisioning path");
+            result = __FAILURE__;
+        }
+        else if (add_path_query_params(registration_path) != 0)
         {
             LogError("Failed constructing provisioning path");
             result = __FAILURE__;
@@ -498,7 +569,17 @@ static int prov_sc_get_record(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, co
     else
     {
         STRING_HANDLE registration_path;
-        if ((registration_path = construct_registration_path(id, path_format)) == NULL)
+        if ((registration_path = STRING_construct(path_format)) == NULL)
+        {
+            LogError("Failed constructing provisioning path");
+            result = __FAILURE__;
+        }
+        else if (format_path_args(registration_path, id) != 0)
+        {
+            LogError("Failed constructing provisioning path");
+            result = __FAILURE__;
+        }
+        else if (add_path_query_params(registration_path) != 0)
         {
             LogError("Failed constructing provisioning path");
             result = __FAILURE__;
@@ -526,6 +607,55 @@ static int prov_sc_get_record(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, co
                     *handle_ptr = handle;
                 }
 
+                free(prov_client->response);
+                prov_client->response = NULL;
+            }
+            HTTPHeaders_Free(request_headers);
+        }
+        STRING_delete(registration_path);
+    }
+
+    return result;
+}
+
+static int prov_sc_run_bulk_operation(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, PROVISIONING_BULK_OPERATION* bulk_op, const char* path_format)
+{
+    int result = 0;
+
+    if (prov_client == NULL)
+    {
+        LogError("Invalid Provisioning Client Handle");
+        result = __FAILURE__;
+    }
+    else if (bulk_op == NULL)
+    {
+        LogError("Invalid Id");
+        result = __FAILURE__;
+    }
+    else
+    {
+        STRING_HANDLE registration_path;
+        if ((registration_path = STRING_construct(path_format)) == NULL)
+        {
+            LogError("Failed constructing provisioning path");
+            result = __FAILURE__;
+        }
+        else if (add_path_query_params(registration_path) != 0)
+        {
+            LogError("Failed constructing provisioning path");
+            result = __FAILURE__;
+        }
+        else
+        {
+            HTTP_HEADERS_HANDLE request_headers;
+            if ((request_headers = construct_http_headers(prov_client, NULL, HTTP_CLIENT_REQUEST_POST)) == NULL)
+            {
+                LogError("Failure creating registration json content");
+                result = __FAILURE__;
+            }
+            else
+            {
+                result = rest_call(prov_client, HTTP_CLIENT_REQUEST_POST, STRING_c_str(registration_path), request_headers, NULL);
                 free(prov_client->response);
                 prov_client->response = NULL;
             }
@@ -727,6 +857,11 @@ int prov_sc_delete_individual_enrollment_by_param(PROVISIONING_SERVICE_CLIENT_HA
 int prov_sc_get_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* reg_id, INDIVIDUAL_ENROLLMENT_HANDLE* enrollment_ptr)
 {
     return prov_sc_get_record(prov_client, reg_id, enrollment_ptr, getVector_individualEnrollment(), INDV_ENROLL_PROVISION_PATH_FMT);
+}
+
+int prov_sc_run_individual_enrollment_bulk_operation(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, PROVISIONING_BULK_OPERATION* bulk_op)
+{
+    return prov_sc_run_bulk_operation(prov_client, bulk_op, INDV_ENROLL_BULK_PATH_FMT);
 }
 
 int prov_sc_delete_device_registration_state(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* id)

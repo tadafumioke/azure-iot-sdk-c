@@ -112,16 +112,18 @@ MOCKABLE_FUNCTION(, int, prov_sc_get_individual_enrollment, PROVISIONING_SERVICE
 */
 MOCKABLE_FUNCTION(, PROVISIONING_QUERY_HANDLE, prov_sc_create_individual_enrollment_query, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, PROVISIONING_QUERY_SPECIFICATION*, query_spec);
 
-/** @brief  Performs a bulk operation on individual device enrollment records from the Provisioning Service.
-*
-* @param    prov_client             The handle used for connecting to the Provisioning Service.
-* @param    mode                    The operation to be executed.
-* @param    enrollment_list         An array of enrollments for the given operation to be executed on.
-* @param    list_len                The number of enrollments in the list.
-*
-* @return   A non-NULL handle for accessing the results of the bulk operation, and NULL on failure.
-*/
-MOCKABLE_FUNCTION(, BULK_OPERATION_RESULT_HANDLE, prov_sc_run_individual_enrollment_bulk_op, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, BULK_OPERATION_MODE, mode, INDIVIDUAL_ENROLLMENT_HANDLE*, enrollment_list, size_t, list_len);
+/////////** @brief  Performs a bulk operation on individual device enrollment records from the Provisioning Service.
+////////*
+////////* @param    prov_client             The handle used for connecting to the Provisioning Service.
+////////* @param FINISH THIS
+////////*
+////////* @return   A non-NULL handle for accessing the results of the bulk operation, and NULL on failure.
+////////*/
+////////MOCKABLE_FUNCTION(, PROVISIONING_BULK_OPERATION_RESULT, prov_sc_run_individual_enrollment_bulk_op, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, PROVISIONING_BULK_OPERATION_MODE, mode, INDIVIDUAL_ENROLLMENT_HANDLE*, enrollment_list, size_t, list_len);
+
+
+MOCKABLE_FUNCTION(, PROVISIONING_BULK_OPERATION_RESULT, prov_sc_run_individual_enrollment_bulk_op, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, PROVISIONING_BULK_OPERATION*, bulk_op);
+
 
 /** @brief  Creates or updates a device enrollment group record on the Provisioning Service.
 *

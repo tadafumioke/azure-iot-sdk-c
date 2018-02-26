@@ -4,10 +4,15 @@
 #include <stdlib.h>  
 
 #include "azure_c_shared_utility/xlogging.h"
+#include "azure_c_shared_utility/gballoc.h"
 
 #include "provisioning_sc_bulk_operation.h"
 
-typedef struct BULK_OPERATION_RESULT_TAG
+#define UNREFERENCED_PARAMETER(x) x
+
+
+static void test()
 {
-    int dummy;
-} BULK_OPERATION_RESULT;
+    PROVISIONING_BULK_OPERATION bulkop;
+    UNREFERENCED_PARAMETER(bulkop);
+}
