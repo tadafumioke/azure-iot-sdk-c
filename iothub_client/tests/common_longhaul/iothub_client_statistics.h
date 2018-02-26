@@ -12,7 +12,9 @@
 #define EVENT_TYPE_VALUES \
     TELEMETRY_QUEUED, \
     TELEMETRY_SENT, \
-    TELEMETRY_RECEIVED
+    TELEMETRY_RECEIVED, \
+    C2D_SENT, \
+    C2D_RECEIVED
 
 DEFINE_ENUM(EVENT_TYPE, EVENT_TYPE_VALUES)
 
@@ -37,6 +39,24 @@ typedef struct IOTHUB_CLIENT_STATISTICS_TELEMETRY_SUMMARY_TAG
     double max_travel_time_secs;
 } IOTHUB_CLIENT_STATISTICS_TELEMETRY_SUMMARY;
 
+typedef struct C2D_MESSAGE_INFO_TAG
+{
+    size_t message_id;
+
+    time_t time_sent;
+    size_t send_result;
+
+    time_t time_received;
+} C2D_MESSAGE_INFO;
+
+typedef struct IOTHUB_CLIENT_STATISTICS_C2D_SUMMARY_TAG
+{
+    size_t messages_sent;
+    size_t messages_received;
+    double min_travel_time_secs;
+    double max_travel_time_secs;
+} IOTHUB_CLIENT_STATISTICS_C2D_SUMMARY;
+
 typedef struct IOTHUB_CLIENT_STATISTICS_TAG* IOTHUB_CLIENT_STATISTICS_HANDLE;
 
 extern IOTHUB_CLIENT_STATISTICS_HANDLE iothub_client_statistics_create(void);
@@ -48,6 +68,10 @@ extern int iothub_client_statistics_add_connection_status(IOTHUB_CLIENT_STATISTI
 extern int iothub_client_statistics_add_telemetry_info(IOTHUB_CLIENT_STATISTICS_HANDLE handle, EVENT_TYPE type, TELEMETRY_INFO* info);
 
 extern int iothub_client_statistics_get_telemetry_summary(IOTHUB_CLIENT_STATISTICS_HANDLE handle, IOTHUB_CLIENT_STATISTICS_TELEMETRY_SUMMARY* summary);
+
+extern int iothub_client_statistics_add_c2d_info(IOTHUB_CLIENT_STATISTICS_HANDLE handle, EVENT_TYPE type, C2D_MESSAGE_INFO* info);
+
+extern int iothub_client_statistics_get_c2d_summary(IOTHUB_CLIENT_STATISTICS_HANDLE handle, IOTHUB_CLIENT_STATISTICS_C2D_SUMMARY* summary);
 
 extern void iothub_client_statistics_destroy(IOTHUB_CLIENT_STATISTICS_HANDLE handle);
 

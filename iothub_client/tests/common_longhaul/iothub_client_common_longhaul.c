@@ -22,6 +22,7 @@
 #define TELEMETRY_MESSAGE_TEST_ID_FORMAT "longhaul-tests:%s"
 #define TELEMETRY_MESSAGE_MESSAGE_ID_FORMAT "message-id:%u"
 #define TELEMETRY_MESSAGE_FORMAT TELEMETRY_MESSAGE_TEST_ID_FORMAT ";" TELEMETRY_MESSAGE_MESSAGE_ID_FORMAT
+#define C2D_MESSAGE_FORMAT TELEMETRY_MESSAGE_FORMAT
 
 #ifdef MBED_BUILD_TIMESTAMP
 #define SET_TRUSTED_CERT_IN_SAMPLES
@@ -699,6 +700,55 @@ static int send_telemetry(const void* context)
     return result;
 }
 
+static int send_c2d(const void* context)
+{
+    int result;
+    IOTHUB_LONGHAUL_RESOURCES* longhaulResources = (IOTHUB_LONGHAUL_RESOURCES*)context;
+    unsigned int message_id;
+
+    if ((message_id = generate_unique_id(longhaulResources)) == 0)
+    {
+        LogError("Failed generating telemetry message id");
+        result = __FAILURE__;
+    }
+    else
+    {
+        char message[80];
+
+        if (sprintf_s(message, sizeof(message), C2D_MESSAGE_FORMAT, longhaulResources->test_id, message_id) <= 0)
+        {
+            LogError("Failed creating C2D message text");
+            result = __FAILURE__;
+        }
+        else
+        {
+            C2D_MESSAGE_INFO c2d_msg_info;
+            c2d_msg_info.message_id = message_id;
+            c2d_msg_info.time_sent = time(NULL);
+
+            if (IoTHubTest_SendMessage(longhaulResources->iotHubTestHandle, (const unsigned char*)message, strlen(message)) != IOTHUB_TEST_CLIENT_OK)
+            {
+                LogError("Failed sending cloud-to-device message");
+                result = __FAILURE__;
+            }
+            else
+            {
+                result = 0;
+            }
+
+            c2d_msg_info.send_result = result;
+
+            if (iothub_client_statistics_add_c2d_info(longhaulResources->iotHubClientStats, C2D_SENT, &c2d_msg_info) != 0)
+            {
+                LogError("Failed adding C2D message statistics info (message_id=%d)", message_id);
+                result = __FAILURE__;
+            }
+        }
+    }
+
+    return result;
+}
+
 int longhaul_run_telemetry_tests(IOTHUB_LONGHAUL_RESOURCES_HANDLE handle, size_t iterationDurationInSeconds, size_t totalDurationInSeconds)
 {
     int result;
@@ -776,11 +826,67 @@ int longhaul_run_telemetry_tests(IOTHUB_LONGHAUL_RESOURCES_HANDLE handle, size_t
 
 int longhaul_run_c2d_tests(IOTHUB_LONGHAUL_RESOURCES_HANDLE handle, size_t iterationDurationInSeconds, size_t totalDurationInSeconds)
 {
-    (void)handle;
-    (void)iterationDurationInSeconds;
-    (void)totalDurationInSeconds;
-    // TO BE SENT ON A SEPARATE CODE REVIEW
-    return 0;
+    int result;
+
+    if (handle == NULL)
+    {
+        LogError("Invalig argument (handle is NULL)");
+        result = __FAILURE__;
+    }
+    else
+    {
+        IOTHUB_LONGHAUL_RESOURCES* iotHubLonghaulRsrcs = (IOTHUB_LONGHAUL_RESOURCES*)handle;
+
+        if (iotHubLonghaulRsrcs->iotHubClientHandle == NULL || iotHubLonghaulRsrcs->deviceInfo == NULL)
+        {
+            LogError("IoTHubClient not initialized.");
+            result = __FAILURE__;
+        }
+        else
+        {
+            int loop_result;
+            IOTHUB_CLIENT_STATISTICS_HANDLE stats_handle;
+
+            loop_result = run_on_loop(send_c2d, iterationDurationInSeconds, totalDurationInSeconds, iotHubLonghaulRsrcs);
+
+            ThreadAPI_Sleep(iterationDurationInSeconds * 1000 * 10); // Extra time for the last messages.
+
+            stats_handle = longhaul_get_statistics(iotHubLonghaulRsrcs);
+
+            LogInfo("Longhaul Cloud-to-Device stats: %s", iothub_client_statistics_to_json(stats_handle));
+
+            if (loop_result != 0)
+            {
+                result = __FAILURE__;
+            }
+            else
+            {
+                IOTHUB_CLIENT_STATISTICS_C2D_SUMMARY summary;
+
+                if (iothub_client_statistics_get_c2d_summary(stats_handle, &summary) != 0)
+                {
+                    LogError("Failed gettting statistics summary");
+                    result = __FAILURE__;
+                }
+                else
+                {
+                    LogInfo("Summary: Messages sent=%d, received=%d; travel time: min=%f secs, max=%f secs",
+                        summary.messages_sent, summary.messages_received, summary.min_travel_time_secs, summary.max_travel_time_secs);
+
+                    if (summary.messages_sent == 0 || summary.messages_received != summary.messages_sent || summary.max_travel_time_secs > MAX_TELEMETRY_TRAVEL_TIME_SECS)
+                    {
+                        result = __FAILURE__;
+                    }
+                    else
+                    {
+                        result = 0;
+                    }
+                }
+            }
+        }
+    }
+
+    return result;
 }
 
 int longhaul_run_device_methods_tests(IOTHUB_LONGHAUL_RESOURCES_HANDLE handle, size_t iterationDurationInSeconds, size_t totalDurationInSeconds)

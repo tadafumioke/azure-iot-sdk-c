@@ -588,3 +588,132 @@ int iothub_client_statistics_get_telemetry_summary(IOTHUB_CLIENT_STATISTICS_HAND
 
     return result;
 }
+
+static bool find_c2d_message_info_by_id(LIST_ITEM_HANDLE list_item, const void* match_context)
+{
+    C2D_MESSAGE_INFO* match_info = (C2D_MESSAGE_INFO*)match_context;
+    C2D_MESSAGE_INFO* item_info = (C2D_MESSAGE_INFO*)singlylinkedlist_item_get_value(list_item);
+
+    return (item_info->message_id == match_info->message_id);
+}
+
+int iothub_client_statistics_add_c2d_info(IOTHUB_CLIENT_STATISTICS_HANDLE handle, EVENT_TYPE type, C2D_MESSAGE_INFO* info)
+{
+    int result;
+
+    if (handle == NULL || info == NULL || (type != C2D_SENT && type != C2D_RECEIVED))
+    {
+        LogError("Invalid argument (handle=%p, type=%s, info=%p)", handle, ENUM_TO_STRING(EVENT_TYPE, type), info);
+        result = __FAILURE__;
+    }
+    else
+    {
+        IOTHUB_CLIENT_STATISTICS_HANDLE stats = (IOTHUB_CLIENT_STATISTICS*)handle;
+        C2D_MESSAGE_INFO* queued_info;
+        LIST_ITEM_HANDLE list_item = singlylinkedlist_find(stats->c2d_messages, find_c2d_message_info_by_id, info);
+
+        if (list_item == NULL)
+        {
+            if (type != C2D_SENT)
+            {
+                LogError("C2D message info not found for message %d (%d)", info->message_id, type);
+                result = __FAILURE__;
+            }
+            else if ((queued_info = (C2D_MESSAGE_INFO*)malloc(sizeof(C2D_MESSAGE_INFO))) == NULL)
+            {
+                LogError("Failed clonning the C2D_MESSAGE_INFO");
+                result = __FAILURE__;
+            }
+            else if (singlylinkedlist_add(stats->c2d_messages, queued_info) == NULL)
+            {
+                LogError("Failed adding c2d message info (message id: %d)", info->message_id);
+                free(queued_info);
+                result = __FAILURE__;
+            }
+            else
+            {
+                queued_info->message_id = info->message_id;
+                queued_info->time_sent = info->time_sent;
+                queued_info->send_result = info->send_result;
+                queued_info->time_received = INDEFINITE_TIME;
+
+                result = 0;
+            }
+        }
+        else
+        {
+            if (type != C2D_RECEIVED)
+            {
+                LogError("C2D message %d added, invalid event type (%d)", info->message_id, type);
+                result = __FAILURE__;
+            }
+            else if ((queued_info = (C2D_MESSAGE_INFO*)singlylinkedlist_item_get_value(list_item)) == NULL)
+            {
+                LogError("Failed retrieving queued c2d message info (message id: %d)", info->message_id);
+                result = __FAILURE__;
+            }
+            else
+            {
+                queued_info->time_received = info->time_received;
+
+                result = 0;
+            }
+        }
+    }
+
+    return result;
+}
+
+int iothub_client_statistics_get_c2d_summary(IOTHUB_CLIENT_STATISTICS_HANDLE handle, IOTHUB_CLIENT_STATISTICS_C2D_SUMMARY* summary)
+{
+    int result;
+
+    if (handle == NULL || summary == NULL)
+    {
+        LogError("Invalid argument (handle=%p, summary=%p)", handle, summary);
+        result = __FAILURE__;
+    }
+    else
+    {
+        IOTHUB_CLIENT_STATISTICS_HANDLE stats = (IOTHUB_CLIENT_STATISTICS*)handle;
+        LIST_ITEM_HANDLE list_item;
+
+        (void)memset(summary, 0, sizeof(IOTHUB_CLIENT_STATISTICS_C2D_SUMMARY));
+        summary->min_travel_time_secs = LONG_MAX;
+
+        list_item = singlylinkedlist_get_head_item(stats->c2d_messages);
+
+        while (list_item != NULL)
+        {
+            C2D_MESSAGE_INFO* c2d_msg_info = (C2D_MESSAGE_INFO*)singlylinkedlist_item_get_value(list_item);
+
+            if (c2d_msg_info->time_sent != INDEFINITE_TIME)
+            {
+                summary->messages_sent = summary->messages_sent + 1;
+
+                if (c2d_msg_info->time_received != INDEFINITE_TIME)
+                {
+                    double travel_time = difftime(c2d_msg_info->time_received, c2d_msg_info->time_sent);
+
+                    if (travel_time < summary->min_travel_time_secs)
+                    {
+                        summary->min_travel_time_secs = travel_time;
+                    }
+
+                    if (travel_time > summary->max_travel_time_secs)
+                    {
+                        summary->max_travel_time_secs = travel_time;
+                    }
+
+                    summary->messages_received = summary->messages_received + 1;
+                }
+            }
+
+            list_item = singlylinkedlist_get_next_item(list_item);
+        }
+
+        result = 0;
+    }
+
+    return result;
+}
