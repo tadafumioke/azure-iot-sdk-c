@@ -45,6 +45,7 @@ target_link_libraries(iothub_client_sample_http_shared
 #iothubclient is here only because locking... in gballoc no less.
 	iothub_client
 	iothub_client_http_transport
+	parson
 )
 
 linkSharedUtil(iothub_client_sample_http_shared)

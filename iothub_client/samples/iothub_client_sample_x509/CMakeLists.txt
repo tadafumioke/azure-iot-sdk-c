@@ -52,3 +52,5 @@ if(${use_mqtt})
     linkMqttLibrary(iothub_client_sample_x509)
     add_definitions(-DUSE_MQTT)
 endif()
+
+target_link_libraries(iothub_client_sample_x509 parson)

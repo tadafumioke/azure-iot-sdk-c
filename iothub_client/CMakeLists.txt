@@ -18,10 +18,21 @@ set(iothub_client_ll_transport_c_files
     ./src/iothub_client_diagnostic.c
  )
 
-if(NOT ${dont_use_uploadtoblob})
+set(install_staticlibs
+    iothub_client
+)
+
+add_library(parson
+	../deps/parson/parson.c
+)
+
+set(install_staticlibs ${install_staticlibs}
+	parson
+)
+    
+if(NOT dont_use_uploadtoblob)
     set(iothub_client_ll_transport_c_files 
         ${iothub_client_ll_transport_c_files}
-        ../deps/parson/parson.c
         ./src/iothub_client_ll_uploadtoblob.c
         ./src/blob.c
     )
@@ -35,10 +46,6 @@ if(NOT ${dont_use_uploadtoblob})
         set_source_files_properties(../deps/parson/parson.c PROPERTIES COMPILE_FLAGS "/wd4244 /wd4232")
     endif()
 endif()
-
-set(install_staticlibs
-    iothub_client
-)
 
 set(iothub_client_ll_transport_h_files
     ./inc/iothub_client_authorization.h
@@ -63,7 +70,6 @@ endif()
 if(NOT ${dont_use_uploadtoblob})
     set(iothub_client_ll_transport_h_files 
         ${iothub_client_ll_transport_h_files}
-        ../deps/parson/parson.h
         ./inc/iothub_client_ll_uploadtoblob.h
     )
 endif()
@@ -233,6 +239,7 @@ endif()
 
 set(IOTHUB_CLIENT_INC_FOLDER ${CMAKE_CURRENT_LIST_DIR}/inc CACHE INTERNAL "this is what needs to be included if using iothub_client lib" FORCE)
 
+
 if(NOT ${dont_use_uploadtoblob})
     include_directories(../deps/parson)
 endif()
@@ -242,7 +249,7 @@ include_directories(${AZURE_C_SHARED_UTILITY_INCLUDES})
 include_directories(${SHARED_UTIL_INC_FOLDER})
 
 if (WINCE)
-include_directories(${SHARED_UTIL_INC_FOLDER}/azure_c_shared_utility/windowsce) #windowsce SDK doesn't have stdbool.h
+	include_directories(${SHARED_UTIL_INC_FOLDER}/azure_c_shared_utility/windowsce) #windowsce SDK doesn't have stdbool.h
 ENDIF()
 
 include_directories(${IOTHUB_CLIENT_INC_FOLDER})
@@ -261,17 +268,58 @@ IF(WIN32)
     ENDIF(WINCE)
 ENDIF(WIN32)
 
+# if(${use_http})
+    # include_directories(${IOTHUB_CLIENT_HTTP_TRANSPORT_INC_FOLDER})
+    # add_library(iothub_client_http_transport 
+        # ${iothub_client_http_transport_c_files} 
+        # ${iothub_client_http_transport_h_files}
+    # )
+    # linkSharedUtil(iothub_client_http_transport)
+    # set(iothub_client_libs
+        # ${iothub_client_libs}
+        # iothub_client_http_transport
+    # )
+# endif()
+
 if(${use_http})
     include_directories(${IOTHUB_CLIENT_HTTP_TRANSPORT_INC_FOLDER})
-    add_library(iothub_client_http_transport 
+    add_library(iothub_client_http_transport_obj OBJECT
         ${iothub_client_http_transport_c_files} 
         ${iothub_client_http_transport_h_files}
     )
+    
+    add_library(iothub_client_http_transport $<TARGET_OBJECTS:iothub_client_http_transport_obj>)
+    
     linkSharedUtil(iothub_client_http_transport)
     set(iothub_client_libs
         ${iothub_client_libs}
         iothub_client_http_transport
     )
+    
+    if(build_as_dynamic)
+        add_library(iothub_client_http_transport_dll SHARED $<TARGET_OBJECTS:iothub_client_http_transport_obj>)
+        target_link_libraries(iothub_client_http_transport_dll 
+            aziotsharedutil
+            iothub_client 
+            parson
+            uhttp
+        )
+        if ("${CMAKE_COMPILER_ID}" STREQUAL "GNU")
+            target_link_libraries(iothub_client_http_transport_dll 
+                "-Wl,--exclude-libs,libparson.a"
+			)
+        endif()
+        set_target_properties(iothub_client_http_transport_dll PROPERTIES 
+            OUTPUT_NAME "iothub_client_http_transport"
+            ARCHIVE_OUTPUT_NAME "iothub_client_http_transport_dll_import"
+            ENABLE_EXPORTS YES
+            WINDOWS_EXPORT_ALL_SYMBOLS YES
+            VERSION ${IOT_SDK_VERSION}
+            SOVERSION ${IOT_SDK_VERION_MAJOR}
+			BUILD_WITH_INSTALL_RPATH TRUE
+        )
+        set(install_staticlibs ${install_staticlibs} iothub_client_http_transport_dll)
+    endif(build_as_dynamic)
 endif()
 
 if(${use_amqp})

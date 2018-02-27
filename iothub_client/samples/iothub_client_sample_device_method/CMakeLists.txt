@@ -38,5 +38,6 @@ target_link_libraries(iothub_client_sample_device_method
     iothub_client_amqp_transport
     uamqp
     iothub_client 
+	parson
 )
 

@@ -42,3 +42,5 @@ if(${use_mqtt})
     linkMqttLibrary(iothub_ll_telemetry_sample)
     add_definitions(-DUSE_MQTT)
 endif()
+
+target_link_libraries(iothub_ll_telemetry_sample parson)

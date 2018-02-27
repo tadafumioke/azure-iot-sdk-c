@@ -40,3 +40,5 @@ if(${use_mqtt})
     linkMqttLibrary(iothub_ll_c2d_sample)
     add_definitions(-DUSE_MQTT)
 endif()
+
+target_link_libraries(iothub_ll_c2d_sample parson)

@@ -35,8 +35,10 @@ include_directories(.)
 add_executable(iothub_ll_client_sample_amqp_shared ${iothub_ll_client_sample_amqp_shared_c_files} ${iothub_ll_client_sample_amqp_shared_h_files} ${samples_cert_file})
 
 target_link_libraries(iothub_ll_client_sample_amqp_shared
-		iothub_client
-		iothub_client_amqp_transport)
+	iothub_client
+	iothub_client_amqp_transport
+	parson
+)
 
 linkSharedUtil(iothub_ll_client_sample_amqp_shared)
 linkUAMQP(iothub_ll_client_sample_amqp_shared)
