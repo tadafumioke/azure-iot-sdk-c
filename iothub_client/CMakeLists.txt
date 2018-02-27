@@ -283,13 +283,10 @@ ENDIF(WIN32)
 
 if(${use_http})
     include_directories(${IOTHUB_CLIENT_HTTP_TRANSPORT_INC_FOLDER})
-    add_library(iothub_client_http_transport_obj OBJECT
+    add_library(iothub_client_http_transport 
         ${iothub_client_http_transport_c_files} 
         ${iothub_client_http_transport_h_files}
     )
-    
-    add_library(iothub_client_http_transport $<TARGET_OBJECTS:iothub_client_http_transport_obj>)
-    
     linkSharedUtil(iothub_client_http_transport)
     set(iothub_client_libs
         ${iothub_client_libs}
@@ -297,7 +294,10 @@ if(${use_http})
     )
     
     if(build_as_dynamic)
-        add_library(iothub_client_http_transport_dll SHARED $<TARGET_OBJECTS:iothub_client_http_transport_obj>)
+        add_library(iothub_client_http_transport_dll SHARED 
+			${iothub_client_http_transport_c_files} 
+			${iothub_client_http_transport_h_files}
+		)
         target_link_libraries(iothub_client_http_transport_dll 
             aziotsharedutil
             iothub_client 
