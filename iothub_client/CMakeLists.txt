@@ -288,6 +288,7 @@ if(${use_http})
         ${iothub_client_http_transport_h_files}
     )
     linkSharedUtil(iothub_client_http_transport)
+	target_link_libraries(iothub_client_http_transport parson)
     set(iothub_client_libs
         ${iothub_client_libs}
         iothub_client_http_transport
@@ -330,6 +331,7 @@ if(${use_amqp})
         ${iothub_client_amqp_transport_h_files}
     )
     linkSharedUtil(iothub_client_amqp_transport)
+	target_link_libraries(iothub_client_amqp_transport parson)
     set(iothub_client_libs
         ${iothub_client_libs}
         iothub_client_amqp_transport
@@ -341,6 +343,7 @@ if(${use_amqp})
         ${iothub_client_amqp_ws_transport_h_files}
     )
     linkSharedUtil(iothub_client_amqp_ws_transport)
+    target_link_libraries(iothub_client_amqp_ws_transport parson)
     set(iothub_client_libs
         ${iothub_client_libs}
         iothub_client_amqp_ws_transport
@@ -356,6 +359,7 @@ if(${use_mqtt})
     )
     linkSharedUtil(iothub_client_mqtt_transport)
     linkMqttLibrary(iothub_client_mqtt_transport)
+	target_link_libraries(iothub_client_mqtt_transport parson)
 
     set(iothub_client_libs
         ${iothub_client_libs}
@@ -368,6 +372,7 @@ if(${use_mqtt})
     )
     linkSharedUtil(iothub_client_mqtt_ws_transport)
     linkMqttLibrary(iothub_client_mqtt_ws_transport)
+	target_link_libraries(iothub_client_mqtt_ws_transport parson)
     set(iothub_client_libs
         ${iothub_client_libs}
         iothub_client_mqtt_ws_transport
