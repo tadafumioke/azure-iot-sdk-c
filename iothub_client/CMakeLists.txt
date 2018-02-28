@@ -288,7 +288,7 @@ if(${use_http})
         ${iothub_client_http_transport_h_files}
     )
     linkSharedUtil(iothub_client_http_transport)
-	target_link_libraries(iothub_client_http_transport parson)
+	target_link_libraries(iothub_client_http_transport) # parson)
     set(iothub_client_libs
         ${iothub_client_libs}
         iothub_client_http_transport
@@ -302,7 +302,7 @@ if(${use_http})
         target_link_libraries(iothub_client_http_transport_dll 
             aziotsharedutil
             iothub_client 
-            parson
+            #parson
             uhttp
         )
         if ("${CMAKE_COMPILER_ID}" STREQUAL "GNU")
@@ -331,7 +331,7 @@ if(${use_amqp})
         ${iothub_client_amqp_transport_h_files}
     )
     linkSharedUtil(iothub_client_amqp_transport)
-	target_link_libraries(iothub_client_amqp_transport parson)
+	target_link_libraries(iothub_client_amqp_transport) # parson)
     set(iothub_client_libs
         ${iothub_client_libs}
         iothub_client_amqp_transport
@@ -343,7 +343,7 @@ if(${use_amqp})
         ${iothub_client_amqp_ws_transport_h_files}
     )
     linkSharedUtil(iothub_client_amqp_ws_transport)
-    target_link_libraries(iothub_client_amqp_ws_transport parson)
+    target_link_libraries(iothub_client_amqp_ws_transport) # parson)
     set(iothub_client_libs
         ${iothub_client_libs}
         iothub_client_amqp_ws_transport
@@ -359,7 +359,7 @@ if(${use_mqtt})
     )
     linkSharedUtil(iothub_client_mqtt_transport)
     linkMqttLibrary(iothub_client_mqtt_transport)
-	target_link_libraries(iothub_client_mqtt_transport parson)
+	target_link_libraries(iothub_client_mqtt_transport) # parson)
 
     set(iothub_client_libs
         ${iothub_client_libs}
@@ -372,7 +372,7 @@ if(${use_mqtt})
     )
     linkSharedUtil(iothub_client_mqtt_ws_transport)
     linkMqttLibrary(iothub_client_mqtt_ws_transport)
-	target_link_libraries(iothub_client_mqtt_ws_transport parson)
+	target_link_libraries(iothub_client_mqtt_ws_transport) # parson)
     set(iothub_client_libs
         ${iothub_client_libs}
         iothub_client_mqtt_ws_transport
@@ -417,7 +417,7 @@ add_library(iothub_client
     ${iothub_client_c_files} 
     ${iothub_client_h_files}
 )
-target_link_libraries(iothub_client ${iothub_client_libs})
+target_link_libraries(iothub_client ${iothub_client_libs} parson)
 
 if (${use_prov_client})
     target_link_libraries(iothub_client hsm_security_client prov_auth_client)
