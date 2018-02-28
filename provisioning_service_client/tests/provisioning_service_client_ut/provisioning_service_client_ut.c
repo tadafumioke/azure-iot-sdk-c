@@ -42,6 +42,7 @@ static void real_free(void* ptr)
 
 #include "provisioning_sc_enrollment.h"
 #include "provisioning_sc_models_serializer.h"
+#include "provisioning_sc_shared_helpers.h"
 
 #undef ENABLE_MOCKS
 
@@ -241,6 +242,30 @@ static int my_mallocAndStrcpy_s(char** destination, const char* source)
     return 0;
 }
 
+static int my_mallocAndStrcpy_overwrite(char** destination, const char* source)
+{
+    int result = 0;
+    char* temp = NULL;
+
+    if (destination == NULL || source == NULL)
+    {
+        LogError("Invalid input");
+        result = __FAILURE__;
+    }
+    else if (my_mallocAndStrcpy_s(&temp, source) != 0)
+    {
+        LogError("Failed to copy value from source");
+        result = __FAILURE__;
+    }
+    else
+    {
+        real_free(*destination);
+        *destination = temp;
+    }
+
+    return result;
+}
+
 static HTTP_HEADERS_HANDLE my_HTTPHeaders_Alloc(void)
 {
     return (HTTP_HEADERS_HANDLE)real_malloc(1);
@@ -280,7 +305,7 @@ static INDIVIDUAL_ENROLLMENT_HANDLE my_individualEnrollment_deserializeFromJson(
 {
     INDIVIDUAL_ENROLLMENT_HANDLE result;
     if (json_string != NULL)
-        result = real_malloc(1);
+        result = (INDIVIDUAL_ENROLLMENT_HANDLE)real_malloc(1);
     else
         result = NULL;
     return result;
@@ -290,7 +315,7 @@ static ENROLLMENT_GROUP_HANDLE my_enrollmentGroup_deserializeFromJson(const char
 {
     ENROLLMENT_GROUP_HANDLE result;
     if (json_string != NULL)
-        result = real_malloc(1);
+        result = (ENROLLMENT_GROUP_HANDLE)real_malloc(1);
     else
         result = NULL;
     return result;
@@ -357,7 +382,7 @@ static char* my_individualEnrollment_serializeToJson(INDIVIDUAL_ENROLLMENT_HANDL
     (void)handle;
     char* result = NULL;
     size_t len = strlen(TEST_ENROLLMENT_JSON);
-    result = real_malloc(len + 1);
+    result = (char*)real_malloc(len + 1);
     strncpy(result, TEST_ENROLLMENT_JSON, len + 1);
     return result;
 }
@@ -367,7 +392,7 @@ static char* my_enrollmentGroup_serializeToJson(ENROLLMENT_GROUP_HANDLE handle)
     (void)handle;
     char* result = NULL;
     size_t len = strlen(TEST_ENROLLMENT_JSON);
-    result = real_malloc(len + 1);
+    result = (char*)real_malloc(len + 1);
     strncpy(result, TEST_ENROLLMENT_JSON, len + 1);
     return result;
 }
@@ -383,7 +408,10 @@ static void register_global_mock_hooks()
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(Map_GetValueFromKey, NULL);
 
     REGISTER_GLOBAL_MOCK_HOOK(mallocAndStrcpy_s, my_mallocAndStrcpy_s);
-    REGISTER_GLOBAL_MOCK_FAIL_RETURN(mallocAndStrcpy_s, __LINE__);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(mallocAndStrcpy_s, __FAILURE__);
+
+    REGISTER_GLOBAL_MOCK_HOOK(mallocAndStrcpy_overwrite, my_mallocAndStrcpy_overwrite);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(mallocAndStrcpy_overwrite, __FAILURE__);
 
     REGISTER_GLOBAL_MOCK_HOOK(STRING_construct, my_STRING_construct);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(STRING_construct, NULL);
@@ -489,7 +517,7 @@ static void register_global_mock_alias_types()
     REGISTER_UMOCK_ALIAS_TYPE(ON_HTTP_REQUEST_CALLBACK, void*);
     REGISTER_UMOCK_ALIAS_TYPE(ON_HTTP_CLOSED_CALLBACK, void*);
     REGISTER_UMOCK_ALIAS_TYPE(HTTP_CLIENT_HANDLE, void*);
-    REGISTER_UMOCK_ALIAS_TYPE(HTTP_CLIENT_REQUEST_TYPE, void*);
+    REGISTER_UMOCK_ALIAS_TYPE(HTTP_CLIENT_REQUEST_TYPE, int);
 }
 
 BEGIN_TEST_SUITE(provisioning_service_client_ut)
@@ -551,7 +579,7 @@ static int should_skip_index(size_t current_index, const size_t skip_array[], si
     {
         if (current_index == skip_array[index])
         {
-            result = __LINE__;
+            result = __FAILURE__;
             break;
         }
     }
@@ -832,7 +860,7 @@ TEST_FUNCTION(prov_sc_set_certificate_GOLDEN)
     PROVISIONING_SERVICE_CLIENT_HANDLE sc = prov_sc_create_from_connection_string(TEST_CONNECTION_STRING);
     umock_c_reset_all_calls();
 
-    expected_calls_mallocAndStrcpy_overwrite();
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_overwrite(IGNORED_PTR_ARG, TEST_TRUSTED_CERT));
 
     //act
     int result = prov_sc_set_certificate(sc, TEST_TRUSTED_CERT);
@@ -855,20 +883,19 @@ TEST_FUNCTION(prov_sc_set_certificate_FAIL)
     PROVISIONING_SERVICE_CLIENT_HANDLE sc = prov_sc_create_from_connection_string(TEST_CONNECTION_STRING);
     umock_c_reset_all_calls();
 
-    expected_calls_mallocAndStrcpy_overwrite();
+    STRICT_EXPECTED_CALL(mallocAndStrcpy_overwrite(IGNORED_PTR_ARG, TEST_TRUSTED_CERT));
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 1 };
+    //size_t calls_cannot_fail[] = { };
     size_t count = umock_c_negative_tests_call_count();
-    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
-
+    size_t num_cannot_fail = 0; //sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
     size_t test_num = 0;
     size_t test_max = count - num_cannot_fail;
 
     for (size_t index = 0; index < count; index++)
     {
-        if (should_skip_index(index, calls_cannot_fail, sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0])) != 0)
+        if (should_skip_index(index, NULL, num_cannot_fail) != 0)
             continue;
         test_num++;
 
@@ -1123,7 +1150,46 @@ TEST_FUNCTION(prov_sc_create_or_update_individual_enrollment_GOLDEN)
     STRICT_EXPECTED_CALL(individualEnrollment_serializeToJson(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(individualEnrollment_getRegistrationId(IGNORED_PTR_ARG));
     expected_calls_construct_registration_path();
+    STRICT_EXPECTED_CALL(individualEnrollment_getEtag(IGNORED_PTR_ARG)).SetReturn(NULL);
     expected_calls_construct_http_headers(NO_ETAG, HTTP_CLIENT_REQUEST_PUT);
+    STRICT_EXPECTED_CALL(STRING_c_str(IGNORED_PTR_ARG));
+    expected_calls_rest_call(HTTP_CLIENT_REQUEST_PUT, RESPONSE);
+    STRICT_EXPECTED_CALL(individualEnrollment_deserializeFromJson(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(individualEnrollment_destroy(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //cannot fail
+    STRICT_EXPECTED_CALL(HTTPHeaders_Free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(STRING_delete(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //cannot fail
+
+    //act
+    int res = prov_sc_create_or_update_individual_enrollment(sc, &ie);
+
+    //assert
+    ASSERT_ARE_EQUAL(int, res, 0);
+    ASSERT_IS_TRUE(old_ie != ie); //ie was changed by the function
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    //cleanup
+    prov_sc_destroy(sc);
+    individualEnrollment_destroy(ie);
+}
+
+/* Tests_PROVISIONING_SERVICE_CLIENT_22_007: [ A 'PUT' REST call shall be issued to create/update the enrollment record of a device on the Provisioning Service, using data contained in enrollment_ptr ] */
+/* Tests_PROVISIONING_SERVICE_CLIENT_22_044: [ The data in enrollment_ptr will be updated to reflect new information added by the Provisioning Service ] */
+/* Tests_PROVISIONING_SERVICE_CLIENT_22_009: [ Upon a successful create or update, prov_sc_create_or_update_individual_enrollment shall return 0 ] */
+TEST_FUNCTION(prov_sc_create_or_update_individual_enrollment_GOLDEN_w_etag)
+{
+    //arrange
+    PROVISIONING_SERVICE_CLIENT_HANDLE sc = prov_sc_create_from_connection_string(TEST_CONNECTION_STRING);
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, TEST_ATT_MECH_HANDLE);
+    INDIVIDUAL_ENROLLMENT_HANDLE old_ie = ie;
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(individualEnrollment_serializeToJson(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(individualEnrollment_getRegistrationId(IGNORED_PTR_ARG));
+    expected_calls_construct_registration_path();
+    STRICT_EXPECTED_CALL(individualEnrollment_getEtag(IGNORED_PTR_ARG));
+    expected_calls_construct_http_headers(ETAG, HTTP_CLIENT_REQUEST_PUT);
     STRICT_EXPECTED_CALL(STRING_c_str(IGNORED_PTR_ARG));
     expected_calls_rest_call(HTTP_CLIENT_REQUEST_PUT, RESPONSE);
     STRICT_EXPECTED_CALL(individualEnrollment_deserializeFromJson(IGNORED_PTR_ARG));
@@ -1175,6 +1241,7 @@ TEST_FUNCTION(prov_sc_create_or_update_individual_enrollment_GOLDEN_ALL_HTTP_OPT
     STRICT_EXPECTED_CALL(individualEnrollment_serializeToJson(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(individualEnrollment_getRegistrationId(IGNORED_PTR_ARG));
     expected_calls_construct_registration_path();
+    STRICT_EXPECTED_CALL(individualEnrollment_getEtag(IGNORED_PTR_ARG)).SetReturn(NULL);
     expected_calls_construct_http_headers(NO_ETAG, HTTP_CLIENT_REQUEST_PUT);
     STRICT_EXPECTED_CALL(STRING_c_str(IGNORED_PTR_ARG));
     expected_calls_rest_call(HTTP_CLIENT_REQUEST_PUT, RESPONSE);
@@ -1200,7 +1267,7 @@ TEST_FUNCTION(prov_sc_create_or_update_individual_enrollment_GOLDEN_ALL_HTTP_OPT
 
 /* Tests_PROVISIONING_SERVICE_CLIENT_22_008: [ If the 'PUT' REST call fails, prov_sc_create_or_update_individual_enrollment shall fail and return a non-zero value ] */
 /* Tests_PROVISIONING_SERVICE_CLIENT_22_045: [ If receiving the response from the Provisioning Service fails, prov_sc_create_or_update_individual_enrollment shall fail and return a non-zero value. ] */
-TEST_FUNCTION(prov_sc_create_or_update_individual_enrollment_FAIL)
+TEST_FUNCTION(prov_sc_create_or_update_individual_enrollment_FAIL_null_etag)
 {
     //arrange
     int negativeTestsInitResult = umock_c_negative_tests_init();
@@ -1214,6 +1281,7 @@ TEST_FUNCTION(prov_sc_create_or_update_individual_enrollment_FAIL)
     STRICT_EXPECTED_CALL(individualEnrollment_serializeToJson(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(individualEnrollment_getRegistrationId(IGNORED_PTR_ARG));
     expected_calls_construct_registration_path();
+    STRICT_EXPECTED_CALL(individualEnrollment_getEtag(IGNORED_PTR_ARG)).SetReturn(NULL); //cannot fail
     expected_calls_construct_http_headers(NO_ETAG, HTTP_CLIENT_REQUEST_PUT);
     STRICT_EXPECTED_CALL(STRING_c_str(IGNORED_PTR_ARG)); //does not fail
     expected_calls_rest_call(HTTP_CLIENT_REQUEST_PUT, RESPONSE);
@@ -1226,7 +1294,70 @@ TEST_FUNCTION(prov_sc_create_or_update_individual_enrollment_FAIL)
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 3, 4, 6, 11, 13, 14, 18, 19, 20, 22, 23, 25, 26, 27, 28, 29 };
+    size_t calls_cannot_fail[] = { 3, 4, 5, 7, 12, 14, 15, 19, 20, 21, 23, 24, 26, 27, 28, 29, 30 };
+    size_t count = umock_c_negative_tests_call_count();
+    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
+
+    size_t test_num = 0;
+    size_t test_max = count - num_cannot_fail;
+
+    for (size_t index = 0; index < count; index++)
+    {
+        if (should_skip_index(index, calls_cannot_fail, sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0])) != 0)
+            continue;
+        test_num++;
+
+        char tmp_msg[128];
+        sprintf(tmp_msg, "prov_sc_create_or_update_individual_enrollment failure in test %zu/%zu", test_num, test_max);
+
+        umock_c_negative_tests_reset();
+        umock_c_negative_tests_fail_call(index);
+
+        //act
+        int res = prov_sc_create_or_update_individual_enrollment(sc, &ie);
+
+        //assert
+        ASSERT_ARE_NOT_EQUAL_WITH_MSG(int, res, 0, tmp_msg);
+
+        g_uhttp_client_dowork_call_count = 0;
+    }
+
+    //cleanup
+    prov_sc_destroy(sc);
+    individualEnrollment_destroy(ie);
+    umock_c_negative_tests_deinit();
+}
+
+/* Tests_PROVISIONING_SERVICE_CLIENT_22_008: [ If the 'PUT' REST call fails, prov_sc_create_or_update_individual_enrollment shall fail and return a non-zero value ] */
+/* Tests_PROVISIONING_SERVICE_CLIENT_22_045: [ If receiving the response from the Provisioning Service fails, prov_sc_create_or_update_individual_enrollment shall fail and return a non-zero value. ] */
+TEST_FUNCTION(prov_sc_create_or_update_individual_enrollment_FAIL_w_etag)
+{
+    //arrange
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    PROVISIONING_SERVICE_CLIENT_HANDLE sc = prov_sc_create_from_connection_string(TEST_CONNECTION_STRING);
+    INDIVIDUAL_ENROLLMENT_HANDLE ie = individualEnrollment_create(TEST_REGID, TEST_ATT_MECH_HANDLE);
+
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(individualEnrollment_serializeToJson(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(individualEnrollment_getRegistrationId(IGNORED_PTR_ARG));
+    expected_calls_construct_registration_path();
+    STRICT_EXPECTED_CALL(individualEnrollment_getEtag(IGNORED_PTR_ARG)); //cannot fail
+    expected_calls_construct_http_headers(ETAG, HTTP_CLIENT_REQUEST_PUT);
+    STRICT_EXPECTED_CALL(STRING_c_str(IGNORED_PTR_ARG)); //does not fail
+    expected_calls_rest_call(HTTP_CLIENT_REQUEST_PUT, RESPONSE);
+    STRICT_EXPECTED_CALL(individualEnrollment_deserializeFromJson(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(individualEnrollment_destroy(IGNORED_PTR_ARG)); //does not fail
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //does not fail
+    STRICT_EXPECTED_CALL(HTTPHeaders_Free(IGNORED_PTR_ARG)); //does not fail
+    STRICT_EXPECTED_CALL(STRING_delete(IGNORED_PTR_ARG)); //does not fail
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //cannot fail
+
+    umock_c_negative_tests_snapshot();
+
+    size_t calls_cannot_fail[] = { 3, 4, 5, 7, 12, 15, 16, 20, 21, 22, 24, 25, 27, 28, 29, 30, 31 };
     size_t count = umock_c_negative_tests_call_count();
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
 
@@ -1291,6 +1422,7 @@ TEST_FUNCTION(prov_sc_create_or_update_individual_enrollment_FAIL_ALL_HTTP_OPTIO
     STRICT_EXPECTED_CALL(individualEnrollment_serializeToJson(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(individualEnrollment_getRegistrationId(IGNORED_PTR_ARG));
     expected_calls_construct_registration_path();
+    STRICT_EXPECTED_CALL(individualEnrollment_getEtag(IGNORED_PTR_ARG)).SetReturn(NULL); //cannot fail
     expected_calls_construct_http_headers(NO_ETAG, HTTP_CLIENT_REQUEST_PUT);
     STRICT_EXPECTED_CALL(STRING_c_str(IGNORED_PTR_ARG)); //does not fail
     expected_calls_rest_call(HTTP_CLIENT_REQUEST_PUT, RESPONSE);
@@ -1303,7 +1435,7 @@ TEST_FUNCTION(prov_sc_create_or_update_individual_enrollment_FAIL_ALL_HTTP_OPTIO
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 3, 4, 6, 11, 13, 14, 15, 21, 23, 25, 26, 28, 29, 30, 31, 32 };
+    size_t calls_cannot_fail[] = { 3, 4, 5,  7, 12, 14, 15, 16, 22, 24, 26, 27, 29, 30, 31, 32, 33 };
     size_t count = umock_c_negative_tests_call_count();
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
 
@@ -1844,7 +1976,7 @@ TEST_FUNCTION(prov_sc_create_or_update_enrollment_group_ERROR_INPUT_NULL_EG_HAND
 /* Tests_PROVISIONING_SERVICE_CLIENT_22_031: [ A 'PUT' REST call shall be issued to create/update the device enrollment group on the Provisioning Service, using data contained in enrollment_ptr ] */
 /* Tests_PROVISIONING_SERVICE_CLIENT_22_051: [ The data in enrollment_ptr will be updated to reflect new information added by the Provisioning Service ] */
 /* Tests_PROVISIONING_SERVICE_CLIENT_22_033: [ Upon a successful create or update, prov_sc_create_or_update_enrollment_group shall return 0 ] */
-TEST_FUNCTION(prov_sc_create_or_update_enrollment_group_GOLDEN)
+TEST_FUNCTION(prov_sc_create_or_update_enrollment_group_GOLDEN_no_etag)
 {
     //arrange
     PROVISIONING_SERVICE_CLIENT_HANDLE sc = prov_sc_create_from_connection_string(TEST_CONNECTION_STRING);
@@ -1855,7 +1987,46 @@ TEST_FUNCTION(prov_sc_create_or_update_enrollment_group_GOLDEN)
     STRICT_EXPECTED_CALL(enrollmentGroup_serializeToJson(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(enrollmentGroup_getGroupId(IGNORED_PTR_ARG));
     expected_calls_construct_registration_path();
+    STRICT_EXPECTED_CALL(enrollmentGroup_getEtag(IGNORED_PTR_ARG)).SetReturn(NULL); //cannot fail
     expected_calls_construct_http_headers(NO_ETAG, HTTP_CLIENT_REQUEST_PUT);
+    STRICT_EXPECTED_CALL(STRING_c_str(IGNORED_PTR_ARG));
+    expected_calls_rest_call(HTTP_CLIENT_REQUEST_PUT, RESPONSE);
+    STRICT_EXPECTED_CALL(enrollmentGroup_deserializeFromJson(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(enrollmentGroup_destroy(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //cannot fail
+    STRICT_EXPECTED_CALL(HTTPHeaders_Free(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(STRING_delete(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //does not fail
+
+    //act
+    int res = prov_sc_create_or_update_enrollment_group(sc, &eg);
+
+    //assert
+    ASSERT_ARE_EQUAL(int, res, 0);
+    ASSERT_IS_TRUE(old_eg != eg); //eg was changed by the function
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+
+    //cleanup
+    prov_sc_destroy(sc);
+    enrollmentGroup_destroy(eg);
+}
+
+/* Tests_PROVISIONING_SERVICE_CLIENT_22_031: [ A 'PUT' REST call shall be issued to create/update the device enrollment group on the Provisioning Service, using data contained in enrollment_ptr ] */
+/* Tests_PROVISIONING_SERVICE_CLIENT_22_051: [ The data in enrollment_ptr will be updated to reflect new information added by the Provisioning Service ] */
+/* Tests_PROVISIONING_SERVICE_CLIENT_22_033: [ Upon a successful create or update, prov_sc_create_or_update_enrollment_group shall return 0 ] */
+TEST_FUNCTION(prov_sc_create_or_update_enrollment_group_GOLDEN_w_etag)
+{
+    //arrange
+    PROVISIONING_SERVICE_CLIENT_HANDLE sc = prov_sc_create_from_connection_string(TEST_CONNECTION_STRING);
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(TEST_GROUPID, TEST_ATT_MECH_HANDLE);
+    ENROLLMENT_GROUP_HANDLE old_eg = eg;
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(enrollmentGroup_serializeToJson(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(enrollmentGroup_getGroupId(IGNORED_PTR_ARG));
+    expected_calls_construct_registration_path();
+    STRICT_EXPECTED_CALL(enrollmentGroup_getEtag(IGNORED_PTR_ARG)); //cannot fail
+    expected_calls_construct_http_headers(ETAG, HTTP_CLIENT_REQUEST_PUT);
     STRICT_EXPECTED_CALL(STRING_c_str(IGNORED_PTR_ARG));
     expected_calls_rest_call(HTTP_CLIENT_REQUEST_PUT, RESPONSE);
     STRICT_EXPECTED_CALL(enrollmentGroup_deserializeFromJson(IGNORED_PTR_ARG));
@@ -1880,7 +2051,7 @@ TEST_FUNCTION(prov_sc_create_or_update_enrollment_group_GOLDEN)
 
 /* Tests_PROVISIONING_SERVICE_CLIENT_22_008: [ If the 'PUT' REST call fails, prov_sc_create_or_update_individual_enrollment shall fail and return a non-zero value ] */
 /* Tests_PROVISIONING_SERVICE_CLIENT_22_052: [ If receiving the response from the Provisioning Service fails, prov_sc_create_or_update_enrollment_group shall fail and return a non-zero value ] */
-TEST_FUNCTION(prov_sc_create_or_update_enrollment_group_FAIL)
+TEST_FUNCTION(prov_sc_create_or_update_enrollment_group_FAIL_no_etag)
 {
     //arrange
     int negativeTestsInitResult = umock_c_negative_tests_init();
@@ -1894,6 +2065,7 @@ TEST_FUNCTION(prov_sc_create_or_update_enrollment_group_FAIL)
     STRICT_EXPECTED_CALL(enrollmentGroup_serializeToJson(IGNORED_PTR_ARG));
     STRICT_EXPECTED_CALL(enrollmentGroup_getGroupId(IGNORED_PTR_ARG));
     expected_calls_construct_registration_path();
+    STRICT_EXPECTED_CALL(enrollmentGroup_getEtag(IGNORED_PTR_ARG)).SetReturn(NULL); //cannot fail
     expected_calls_construct_http_headers(NO_ETAG, HTTP_CLIENT_REQUEST_PUT);
     STRICT_EXPECTED_CALL(STRING_c_str(IGNORED_PTR_ARG)); //does not fail
     expected_calls_rest_call(HTTP_CLIENT_REQUEST_PUT, RESPONSE);
@@ -1906,7 +2078,70 @@ TEST_FUNCTION(prov_sc_create_or_update_enrollment_group_FAIL)
 
     umock_c_negative_tests_snapshot();
 
-    size_t calls_cannot_fail[] = { 3, 4, 6, 11, 13, 14, 18, 19, 20, 22, 23, 25, 26, 27, 28, 29 };
+    size_t calls_cannot_fail[] = { 3, 4, 5, 7, 12, 14, 15, 19, 20, 21, 23, 24, 26, 27, 28, 29, 30 };
+    size_t count = umock_c_negative_tests_call_count();
+    size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
+
+    size_t test_num = 0;
+    size_t test_max = count - num_cannot_fail;
+
+    for (size_t index = 0; index < count; index++)
+    {
+        if (should_skip_index(index, calls_cannot_fail, sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0])) != 0)
+            continue;
+        test_num++;
+
+        char tmp_msg[128];
+        sprintf(tmp_msg, "prov_sc_create_or_update_enrollment_group failure in test %zu/%zu", test_num, test_max);
+
+        umock_c_negative_tests_reset();
+        umock_c_negative_tests_fail_call(index);
+
+        //act
+        int res = prov_sc_create_or_update_enrollment_group(sc, &eg);
+
+        //assert
+        ASSERT_ARE_NOT_EQUAL_WITH_MSG(int, res, 0, tmp_msg);
+
+        g_uhttp_client_dowork_call_count = 0;
+    }
+
+    //cleanup
+    prov_sc_destroy(sc);
+    enrollmentGroup_destroy(eg);
+    umock_c_negative_tests_deinit();
+}
+
+/* Tests_PROVISIONING_SERVICE_CLIENT_22_008: [ If the 'PUT' REST call fails, prov_sc_create_or_update_individual_enrollment shall fail and return a non-zero value ] */
+/* Tests_PROVISIONING_SERVICE_CLIENT_22_052: [ If receiving the response from the Provisioning Service fails, prov_sc_create_or_update_enrollment_group shall fail and return a non-zero value ] */
+TEST_FUNCTION(prov_sc_create_or_update_enrollment_group_FAIL_w_etag)
+{
+    //arrange
+    int negativeTestsInitResult = umock_c_negative_tests_init();
+    ASSERT_ARE_EQUAL(int, 0, negativeTestsInitResult);
+
+    PROVISIONING_SERVICE_CLIENT_HANDLE sc = prov_sc_create_from_connection_string(TEST_CONNECTION_STRING);
+    ENROLLMENT_GROUP_HANDLE eg = enrollmentGroup_create(TEST_GROUPID, TEST_ATT_MECH_HANDLE);
+
+    umock_c_reset_all_calls();
+
+    STRICT_EXPECTED_CALL(enrollmentGroup_serializeToJson(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(enrollmentGroup_getGroupId(IGNORED_PTR_ARG));
+    expected_calls_construct_registration_path();
+    STRICT_EXPECTED_CALL(enrollmentGroup_getEtag(IGNORED_PTR_ARG)); //cannot fail
+    expected_calls_construct_http_headers(ETAG, HTTP_CLIENT_REQUEST_PUT);
+    STRICT_EXPECTED_CALL(STRING_c_str(IGNORED_PTR_ARG)); //does not fail
+    expected_calls_rest_call(HTTP_CLIENT_REQUEST_PUT, RESPONSE);
+    STRICT_EXPECTED_CALL(enrollmentGroup_deserializeFromJson(IGNORED_PTR_ARG));
+    STRICT_EXPECTED_CALL(enrollmentGroup_destroy(IGNORED_PTR_ARG)); //does not fail
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //does not fail
+    STRICT_EXPECTED_CALL(HTTPHeaders_Free(IGNORED_PTR_ARG)); //does not fail
+    STRICT_EXPECTED_CALL(STRING_delete(IGNORED_PTR_ARG)); //does not fail
+    STRICT_EXPECTED_CALL(gballoc_free(IGNORED_PTR_ARG)); //does not fail
+
+    umock_c_negative_tests_snapshot();
+
+    size_t calls_cannot_fail[] = { 3, 4, 5, 7, 12, 15, 16, 20, 21, 22, 24, 25, 27, 28, 29, 30, 31 };
     size_t count = umock_c_negative_tests_call_count();
     size_t num_cannot_fail = sizeof(calls_cannot_fail) / sizeof(calls_cannot_fail[0]);
 

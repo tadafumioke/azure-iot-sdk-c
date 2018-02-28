@@ -57,9 +57,10 @@ int main()
     /* ---Retrieve an Individual Enrollment on the Provisioning Service--- */
     printf("Retrieving an Individual Enrollment from the Provisioning Service...\n");
 
-    /*Note that in this context, this call is a useless call since the create or update call
+    /*Note that in this context, doing a "get" call is a useless since the "create or update" call
     above already updated "ie_handle", and no changes have been made since. This is just to
     show you how a "get" would be performed */
+    individualEnrollment_destroy(ie_handle);
     prov_sc_get_individual_enrollment(prov_sc, registrationId, &ie_handle);
 
     /* ---Update an Individual Enrollment on the Provisioning Service ---*/

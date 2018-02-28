@@ -8,6 +8,7 @@ script_dir=$(cd "$(dirname "$0")" && pwd)
 build_root=$(cd "${script_dir}/../.." && pwd)
 log_dir=$build_root
 run_e2e_tests=OFF
+run_sfc_tests=OFF
 run_longhaul_tests=OFF
 build_amqp=ON
 build_http=ON
@@ -23,6 +24,7 @@ toolchainfile=" "
 cmake_install_prefix=" "
 no_logging=OFF
 prov_auth=OFF
+prov_use_tpm_simulator=OFF
 
 usage ()
 {
@@ -31,6 +33,7 @@ usage ()
     echo " -cl, --compileoption <value>  specify a compile option to be passed to gcc"
     echo "   Example: -cl -O1 -cl ..."
     echo " --run-e2e-tests               run the end-to-end tests (e2e tests are skipped by default)"
+    echo " --run-sfc-tests               run the end-to-end tests for Service Faults (sfc tests are skipped by default)"
     echo " --run-unittests               run the unit tests"
     echo " --run-longhaul-tests          run long haul tests (long haul tests are not run by default)"
     echo ""
@@ -46,6 +49,7 @@ usage ()
     echo " -rv, --run_valgrind           will execute ctest with valgrind"
     echo " --no-logging                  Disable logging"
     echo " --provisioning                Use Provisioning with Flow"
+    echo " --use-tpm-simulator           Build TPM simulator"
     exit 1
 }
 
@@ -99,6 +103,8 @@ process_args ()
               "--no-logging" ) no_logging=ON;;
               "--install-path-prefix" ) save_next_arg=4;;
               "--provisioning" ) prov_auth=ON;;
+              "--use-tpm-simulator" ) prov_use_tpm_simulator=ON;;
+              "--run-sfc-tests" ) run_sfc_tests=ON;;
               * ) usage;;
           esac
       fi
@@ -121,12 +127,14 @@ process_args $*
 rm -r -f $build_folder
 mkdir -p $build_folder
 pushd $build_folder
-cmake $toolchainfile $cmake_install_prefix -Drun_valgrind:BOOL=$run_valgrind -DcompileOption_C:STRING="$extracloptions" -Drun_e2e_tests:BOOL=$run_e2e_tests -Drun_longhaul_tests=$run_longhaul_tests -Duse_amqp:BOOL=$build_amqp -Duse_http:BOOL=$build_http -Duse_mqtt:BOOL=$build_mqtt -Ddont_use_uploadtoblob:BOOL=$no_blob -Drun_unittests:BOOL=$run_unittests -Dbuild_python:STRING=$build_python -Dbuild_javawrapper:BOOL=$build_javawrapper -Dno_logging:BOOL=$no_logging $build_root -Duse_prov_client:BOOL=$prov_auth
+cmake $toolchainfile $cmake_install_prefix -Drun_valgrind:BOOL=$run_valgrind -DcompileOption_C:STRING="$extracloptions" -Drun_e2e_tests:BOOL=$run_e2e_tests -Drun_sfc_tests:BOOL=$run-sfc-tests -Drun_longhaul_tests=$run_longhaul_tests -Duse_amqp:BOOL=$build_amqp -Duse_http:BOOL=$build_http -Duse_mqtt:BOOL=$build_mqtt -Ddont_use_uploadtoblob:BOOL=$no_blob -Drun_unittests:BOOL=$run_unittests -Dbuild_python:STRING=$build_python -Dbuild_javawrapper:BOOL=$build_javawrapper -Dno_logging:BOOL=$no_logging $build_root -Duse_prov_client:BOOL=$prov_auth -Duse_tpm_simulator:BOOL=$prov_use_tpm_simulator
 
 if [ "$make" = true ]
 then
   # Set the default cores
-  CORES=$(grep -c ^processor /proc/cpuinfo 2>/dev/null || sysctl -n hw.ncpu)
+  MAKE_CORES=$(grep -c ^processor /proc/cpuinfo 2>/dev/null || sysctl -n hw.ncpu)
+  
+  echo "Initial MAKE_CORES=$MAKE_CORES"
   
   # Make sure there is enough virtual memory on the device to handle more than one job  
   MINVSPACE="1500000"
@@ -137,24 +145,32 @@ then
   [ -z "${MEMAR[1]##*[!0-9]*}" ] && MEMAR[1]=0
   
   let VSPACE=${MEMAR[0]}+${MEMAR[1]}
+  
+  echo "VSPACE=$VSPACE"
 
   if [ "$VSPACE" -lt "$MINVSPACE" ] ; then
-    CORES=1
+    echo "WARNING: Not enough space.  Setting MAKE_CORES=1"
+    MAKE_CORES=1
   fi
   
-  make --jobs=$CORES
+  echo "MAKE_CORES=$MAKE_CORES"
+  echo "Starting run..."
+  date
+  make --jobs=$MAKE_CORES
+  echo "completed run..."
+  date
 
   # Only for testing E2E behaviour !!! 
-  CORES=4
+  TEST_CORES=16
 
   if [[ $run_valgrind == 1 ]] ;
   then
     #use doctored openssl
     export LD_LIBRARY_PATH=/usr/local/ssl/lib
-    ctest -j $CORES --output-on-failure
+    ctest -j $TEST_CORES --output-on-failure
     export LD_LIBRARY_PATH=
   else
-    ctest -j $CORES -C "Debug" --output-on-failure
+    ctest -j $TEST_CORES -C "Debug" --output-on-failure
   fi
 fi
 

@@ -22,6 +22,8 @@
 #include "azure_prov_client/prov_sasl_tpm.h"
 #include "azure_c_shared_utility/strings.h"
 
+#include "azure_prov_client/prov_client_const.h"
+
 #define AMQP_MAX_SENDER_MSG_SIZE    UINT64_MAX
 #define AMQP_MAX_RECV_MSG_SIZE      65536
 
@@ -31,6 +33,8 @@ static const char* KEY_NAME_VALUE = "registration";
 static const char* AMQP_REGISTER_ME = "iotdps-register";
 static const char* AMQP_WHO_AM_I = "iotdps-get-registration";
 static const char* AMQP_OPERATION_STATUS = "iotdps-get-operationstatus";
+
+static const char* AMQP_API_VERSION_KEY = "com.microsoft:api-version";
 
 static const char* AMQP_OP_TYPE_PROPERTY = "iotdps-operation-type";
 static const char* AMQP_STATUS = "iotdps-status";
@@ -104,7 +108,7 @@ typedef struct PROV_TRANSPORT_AMQP_INFO_TAG
     TRANSPORT_CLIENT_STATE transport_state;
     AMQP_TRANSPORT_STATE amqp_state;
 
-    MESSAGE_SENDER_STATE msg_recv_state;
+    MESSAGE_RECEIVER_STATE msg_recv_state;
     MESSAGE_SENDER_STATE msg_send_state;
 
     SASL_MECHANISM_HANDLE tpm_sasl_handler;
@@ -434,6 +438,57 @@ static int send_amqp_message(PROV_TRANSPORT_AMQP_INFO* amqp_info, const char* ms
     return result;
 }
 
+static int add_link_properties(LINK_HANDLE amqp_link, const char* key, const char* value)
+{
+    fields attach_properties;
+    AMQP_VALUE device_client_type_key_name;
+    AMQP_VALUE device_client_type_value;
+    int result;
+
+    if ((attach_properties = amqpvalue_create_map()) == NULL)
+    {
+        LogError("Failed to create the map for device client type.");
+        result = __FAILURE__;
+    }
+    else
+    {
+        if ((device_client_type_key_name = amqpvalue_create_symbol(key)) == NULL)
+        {
+            LogError("Failed to create the key name for the device client type.");
+            result = __FAILURE__;
+        }
+        else
+        {
+            if ((device_client_type_value = amqpvalue_create_string(value)) == NULL)
+            {
+                LogError("Failed to create the key value for the device client type.");
+                result = __FAILURE__;
+            }
+            else
+            {
+                if ((result = amqpvalue_set_map_value(attach_properties, device_client_type_key_name, device_client_type_value)) != 0)
+                {
+                    LogError("Failed to set the property map for the device client type (error code is: %d)", result);
+                    result = __FAILURE__;
+                }
+                else if ((result = link_set_attach_properties(amqp_link, attach_properties)) != 0)
+                {
+                    LogError("Unable to attach the device client type to the link properties (error code is: %d)", result);
+                    result = __FAILURE__;
+                }
+                else
+                {
+                    result = 0;
+                }
+                amqpvalue_destroy(device_client_type_value);
+            }
+            amqpvalue_destroy(device_client_type_key_name);
+        }
+        amqpvalue_destroy(attach_properties);
+    }
+    return 0;
+}
+
 static int create_sender_link(PROV_TRANSPORT_AMQP_INFO* amqp_info)
 {
     int result;
@@ -469,7 +524,14 @@ static int create_sender_link(PROV_TRANSPORT_AMQP_INFO* amqp_info)
         }
         else
         {
-            if (link_set_max_message_size(amqp_info->sender_link, AMQP_MAX_SENDER_MSG_SIZE) != 0)
+            if (add_link_properties(amqp_info->sender_link, AMQP_API_VERSION_KEY, PROV_API_VERSION))
+            {
+                LogError("Failure adding link property");
+                link_destroy(amqp_info->sender_link);
+                amqp_info->sender_link = NULL;
+                result = __FAILURE__;
+            }
+            else if (link_set_max_message_size(amqp_info->sender_link, AMQP_MAX_SENDER_MSG_SIZE) != 0)
             {
                 LogError("Failure setting sender link max size");
                 link_destroy(amqp_info->sender_link);
@@ -540,7 +602,14 @@ static int create_receiver_link(PROV_TRANSPORT_AMQP_INFO* amqp_info)
         else
         {
             link_set_rcv_settle_mode(amqp_info->receiver_link, receiver_settle_mode_first);
-            if (link_set_max_message_size(amqp_info->receiver_link, AMQP_MAX_RECV_MSG_SIZE) != 0)
+            if (add_link_properties(amqp_info->receiver_link, AMQP_API_VERSION_KEY, PROV_API_VERSION))
+            {
+                LogError("Failure adding link property");
+                link_destroy(amqp_info->sender_link);
+                amqp_info->sender_link = NULL;
+                result = __FAILURE__;
+            }
+            else if (link_set_max_message_size(amqp_info->receiver_link, AMQP_MAX_RECV_MSG_SIZE) != 0)
             {
                 LogError("Failure setting max message size");
                 link_destroy(amqp_info->receiver_link);
@@ -612,9 +681,6 @@ static int create_amqp_connection(PROV_TRANSPORT_AMQP_INFO* amqp_info)
             amqp_info->transport_io = transport_io->transport_handle;
             amqp_info->underlying_io = transport_io->sasl_handle;
         }
-
-        bool ignore_check = true;
-        (void)xio_setoption(amqp_info->underlying_io, "ignore_server_name_check", &ignore_check);
 
         if (amqp_info->hsm_type == TRANSPORT_HSM_TYPE_X509)
         {
@@ -765,6 +831,8 @@ static void free_json_parse_info(PROV_JSON_INFO* parse_info)
         case PROV_DEVICE_TRANSPORT_STATUS_ASSIGNING:
             free(parse_info->operation_id);
             break;
+        default:
+            break;
     }
     free(parse_info);
 }
@@ -787,13 +855,13 @@ void cleanup_amqp_data(PROV_TRANSPORT_AMQP_INFO* amqp_info)
     free(amqp_info);
 }
 
-PROV_DEVICE_TRANSPORT_HANDLE prov_transport_common_amqp_create(const char* uri, TRANSPORT_HSM_TYPE type, const char* scope_id, const char* registration_id, const char* api_version, PROV_AMQP_TRANSPORT_IO transport_io)
+PROV_DEVICE_TRANSPORT_HANDLE prov_transport_common_amqp_create(const char* uri, TRANSPORT_HSM_TYPE type, const char* scope_id, const char* api_version, PROV_AMQP_TRANSPORT_IO transport_io)
 {
     PROV_TRANSPORT_AMQP_INFO* result;
-    if (uri == NULL || scope_id == NULL || registration_id == NULL || api_version == NULL || transport_io == NULL)
+    if (uri == NULL || scope_id == NULL || api_version == NULL || transport_io == NULL)
     {
         /* Codes_PROV_TRANSPORT_AMQP_COMMON_07_001: [ If uri, scope_id, registration_id, api_version, or transport_io is NULL, prov_transport_common_amqp_create shall return NULL. ] */
-        LogError("Invalid parameter specified uri: %p, scope_id: %p, registration_id: %p, api_version: %p, transport_io: %p", uri, scope_id, registration_id, api_version, transport_io);
+        LogError("Invalid parameter specified uri: %p, scope_id: %p, api_version: %p, transport_io: %p", uri, scope_id, api_version, transport_io);
         result = NULL;
     }
     else
@@ -813,13 +881,6 @@ PROV_DEVICE_TRANSPORT_HANDLE prov_transport_common_amqp_create(const char* uri, 
                 /* Codes_PROV_TRANSPORT_AMQP_COMMON_07_002: [ If any error is encountered, prov_transport_common_amqp_create shall return NULL. ] */
                 LogError("Failure allocating hostname");
                 free(result);
-                result = NULL;
-            }
-            else if (mallocAndStrcpy_s(&result->registration_id, registration_id) != 0)
-            {
-                /* Codes_PROV_TRANSPORT_AMQP_COMMON_07_002: [ If any error is encountered, prov_transport_common_amqp_create shall return NULL. ] */
-                LogError("failure constructing registration Id");
-                cleanup_amqp_data(result);
                 result = NULL;
             }
             else if (mallocAndStrcpy_s(&result->api_version, api_version) != 0)
@@ -858,14 +919,14 @@ void prov_transport_common_amqp_destroy(PROV_DEVICE_TRANSPORT_HANDLE handle)
     }
 }
 
-int prov_transport_common_amqp_open(PROV_DEVICE_TRANSPORT_HANDLE handle, BUFFER_HANDLE ek, BUFFER_HANDLE srk, PROV_DEVICE_TRANSPORT_REGISTER_CALLBACK data_callback, void* user_ctx, PROV_DEVICE_TRANSPORT_STATUS_CALLBACK status_cb, void* status_ctx)
+int prov_transport_common_amqp_open(PROV_DEVICE_TRANSPORT_HANDLE handle, const char* registration_id, BUFFER_HANDLE ek, BUFFER_HANDLE srk, PROV_DEVICE_TRANSPORT_REGISTER_CALLBACK data_callback, void* user_ctx, PROV_DEVICE_TRANSPORT_STATUS_CALLBACK status_cb, void* status_ctx)
 {
     int result;
     PROV_TRANSPORT_AMQP_INFO* amqp_info = (PROV_TRANSPORT_AMQP_INFO*)handle;
-    if (amqp_info == NULL || data_callback == NULL || status_cb == NULL)
+    if (amqp_info == NULL || data_callback == NULL || status_cb == NULL || registration_id == NULL)
     {
         /* Codes_PROV_TRANSPORT_AMQP_COMMON_07_007: [ If handle, data_callback, or status_cb is NULL, prov_transport_common_amqp_open shall return a non-zero value. ] */
-        LogError("Invalid parameter specified handle: %p, data_callback: %p, status_cb: %p", handle, data_callback, status_cb);
+        LogError("Invalid parameter specified handle: %p, data_callback: %p, status_cb: %p, registration_id: %p", handle, data_callback, status_cb, registration_id);
         result = __FAILURE__;
     }
     else if ( (amqp_info->hsm_type == TRANSPORT_HSM_TYPE_TPM) && (ek == NULL || srk == NULL) )
@@ -887,6 +948,16 @@ int prov_transport_common_amqp_open(PROV_DEVICE_TRANSPORT_HANDLE handle, BUFFER_
         LogError("Unable to allocate storage root key");
         BUFFER_delete(amqp_info->ek);
         amqp_info->ek = NULL;
+        result = __FAILURE__;
+    }
+    else if (mallocAndStrcpy_s(&amqp_info->registration_id, registration_id) != 0)
+    {
+        /* Codes_PROV_TRANSPORT_HTTP_CLIENT_07_003: [ If any error is encountered prov_transport_http_create shall return NULL. ] */
+        LogError("failure constructing registration Id");
+        BUFFER_delete(amqp_info->ek);
+        amqp_info->ek = NULL;
+        BUFFER_delete(amqp_info->srk);
+        amqp_info->srk = NULL;
         result = __FAILURE__;
     }
     else
@@ -919,6 +990,9 @@ int prov_transport_common_amqp_close(PROV_DEVICE_TRANSPORT_HANDLE handle)
         amqp_info->ek = NULL;
         BUFFER_delete(amqp_info->srk);
         amqp_info->srk = NULL;
+
+        free(amqp_info->registration_id);
+        amqp_info->registration_id = NULL;
 
         /* Codes_PROV_TRANSPORT_AMQP_COMMON_07_012: [ prov_transport_common_amqp_close shall close all links and connection associated with amqp communication. ] */
         messagesender_close(amqp_info->msg_sender);

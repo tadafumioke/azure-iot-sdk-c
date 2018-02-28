@@ -5,7 +5,7 @@
 #define PROVISIONING_SC_ATTESTATION_MECHANISM_H
 
 #ifdef __cplusplus
-#include <cstdbool.h>
+#include <cstdbool>
 extern "C" {
 #else
 #include <stdbool.h>

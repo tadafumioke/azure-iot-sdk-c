@@ -181,7 +181,7 @@ static void register_global_mocks()
     //x509 attestation
     REGISTER_UMOCK_ALIAS_TYPE(X509_ATTESTATION_HANDLE, void*);
     REGISTER_UMOCK_ALIAS_TYPE(const X509_ATTESTATION_HANDLE, void*);
-    REGISTER_UMOCK_ALIAS_TYPE(X509_CERTIFICATE_TYPE, void*);
+    REGISTER_UMOCK_ALIAS_TYPE(X509_CERTIFICATE_TYPE, int);
     REGISTER_GLOBAL_MOCK_HOOK(x509Attestation_create, my_x509Attestation_create);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(x509Attestation_create, NULL);
     REGISTER_GLOBAL_MOCK_HOOK(x509Attestation_destroy, my_x509Attestation_destroy);

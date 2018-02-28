@@ -161,7 +161,8 @@ static AMQP_CONNECTION_CONFIG* get_amqp_connection_config()
 	global_amqp_connection_config.create_sasl_io = true;
 	global_amqp_connection_config.create_cbs_connection = true;
 	global_amqp_connection_config.is_trace_on = true;
-    global_amqp_connection_config.c2d_keep_alive_freq_secs = 123;
+    global_amqp_connection_config.svc2cl_keep_alive_timeout_secs = 123;
+	global_amqp_connection_config.cl2svc_keep_alive_send_ratio   = 0.5;
 
 	return &global_amqp_connection_config;
 }
@@ -207,7 +208,8 @@ static void set_exp_calls_for_amqp_connection_create(AMQP_CONNECTION_CONFIG* amq
 		.IgnoreArgument_on_io_error()
 		.IgnoreArgument_on_io_error_context();
 
-	STRICT_EXPECTED_CALL(connection_set_idle_timeout(TEST_CONNECTION_HANDLE, (milliseconds)(1000 * amqp_connection_config->c2d_keep_alive_freq_secs)));
+	STRICT_EXPECTED_CALL(connection_set_idle_timeout(TEST_CONNECTION_HANDLE, (milliseconds)(1000 * amqp_connection_config->svc2cl_keep_alive_timeout_secs)));
+	STRICT_EXPECTED_CALL(connection_set_remote_idle_timeout_empty_frame_send_ratio(TEST_CONNECTION_HANDLE, amqp_connection_config->cl2svc_keep_alive_send_ratio)); 
 	STRICT_EXPECTED_CALL(connection_set_trace(TEST_CONNECTION_HANDLE, amqp_connection_config->is_trace_on));
 
 	EXPECTED_CALL(free(IGNORED_PTR_ARG)); // UniqueId container.
@@ -311,6 +313,9 @@ TEST_SUITE_INITIALIZE(TestClassInitialize)
 
 	REGISTER_GLOBAL_MOCK_RETURN(connection_set_idle_timeout, 0);
 	REGISTER_GLOBAL_MOCK_FAIL_RETURN(connection_set_idle_timeout, 1);
+
+	REGISTER_GLOBAL_MOCK_RETURN(connection_set_remote_idle_timeout_empty_frame_send_ratio, 0);
+	REGISTER_GLOBAL_MOCK_FAIL_RETURN(connection_set_remote_idle_timeout_empty_frame_send_ratio, 1);
 
 	REGISTER_GLOBAL_MOCK_RETURN(session_create, TEST_SESSION_HANDLE);
 	REGISTER_GLOBAL_MOCK_FAIL_RETURN(session_create, NULL);
@@ -536,10 +541,10 @@ TEST_FUNCTION(amqp_connection_create_SASL_and_CBS_negative_checks)
 		if (i == 2  || // saslmssbcbs_get_interface
 			i == 4  || // saslclientio_get_interface_description
 			i == 9  || // STRING_c_str(instance->iothub_fqdn) for connection_create2
-			i == 12 || // connection_set_trace
-			i == 13 || // free(unique_container_id)
-			i == 15 || // session_set_incoming_window
-			i == 16)   // session_set_outgoing_window
+			i == 13 || // connection_set_trace
+			i == 14 || // free(unique_container_id)
+			i == 16 || // session_set_incoming_window
+			i == 17)   // session_set_outgoing_window
 		{
 			continue; // these lines have functions that do not return anything (void) or do not cause failures.
 		}
@@ -567,48 +572,51 @@ TEST_FUNCTION(amqp_connection_create_SASL_and_CBS_negative_checks)
 TEST_FUNCTION(amqp_connection_create_on_connection_state_changed)
 {
 	// arrange
-	#define NUMBER_OF_TRANSITIONS 8
+    const int NUMBER_OF_TRANSITIONS = 8;
 
-	CONNECTION_STATE previous_connection_state[NUMBER_OF_TRANSITIONS];
-	previous_connection_state[0] = CONNECTION_STATE_END;
-	previous_connection_state[1] = CONNECTION_STATE_OPENED;
-	previous_connection_state[2] = CONNECTION_STATE_ERROR;
-	previous_connection_state[3] = CONNECTION_STATE_END;
-	previous_connection_state[4] = CONNECTION_STATE_ERROR;
-	previous_connection_state[5] = CONNECTION_STATE_DISCARDING;
-	previous_connection_state[6] = CONNECTION_STATE_END;
-	previous_connection_state[7] = CONNECTION_STATE_OPENED;
+    CONNECTION_STATE previous_connection_state[] = {
+        CONNECTION_STATE_END,           // 0
+        CONNECTION_STATE_OPENED,        // 1
+        CONNECTION_STATE_ERROR,         // 2
+        CONNECTION_STATE_END,           // 3
+        CONNECTION_STATE_ERROR,         // 4
+        CONNECTION_STATE_DISCARDING,    // 5
+        CONNECTION_STATE_END,           // 6
+        CONNECTION_STATE_OPENED,        // 7
+    };
 
-	CONNECTION_STATE new_connection_state[NUMBER_OF_TRANSITIONS];
-	new_connection_state[0] = CONNECTION_STATE_OPENED;
-	new_connection_state[1] = CONNECTION_STATE_ERROR;
-	new_connection_state[2] = CONNECTION_STATE_END;
-	new_connection_state[3] = CONNECTION_STATE_ERROR;
-	new_connection_state[4] = CONNECTION_STATE_DISCARDING;
-	new_connection_state[5] = CONNECTION_STATE_END;
-	new_connection_state[6] = CONNECTION_STATE_OPENED;
-	new_connection_state[7] = CONNECTION_STATE_DISCARDING;
+    CONNECTION_STATE new_connection_state[] = {
+        CONNECTION_STATE_OPENED,        // 0
+        CONNECTION_STATE_ERROR,         // 1
+        CONNECTION_STATE_END,           // 2
+        CONNECTION_STATE_ERROR,         // 3
+        CONNECTION_STATE_DISCARDING,    // 4
+        CONNECTION_STATE_END,           // 5
+        CONNECTION_STATE_OPENED,        // 6
+        CONNECTION_STATE_DISCARDING,    // 7
+    };
 
-	AMQP_CONNECTION_STATE previous_amqp_connection_state[NUMBER_OF_TRANSITIONS];
-	previous_amqp_connection_state[0] = AMQP_CONNECTION_STATE_CLOSED;
-	previous_amqp_connection_state[1] = AMQP_CONNECTION_STATE_OPENED;
-	previous_amqp_connection_state[2] = AMQP_CONNECTION_STATE_ERROR;
-	previous_amqp_connection_state[3] = AMQP_CONNECTION_STATE_CLOSED;
-	previous_amqp_connection_state[4] = AMQP_CONNECTION_STATE_CLOSED;
-	previous_amqp_connection_state[5] = AMQP_CONNECTION_STATE_ERROR;
-	previous_amqp_connection_state[6] = AMQP_CONNECTION_STATE_CLOSED;
-	previous_amqp_connection_state[7] = AMQP_CONNECTION_STATE_OPENED;
+    AMQP_CONNECTION_STATE previous_amqp_connection_state[] = {
+        AMQP_CONNECTION_STATE_CLOSED,   // 0
+        AMQP_CONNECTION_STATE_OPENED,   // 1
+        AMQP_CONNECTION_STATE_ERROR,    // 2
+        AMQP_CONNECTION_STATE_CLOSED,   // 3
+        AMQP_CONNECTION_STATE_CLOSED,   // 4
+        AMQP_CONNECTION_STATE_ERROR,    // 5
+        AMQP_CONNECTION_STATE_CLOSED,   // 6
+        AMQP_CONNECTION_STATE_OPENED,   // 7
+    };
 
-	AMQP_CONNECTION_STATE new_amqp_connection_state[NUMBER_OF_TRANSITIONS];
-	new_amqp_connection_state[0] = AMQP_CONNECTION_STATE_OPENED;
-	new_amqp_connection_state[1] = AMQP_CONNECTION_STATE_ERROR;
-	new_amqp_connection_state[2] = AMQP_CONNECTION_STATE_CLOSED;
-	new_amqp_connection_state[3] = AMQP_CONNECTION_STATE_ERROR;
-	new_amqp_connection_state[4] = AMQP_CONNECTION_STATE_ERROR;
-	new_amqp_connection_state[5] = AMQP_CONNECTION_STATE_CLOSED;
-	new_amqp_connection_state[6] = AMQP_CONNECTION_STATE_OPENED;
-	new_amqp_connection_state[7] = AMQP_CONNECTION_STATE_ERROR;
-
+    AMQP_CONNECTION_STATE new_amqp_connection_state[] = {
+        AMQP_CONNECTION_STATE_OPENED,   // 0
+        AMQP_CONNECTION_STATE_ERROR,    // 1
+        AMQP_CONNECTION_STATE_CLOSED,   // 2
+        AMQP_CONNECTION_STATE_ERROR,    // 3
+        AMQP_CONNECTION_STATE_ERROR,    // 4
+        AMQP_CONNECTION_STATE_CLOSED,   // 5
+        AMQP_CONNECTION_STATE_OPENED,   // 6
+        AMQP_CONNECTION_STATE_ERROR,    // 7
+    };
 
 	AMQP_CONNECTION_CONFIG* config = get_amqp_connection_config();
 
@@ -636,8 +644,85 @@ TEST_FUNCTION(amqp_connection_create_on_connection_state_changed)
 
 	// cleanup
 	amqp_connection_destroy(handle);
-	
-	#undef NUMBER_OF_TRANSITIONS
+}
+
+TEST_FUNCTION(amqp_connection_create_no_sasl_no_cbs_on_connection_state_changed)
+{
+    // arrange
+    const int NUMBER_OF_TRANSITIONS = 8;
+
+    CONNECTION_STATE previous_connection_state[] = {
+        CONNECTION_STATE_END,        // 0
+        CONNECTION_STATE_START,      // 1
+        CONNECTION_STATE_ERROR,      // 2
+        CONNECTION_STATE_END,        // 3
+        CONNECTION_STATE_ERROR,      // 4
+        CONNECTION_STATE_DISCARDING, // 5
+        CONNECTION_STATE_END,        // 6
+        CONNECTION_STATE_START       // 7
+    };
+
+    CONNECTION_STATE new_connection_state[] = {
+        CONNECTION_STATE_START,      // 0
+        CONNECTION_STATE_ERROR,      // 1
+        CONNECTION_STATE_END,        // 2
+        CONNECTION_STATE_ERROR,      // 3
+        CONNECTION_STATE_DISCARDING, // 4
+        CONNECTION_STATE_END,        // 5
+        CONNECTION_STATE_START,      // 6
+        CONNECTION_STATE_DISCARDING  // 8
+    };
+
+    AMQP_CONNECTION_STATE previous_amqp_connection_state[] = {
+        AMQP_CONNECTION_STATE_CLOSED,  // 0
+        AMQP_CONNECTION_STATE_OPENED,  // 1
+        AMQP_CONNECTION_STATE_ERROR,   // 2
+        AMQP_CONNECTION_STATE_CLOSED,  // 3
+        AMQP_CONNECTION_STATE_CLOSED,  // 4
+        AMQP_CONNECTION_STATE_ERROR,   // 5
+        AMQP_CONNECTION_STATE_CLOSED,  // 6
+        AMQP_CONNECTION_STATE_OPENED,  // 7
+    };
+
+    AMQP_CONNECTION_STATE new_amqp_connection_state[] = {
+        AMQP_CONNECTION_STATE_OPENED,  // 0
+        AMQP_CONNECTION_STATE_ERROR,   // 1
+        AMQP_CONNECTION_STATE_CLOSED,  // 2
+        AMQP_CONNECTION_STATE_ERROR,   // 3
+        AMQP_CONNECTION_STATE_ERROR,   // 4
+        AMQP_CONNECTION_STATE_CLOSED,  // 5
+        AMQP_CONNECTION_STATE_OPENED,  // 6
+        AMQP_CONNECTION_STATE_ERROR,   // 7
+    };
+
+    AMQP_CONNECTION_CONFIG* config = get_amqp_connection_config();
+    config->create_sasl_io = false;
+    config->create_cbs_connection = false;
+
+    umock_c_reset_all_calls();
+    set_exp_calls_for_amqp_connection_create(config);
+
+    connection_create2_on_connection_state_changed = NULL;
+    connection_create2_on_connection_state_changed_context = NULL;
+
+    AMQP_CONNECTION_HANDLE handle = amqp_connection_create(config);
+
+    ASSERT_IS_NOT_NULL(connection_create2_on_connection_state_changed);
+
+    // act
+    int i;
+    for (i = 0; i < NUMBER_OF_TRANSITIONS; i++)
+    {
+        // act
+        connection_create2_on_connection_state_changed(handle, new_connection_state[i], previous_connection_state[i]);
+
+        // assert
+        ASSERT_ARE_EQUAL(int, on_state_changed_callback_previous_state, previous_amqp_connection_state[i]);
+        ASSERT_ARE_EQUAL(int, on_state_changed_callback_new_state, new_amqp_connection_state[i]);
+    }
+
+    // cleanup
+    amqp_connection_destroy(handle);
 }
 
 // Tests_SRS_IOTHUBTRANSPORT_AMQP_CONNECTION_09_022: [If the connection calls back with an I/O error, `instance->on_state_changed_callback` shall be invoked if set passing code AMQP_CONNECTION_STATE_ERROR and `instance->on_state_changed_context`]

@@ -24,4 +24,4 @@ set(${theseTestsName}_h_files
     ${SHARED_UTIL_REAL_TEST_FOLDER}/real_strings.h
 )
 
-build_c_test_artifacts(${theseTestsName} ON "tests/IntegrationTests")
+build_c_test_artifacts(${theseTestsName} ON "tests/prov_sc_tests")

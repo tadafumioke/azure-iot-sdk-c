@@ -51,15 +51,20 @@ typedef struct PROVISIONING_SERVICE_CLIENT_TAG
 
 } PROV_SERVICE_CLIENT;
 
+typedef char*(*VECTOR_SERIALIZE_TO_JSON)(void*);
+typedef void*(*VECTOR_DESERIALIZE_FROM_JSON)(char*);
+typedef char*(*VECTOR_GET_ID)(void*);
+typedef char*(*VECTOR_GET_ETAG)(void*);
+typedef void(*VECTOR_DESTROY)(void*);
+
 typedef struct HANDLE_FUNCTION_VECTOR_TAG
 {
-    char* (*serializeToJson)(void*);
-    void* (*deserializeFromJson)(char*);
-    const char* (*getId)(void*);
-    void (*destroy)(void*);
+    VECTOR_SERIALIZE_TO_JSON serializeToJson;
+    VECTOR_DESERIALIZE_FROM_JSON deserializeFromJson;
+    VECTOR_GET_ID getId;
+    VECTOR_GET_ETAG getEtag;
+    VECTOR_DESTROY destroy;
 } HANDLE_FUNCTION_VECTOR;
-
-#define UNREFERENCED_PARAMETER(x) x
 
 #define IOTHUBHOSTNAME "HostName"
 #define IOTHUBSHAREDACESSKEYNAME "SharedAccessKeyName"
@@ -88,10 +93,11 @@ typedef struct HANDLE_FUNCTION_VECTOR_TAG
 static HANDLE_FUNCTION_VECTOR getVector_individualEnrollment()
 {
     HANDLE_FUNCTION_VECTOR vector;
-    vector.serializeToJson = individualEnrollment_serializeToJson;
-    vector.deserializeFromJson = individualEnrollment_deserializeFromJson;
-    vector.getId = individualEnrollment_getRegistrationId;
-    vector.destroy = individualEnrollment_destroy;
+    vector.serializeToJson = (VECTOR_SERIALIZE_TO_JSON)individualEnrollment_serializeToJson;
+    vector.deserializeFromJson = (VECTOR_DESERIALIZE_FROM_JSON)individualEnrollment_deserializeFromJson;
+    vector.getId = (VECTOR_GET_ID)individualEnrollment_getRegistrationId;
+    vector.getEtag = (VECTOR_GET_ETAG)individualEnrollment_getEtag;
+    vector.destroy = (VECTOR_DESTROY)individualEnrollment_destroy;
 
     return vector;
 }
@@ -99,10 +105,11 @@ static HANDLE_FUNCTION_VECTOR getVector_individualEnrollment()
 static HANDLE_FUNCTION_VECTOR getVector_enrollmentGroup()
 {
     HANDLE_FUNCTION_VECTOR vector;
-    vector.serializeToJson = enrollmentGroup_serializeToJson;
-    vector.deserializeFromJson = enrollmentGroup_deserializeFromJson;
-    vector.getId = enrollmentGroup_getGroupId;
-    vector.destroy = enrollmentGroup_destroy;
+    vector.serializeToJson = (VECTOR_SERIALIZE_TO_JSON)enrollmentGroup_serializeToJson;
+    vector.deserializeFromJson = (VECTOR_DESERIALIZE_FROM_JSON)enrollmentGroup_deserializeFromJson;
+    vector.getId = (VECTOR_GET_ID)enrollmentGroup_getGroupId;
+    vector.getEtag = (VECTOR_GET_ETAG)enrollmentGroup_getEtag;
+    vector.destroy = (VECTOR_DESTROY)enrollmentGroup_destroy;
 
     return vector;
 }
@@ -354,7 +361,7 @@ static HTTP_CLIENT_HANDLE connect_to_service(PROV_SERVICE_CLIENT* prov_client)
 static int rest_call(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, HTTP_CLIENT_REQUEST_TYPE operation, const char* registration_path, HTTP_HEADERS_HANDLE request_headers, const char* content)
 {
     int result;
-    int content_len;
+    size_t content_len;
     HTTP_CLIENT_HANDLE http_client;
 
     if (content == NULL)
@@ -398,6 +405,7 @@ static int rest_call(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, HTTP_CLIENT
             else if (prov_client->http_state == HTTP_STATE_ERROR)
             {
                 result = __FAILURE__;
+                LogError("HTTP error");
             }
         } while (prov_client->http_state != HTTP_STATE_COMPLETE && prov_client->http_state != HTTP_STATE_ERROR);
 
@@ -453,7 +461,7 @@ static int prov_sc_create_or_update_record(PROVISIONING_SERVICE_CLIENT_HANDLE pr
             else
             {
                 HTTP_HEADERS_HANDLE request_headers;
-                if ((request_headers = construct_http_headers(prov_client, NULL, HTTP_CLIENT_REQUEST_PUT)) == NULL)
+                if ((request_headers = construct_http_headers(prov_client, vector.getEtag(handle), HTTP_CLIENT_REQUEST_PUT)) == NULL)
                 {
                     LogError("Failure creating registration json content");
                     result = __FAILURE__;
@@ -883,7 +891,7 @@ int prov_sc_get_device_registration_state(PROVISIONING_SERVICE_CLIENT_HANDLE pro
 
 int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, ENROLLMENT_GROUP_HANDLE* enrollment_ptr)
 {
-    return prov_sc_create_or_update_record(prov_client, enrollment_ptr, getVector_enrollmentGroup(), ENROLL_GROUP_PROVISION_PATH_FMT);
+    return prov_sc_create_or_update_record(prov_client, (void**)enrollment_ptr, getVector_enrollmentGroup(), ENROLL_GROUP_PROVISION_PATH_FMT);
 }
 
 int prov_sc_delete_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, ENROLLMENT_GROUP_HANDLE enrollment)
@@ -898,5 +906,5 @@ int prov_sc_delete_enrollment_group_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE 
 
 int prov_sc_get_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_id, ENROLLMENT_GROUP_HANDLE* enrollment_ptr)
 {
-    return prov_sc_get_record(prov_client, group_id, enrollment_ptr, getVector_enrollmentGroup(), ENROLL_GROUP_PROVISION_PATH_FMT);
+    return prov_sc_get_record(prov_client, group_id, (void**)enrollment_ptr, getVector_enrollmentGroup(), ENROLL_GROUP_PROVISION_PATH_FMT);
 }

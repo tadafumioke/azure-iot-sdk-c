@@ -15,7 +15,6 @@ set(iothub_client_ll_transport_c_files
     ./src/iothub_client_authorization.c
     ./src/iothub_message.c
     ./src/iothub_client_ll.c
-    ./src/blob.c
     ./src/iothub_client_diagnostic.c
  )
 
@@ -24,7 +23,13 @@ if(NOT ${dont_use_uploadtoblob})
         ${iothub_client_ll_transport_c_files}
         ../deps/parson/parson.c
         ./src/iothub_client_ll_uploadtoblob.c
-        )
+        ./src/blob.c
+    )
+
+    set(iothub_client_ll_transport_h_files
+        ${iothub_client_ll_transport_h_files}
+        ./inc/blob.h
+    )
 
     if(MSVC)
         set_source_files_properties(../deps/parson/parson.c PROPERTIES COMPILE_FLAGS "/wd4244 /wd4232")
@@ -207,6 +212,7 @@ if(${use_mqtt})
     set(iothub_client_h_install_files
         ${iothub_client_h_install_files}
         ${iothub_client_mqtt_transport_h_files}
+        ${iothub_client_mqtt_ws_transport_h_files}
     )
 endif()
 
@@ -320,14 +326,6 @@ if(${use_mqtt})
     )
 endif()
 
-if (${use_prov_client})
-    set(iothub_client_libs
-        ${iothub_client_libs}
-        hsm_security_client
-        prov_auth_client
-    )
-endif()
-
 include_directories(${IOTHUB_CLIENT_INC_FOLDER})
 
 IF(WIN32)
@@ -336,14 +334,30 @@ IF(WIN32)
     add_definitions(-DGB_MEASURE_MEMORY_FOR_THIS -DGB_DEBUG_ALLOC)
 ENDIF(WIN32)
 
-add_library(iothub_client_dll SHARED
-    ${iothub_client_c_files} 
-    ${iothub_client_h_files}
-    ./src/iothub_client_dll.def
-)
-target_link_libraries(iothub_client_dll ${iothub_client_libs})
-if(NOT WIN32)
-set_target_properties(iothub_client_dll PROPERTIES OUTPUT_NAME "iothub_client")
+if(${dont_use_uploadtoblob})
+    set(iothub_def_file ./src/iothub_client_dll_no_upload.def)
+else()
+    set(iothub_def_file ./src/iothub_client_dll.def)
+endif()
+
+if (${build_as_dynamic})
+    add_library(iothub_client_dll SHARED
+        ${iothub_client_c_files} 
+        ${iothub_client_h_files}
+        ${iothub_def_file}
+    )
+    target_link_libraries(iothub_client_dll ${iothub_client_libs})
+    if(NOT WIN32)
+        set_target_properties(iothub_client_dll PROPERTIES OUTPUT_NAME "iothub_client")
+    endif()
+
+    set(iothub_client_libs
+        iothub_client_dll
+        ${iothub_client_libs}
+    )
+    if (${use_prov_client})
+        target_link_libraries(iothub_client_dll hsm_security_client prov_auth_client)
+    endif()
 endif()
 
 add_library(iothub_client
@@ -352,9 +366,12 @@ add_library(iothub_client
 )
 target_link_libraries(iothub_client ${iothub_client_libs})
 
+if (${use_prov_client})
+    target_link_libraries(iothub_client hsm_security_client prov_auth_client)
+endif()
+
 linkSharedUtil(iothub_client)
 set(iothub_client_libs
-    iothub_client_dll
     iothub_client 
     ${iothub_client_libs}
 )
@@ -377,9 +394,7 @@ endif()
 
 if(NOT IN_OPENWRT)
     # Disable tests for OpenWRT
-    if(${run_unittests} OR ${run_e2e_tests})
-        add_subdirectory(tests)
-    endif()
+    add_subdirectory(tests)
 endif()
 
 if(${use_installed_dependencies})

@@ -63,6 +63,8 @@ static void TEST_free(void* ptr)
 #include "azure_c_shared_utility/uuid.h"
 
 #include "iothub_message.h"
+#include "azure_uamqp_c/amqp_definitions_application_properties.h"
+#include "azure_uamqp_c/amqp_definitions_data.h"
 #include "azure_uamqp_c/message.h"
 
 #undef ENABLE_MOCKS
@@ -727,7 +729,7 @@ TEST_FUNCTION(message_create_uamqp_encoding_from_iothub_message_bytearray_succes
     memset(&binary_data, 0, sizeof(binary_data));
 
     // act
-    int result = message_create_uamqp_encoding_from_iothub_message(TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
+    int result = message_create_uamqp_encoding_from_iothub_message(NULL, TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -747,7 +749,7 @@ TEST_FUNCTION(message_create_from_iothub_message_zero_app_properties_success)
     memset(&binary_data, 0, sizeof(binary_data));
 
     // act
-    int result = message_create_uamqp_encoding_from_iothub_message(TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
+    int result = message_create_uamqp_encoding_from_iothub_message(NULL, TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -767,7 +769,7 @@ TEST_FUNCTION(message_create_from_iothub_message_string_success)
     memset(&binary_data, 0, sizeof(binary_data));
 
     ///act
-    int result = message_create_uamqp_encoding_from_iothub_message(TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
+    int result = message_create_uamqp_encoding_from_iothub_message(NULL, TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -787,7 +789,7 @@ TEST_FUNCTION(message_create_from_iothub_message_no_message_id_success)
     memset(&binary_data, 0, sizeof(binary_data));
 
     ///act
-    int result = message_create_uamqp_encoding_from_iothub_message(TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
+    int result = message_create_uamqp_encoding_from_iothub_message(NULL, TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -807,7 +809,7 @@ TEST_FUNCTION(message_create_from_iothub_message_no_diagnostic_properties_succes
     memset(&binary_data, 0, sizeof(binary_data));
 
     ///act
-    int result = message_create_uamqp_encoding_from_iothub_message(TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
+    int result = message_create_uamqp_encoding_from_iothub_message(NULL, TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -827,7 +829,7 @@ TEST_FUNCTION(message_create_from_iothub_message_no_correlation_id_success)
     memset(&binary_data, 0, sizeof(binary_data));
 
     ///act
-    int result = message_create_uamqp_encoding_from_iothub_message(TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
+    int result = message_create_uamqp_encoding_from_iothub_message(NULL, TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -847,7 +849,7 @@ TEST_FUNCTION(message_create_from_iothub_message_no_content_type_success)
     memset(&binary_data, 0, sizeof(binary_data));
 
     ///act
-    int result = message_create_uamqp_encoding_from_iothub_message(TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
+    int result = message_create_uamqp_encoding_from_iothub_message(NULL, TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -867,7 +869,7 @@ TEST_FUNCTION(message_create_from_iothub_message_no_content_encoding_success)
     memset(&binary_data, 0, sizeof(binary_data));
 
     ///act
-    int result = message_create_uamqp_encoding_from_iothub_message(TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
+    int result = message_create_uamqp_encoding_from_iothub_message(NULL, TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
 
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
@@ -927,7 +929,7 @@ TEST_FUNCTION(message_create_from_iothub_message_BYTEARRAY_return_errors_fails)
         BINARY_DATA binary_data;
         memset(&binary_data, 0, sizeof(binary_data));
 
-        result = message_create_uamqp_encoding_from_iothub_message(TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
+        result = message_create_uamqp_encoding_from_iothub_message(NULL, TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
 
         sprintf(error_msg, "On failed call %zu", i);
         ASSERT_ARE_NOT_EQUAL_WITH_MSG(int, result, 0, error_msg);
@@ -990,7 +992,7 @@ TEST_FUNCTION(message_create_from_iothub_message_STRING_return_errors_fails)
         BINARY_DATA binary_data;
         memset(&binary_data, 0, sizeof(binary_data));
 
-        result = message_create_uamqp_encoding_from_iothub_message(TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
+        result = message_create_uamqp_encoding_from_iothub_message(NULL, TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
 
         // assert
         sprintf(error_msg, "On failed call %zu", i);

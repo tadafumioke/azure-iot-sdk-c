@@ -49,6 +49,7 @@ set(hsm_type_x509 OFF CACHE BOOL "x509 type of hsm used with the Provisioning cl
 set(hsm_type_sastoken OFF CACHE BOOL "tpm type of hsm used with the Provisioning client")
 set(hsm_type_custom OFF CACHE BOOL "hsm type of custom used with the Provisioning client")
 set(hsm_custom_lib "" CACHE STRING "Full path to custom HSM repo library")
+set(run_sfc_tests OFF CACHE BOOL "setup the Service Fault tests")
 
 #the following variables are project-wide and can be used with cmake-gui
 option(use_amqp "set use_amqp to ON if amqp is to be used, set to OFF to not use amqp" ON)
@@ -73,7 +74,7 @@ option(build_network_e2e "build network E2E tests" OFF)
 option(use_prov_client "Enable provisioning client" OFF)
 option(use_tpm_simulator "tpm simulator type of hsm used with the provisioning client" OFF)
 
-if(WIN32)
+if(WIN32 OR MACOSX)
     option(use_openssl "set use_openssl to ON to use OpenSSL." OFF)
 else()
     option(use_openssl "set use_openssl to ON to use OpenSSL." ON)
@@ -88,6 +89,9 @@ endif()
 
 # Set Provisioning Information
 if (${use_prov_client})
+    getProvSDKVersion()
+    message(STATUS "Provisioning SDK Version = ${PROV_SDK_VERSION}")
+
     if ("${hsm_custom_lib}" STREQUAL "")
         set(hsm_type_x509 ON)
         set(hsm_type_sastoken ON)
@@ -142,7 +146,7 @@ endif()
 
 include("configs/azure_iot_sdksFunctions.cmake")
 
-if(${run_unittests} OR ${run_e2e_tests})
+if(${run_unittests} OR ${run_e2e_tests} OR ${run_sfc_tests})
     include("dependencies-test.cmake")
 endif()
 
@@ -155,7 +159,7 @@ set(run_unittests OFF)
 
 include("dependencies.cmake")
 
-if (${original_run_e2e_tests} OR ${original_run_unittests})
+if (${original_run_e2e_tests} OR ${original_run_unittests} OR ${run_sfc_tests})
     set(SHARED_UTIL_REAL_TEST_FOLDER ${CMAKE_CURRENT_LIST_DIR}/c-utility/tests/real_test_files CACHE INTERNAL "this is what needs to be included when doing test sources" FORCE)
     add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/c-utility/testtools)
 endif()
@@ -264,7 +268,7 @@ if(${build_service_client})
     add_subdirectory(iothub_service_client)
 endif()
 
-if(${run_e2e_tests} OR ${run_longhaul_tests} OR ${nuget_e2e_tests})
+if(${run_e2e_tests} OR ${run_longhaul_tests} OR ${nuget_e2e_tests} OR ${run_sfc_tests})
     add_subdirectory(testtools)
 endif()
 

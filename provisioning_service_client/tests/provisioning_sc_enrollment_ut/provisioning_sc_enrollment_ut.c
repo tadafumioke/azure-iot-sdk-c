@@ -726,7 +726,7 @@ TEST_FUNCTION(individualEnrollment_setAttestationMechanism_null_att)
     //assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
     ASSERT_ARE_NOT_EQUAL(int, 0, result);
-    ASSERT_IS_TRUE(individualEnrollment_getAttestationMechanism(ie) == TEST_ATTESTATION_MECHANISM)
+    ASSERT_IS_TRUE(individualEnrollment_getAttestationMechanism(ie) == TEST_ATTESTATION_MECHANISM);
 
     //cleanup
     individualEnrollment_destroy(ie);

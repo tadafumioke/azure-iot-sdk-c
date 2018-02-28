@@ -55,9 +55,10 @@ int main()
     /* ---Retrieve an Enrollment Group on the Provisioning Service--- */
     printf("Retrieving an Enrollment Group from the Provisioning Service...\n");
 
-    /*Note that in this context, this call is a useless call since the create or update call
+    /*Note that in this context, doing a "get" call is a useless since the "create or update" call
     above already updated "eg_handle", and no changes have been made since. This is just to
     show you how a "get" would be performed */
+    enrollmentGroup_destroy(eg_handle);
     prov_sc_get_enrollment_group(prov_sc, groupId, &eg_handle);
 
     /* ---Update an Enrollment Group on the Provisioning Service ---*/
@@ -65,11 +66,11 @@ int main()
 
     //in this example we'll add an initial twin state
     twin_handle = initialTwin_create(tags, NULL);
-    individualEnrollment_setInitialTwin(eg_handle, twin_handle);
+    enrollmentGroup_setInitialTwin(eg_handle, twin_handle);
 
     /* This is the same call as we used for creation. However, because we already created the
     enrollment on the Provisioning Service, this call will now update the already existing one */
-    prov_sc_create_or_update_individual_enrollment(prov_sc, &eg_handle);
+    prov_sc_create_or_update_enrollment_group(prov_sc, &eg_handle);
 
     /* ---Delete an Enrollment Group on the Provisioning Service--- */
     printf("Deleting an Enrollment Group on the Provisioning Service...\n");

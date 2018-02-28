@@ -15,8 +15,6 @@
 #include "provisioning_sc_shared_helpers.h"
 #include "parson.h"
 
-#define UNREFERENCED_PARAMETER(x) x
-
 typedef struct INDIVIDUAL_ENROLLMENT_TAG
 {
     char* registration_id; //read only
@@ -45,7 +43,7 @@ typedef struct ENROLLMENT_GROUP_TAG
 
 DEFINE_ENUM_STRINGS(PROVISIONING_STATUS, PROVISIONING_STATUS_VALUES)
 
-static const char* provisioningStatus_toJson(const PROVISIONING_STATUS status)
+static const char* provisioningStatus_toJson(PROVISIONING_STATUS status)
 {
     const char* result = NULL;
     if (status == PROVISIONING_STATUS_ENABLED)
@@ -139,13 +137,13 @@ static JSON_Value* individualEnrollment_toJson(const INDIVIDUAL_ENROLLMENT_HANDL
         json_value_free(root_value);
         root_value = NULL;
     }
-    else if (json_serialize_and_set_struct(root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_ATTESTATION, enrollment->attestation_mechanism, attestationMechanism_toJson, REQUIRED) != 0)
+    else if (json_serialize_and_set_struct(root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_ATTESTATION, enrollment->attestation_mechanism, (TO_JSON_FUNCTION)attestationMechanism_toJson, REQUIRED) != 0)
     {
         LogError("Failed to set '%s' in JSON String", INDIVIDUAL_ENROLLMENT_JSON_KEY_ATTESTATION);
         json_value_free(root_value);
         root_value = NULL;
     }
-    else if (json_serialize_and_set_struct(root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_INITIAL_TWIN, enrollment->initial_twin, initialTwin_toJson, OPTIONAL) != 0)
+    else if (json_serialize_and_set_struct(root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_INITIAL_TWIN, enrollment->initial_twin, (TO_JSON_FUNCTION)initialTwin_toJson, OPTIONAL) != 0)
     {
         LogError("Failed to set '%s' in JSON String", INDIVIDUAL_ENROLLMENT_JSON_KEY_INITIAL_TWIN);
         json_value_free(root_value);
@@ -196,13 +194,13 @@ static INDIVIDUAL_ENROLLMENT_HANDLE individualEnrollment_fromJson(JSON_Object* r
             individualEnrollment_destroy(new_enrollment);
             new_enrollment = NULL;
         }
-        else if (json_deserialize_and_get_struct(&(new_enrollment->registration_state), root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_STATE, deviceRegistrationState_fromJson, OPTIONAL) != 0)
+        else if (json_deserialize_and_get_struct((void**)&(new_enrollment->registration_state), root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_STATE, (FROM_JSON_FUNCTION)deviceRegistrationState_fromJson, OPTIONAL) != 0)
         {
             LogError("Failed to set '%s' in Individual Enrollment", INDIVIDUAL_ENROLLMENT_JSON_KEY_REG_STATE);
             individualEnrollment_destroy(new_enrollment);
             new_enrollment = NULL;
         }
-        else if (json_deserialize_and_get_struct(&(new_enrollment->attestation_mechanism), root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_ATTESTATION, attestationMechanism_fromJson, REQUIRED) != 0)
+        else if (json_deserialize_and_get_struct((void**)&(new_enrollment->attestation_mechanism), root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_ATTESTATION, (FROM_JSON_FUNCTION)attestationMechanism_fromJson, REQUIRED) != 0)
         {
             LogError("Failed to set '%s' in Individual Enrollment", INDIVIDUAL_ENROLLMENT_JSON_KEY_ATTESTATION);
             individualEnrollment_destroy(new_enrollment);
@@ -214,7 +212,7 @@ static INDIVIDUAL_ENROLLMENT_HANDLE individualEnrollment_fromJson(JSON_Object* r
             individualEnrollment_destroy(new_enrollment);
             new_enrollment = NULL;
         }
-        else if (json_deserialize_and_get_struct(&(new_enrollment->initial_twin), root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_INITIAL_TWIN, initialTwin_fromJson, OPTIONAL) != 0)
+        else if (json_deserialize_and_get_struct((void**)&(new_enrollment->initial_twin), root_object, INDIVIDUAL_ENROLLMENT_JSON_KEY_INITIAL_TWIN, (FROM_JSON_FUNCTION)initialTwin_fromJson, OPTIONAL) != 0)
         {
             LogError("Failed to set '%s' in Individual Enrollment", INDIVIDUAL_ENROLLMENT_JSON_KEY_INITIAL_TWIN);
             individualEnrollment_destroy(new_enrollment);
@@ -292,13 +290,13 @@ static JSON_Value* enrollmentGroup_toJson(const ENROLLMENT_GROUP_HANDLE enrollme
         json_value_free(root_value);
         root_value = NULL;
     }
-    else if (json_serialize_and_set_struct(root_object, ENROLLMENT_GROUP_JSON_KEY_ATTESTATION, enrollment->attestation_mechanism, attestationMechanism_toJson, REQUIRED) != 0)
+    else if (json_serialize_and_set_struct(root_object, ENROLLMENT_GROUP_JSON_KEY_ATTESTATION, enrollment->attestation_mechanism, (TO_JSON_FUNCTION)attestationMechanism_toJson, REQUIRED) != 0)
     {
         LogError("Failed to set '%s' in JSON string", ENROLLMENT_GROUP_JSON_KEY_ATTESTATION);
         json_value_free(root_value);
         root_value = NULL;
     }
-    else if (json_serialize_and_set_struct(root_object, ENROLLMENT_GROUP_JSON_KEY_INITIAL_TWIN, enrollment->initial_twin, initialTwin_toJson, OPTIONAL) != 0)
+    else if (json_serialize_and_set_struct(root_object, ENROLLMENT_GROUP_JSON_KEY_INITIAL_TWIN, enrollment->initial_twin, (TO_JSON_FUNCTION)initialTwin_toJson, OPTIONAL) != 0)
     {
         LogError("Failed to set '%s' in JSON string", ENROLLMENT_GROUP_JSON_KEY_INITIAL_TWIN);
         json_value_free(root_value);
@@ -338,7 +336,7 @@ static ENROLLMENT_GROUP_HANDLE enrollmentGroup_fromJson(JSON_Object* root_object
             enrollmentGroup_destroy(new_enrollment);
             new_enrollment = NULL;
         }
-        else if (json_deserialize_and_get_struct(&(new_enrollment->attestation_mechanism), root_object, ENROLLMENT_GROUP_JSON_KEY_ATTESTATION, attestationMechanism_fromJson, REQUIRED) != 0)
+        else if (json_deserialize_and_get_struct((void**)&(new_enrollment->attestation_mechanism), root_object, ENROLLMENT_GROUP_JSON_KEY_ATTESTATION, (FROM_JSON_FUNCTION)attestationMechanism_fromJson, REQUIRED) != 0)
         {
             LogError("Failed to set '%s' in Enrollment Group", ENROLLMENT_GROUP_JSON_KEY_ATTESTATION);
             enrollmentGroup_destroy(new_enrollment);
@@ -350,7 +348,7 @@ static ENROLLMENT_GROUP_HANDLE enrollmentGroup_fromJson(JSON_Object* root_object
             enrollmentGroup_destroy(new_enrollment);
             new_enrollment = NULL;
         }
-        else if (json_deserialize_and_get_struct(&(new_enrollment->initial_twin), root_object, ENROLLMENT_GROUP_JSON_KEY_INITIAL_TWIN, initialTwin_fromJson, OPTIONAL) != 0)
+        else if (json_deserialize_and_get_struct((void**)&(new_enrollment->initial_twin), root_object, ENROLLMENT_GROUP_JSON_KEY_INITIAL_TWIN, (FROM_JSON_FUNCTION)initialTwin_fromJson, OPTIONAL) != 0)
         {
             LogError("Failed to set '%s' in Enrollment Group", ENROLLMENT_GROUP_JSON_KEY_INITIAL_TWIN);
             enrollmentGroup_destroy(new_enrollment);

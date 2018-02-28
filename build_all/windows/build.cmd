@@ -33,6 +33,7 @@ set build-clean=0
 set build-config=Debug
 set build-platform=Win32
 set CMAKE_run_e2e_tests=OFF
+set CMAKE_run_sfc_tests=OFF
 set CMAKE_run_longhaul_tests=OFF
 set CMAKE_run_unittests=OFF
 set MAKE_NUGET_PKG=no
@@ -49,6 +50,7 @@ if "%1" equ "--clean" goto arg-build-clean
 if "%1" equ "--config" goto arg-build-config
 if "%1" equ "--platform" goto arg-build-platform
 if "%1" equ "--run-e2e-tests" goto arg-run-e2e-tests
+if "%1" equ "--run-sfc-tests" goto arg-run-sfc-tests
 if "%1" equ "--run-longhaul-tests" goto arg-longhaul-tests
 if "%1" equ "--run-unittests" goto arg-run-unittests
 if "%1" equ "--make_nuget" goto arg-build-nuget
@@ -81,6 +83,10 @@ goto args-continue
 
 :arg-run-e2e-tests
 set CMAKE_run_e2e_tests=ON
+goto args-continue
+
+:arg-run-sfc-tests
+set CMAKE_run_sfc_tests=ON
 goto args-continue
 
 :arg-longhaul-tests
@@ -125,6 +131,7 @@ goto args-loop
 if %make% == no (
     rem No point running tests if we are not building the code
     set CMAKE_run_e2e_tests=OFF
+    set CMAKE_run_sfc_tests=OFF
     set CMAKE_run_longhaul_tests=OFF
     set build-samples=no
 )
@@ -148,11 +155,7 @@ if %build-samples%==yes (
         )
     )
 
-    rem call nuget restore -config "%current-path%\NuGet.Config" "%build-root%\iothub_client\samples\iothub_client_sample_amqp\windows\iothub_client_sample_amqp.sln"
-    if !ERRORLEVEL! neq 0 exit /b !ERRORLEVEL!
-    call nuget restore -config "%current-path%\NuGet.Config" "%build-root%\iothub_client\samples\iothub_client_sample_http\windows\iothub_client_sample_http.sln"
-    if !ERRORLEVEL! neq 0 exit /b !ERRORLEVEL!
-    call nuget restore -config "%current-path%\NuGet.Config" "%build-root%\iothub_client\samples\iothub_client_sample_mqtt\windows\iothub_client_sample_mqtt.sln"
+    call nuget restore -config "%current-path%\NuGet.Config" "%build-root%\iothub_client\samples\iothub_ll_telemetry_sample\windows\iothub_ll_telemetry_sample.sln"
     if !ERRORLEVEL! neq 0 exit /b !ERRORLEVEL!
 
     call nuget restore -config "%current-path%\NuGet.Config" "%build-root%\serializer\samples\simplesample_http\windows\simplesample_http.sln"
@@ -173,17 +176,9 @@ rem ----------------------------------------------------------------------------
 
 if %build-clean%==1 (
     if %build-samples%==yes (
-        rem call nuget restore "%build-root%\iothub_client\samples\iothub_client_sample_amqp\windows\iothub_client_sample_amqp.sln"
-        rem call :clean-a-solution "%build-root%\iothub_client\samples\iothub_client_sample_amqp\windows\iothub_client_sample_amqp.sln"
-        rem if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
-
-        call nuget restore "%build-root%\iothub_client\samples\iothub_client_sample_http\windows\iothub_client_sample_http.sln"
-        call :clean-a-solution "%build-root%\iothub_client\samples\iothub_client_sample_http\windows\iothub_client_sample_http.sln"
+        call nuget restore "%build-root%\iothub_client\samples\iothub_ll_telemetry_sample\windows\iothub_ll_telemetry_sample.sln"
+        call :clean-a-solution "%build-root%\iothub_client\samples\iothub_ll_telemetry_sample\windows\iothub_ll_telemetry_sample.sln"
         if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
-
-        rem call nuget restore "%build-root%\iothub_client\samples\iothub_client_sample_mqtt\windows\iothub_client_sample_mqtt.sln"
-        rem call :clean-a-solution "%build-root%\iothub_client\samples\iothub_client_sample_mqtt\windows\iothub_client_sample_mqtt.sln"
-        rem if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
         
         call :clean-a-solution "%build-root%\serializer\samples\simplesample_http\windows\simplesample_http.sln"
         if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
@@ -207,14 +202,8 @@ rem -- build solutions
 rem -----------------------------------------------------------------------------
 
 if %build-samples%==yes (
-    rem call :build-a-solution "%build-root%\iothub_client\samples\iothub_client_sample_amqp\windows\iothub_client_sample_amqp.sln"
-    rem if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
-
-    call :build-a-solution "%build-root%\iothub_client\samples\iothub_client_sample_http\windows\iothub_client_sample_http.sln"
+    call :build-a-solution "%build-root%\iothub_client\samples\iothub_ll_telemetry_sample\windows\iothub_ll_telemetry_sample.sln"
     if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
-
-    rem call :build-a-solution "%build-root%\iothub_client\samples\iothub_client_sample_mqtt\windows\iothub_client_sample_mqtt.sln"
-    rem if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
 
     rem call :build-a-solution "%build-root%\serializer\samples\simplesample_amqp\windows\simplesample_amqp.sln"
     rem if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
@@ -248,7 +237,7 @@ pushd %cmake-root%\cmake\%CMAKE_DIR%
 
 if %MAKE_NUGET_PKG% == yes (
     echo ***Running CMAKE for Win32***
-    cmake %build-root% -Drun_longhaul_tests:BOOL=%CMAKE_run_longhaul_tests% -Drun_e2e_tests:BOOL=%CMAKE_run_e2e_tests% -Drun_unittests:BOOL=%CMAKE_run_unittests% -Duse_prov_client:BOOL=%prov_auth%
+    cmake %build-root% -Drun_longhaul_tests:BOOL=%CMAKE_run_longhaul_tests% -Drun_e2e_tests:BOOL=%CMAKE_run_e2e_tests% -Drun_sfc_tests:BOOL=%CMAKE_run_sfc_tests% -Drun_unittests:BOOL=%CMAKE_run_unittests% -Duse_prov_client:BOOL=%prov_auth%
     if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
     popd
 
@@ -260,7 +249,7 @@ if %MAKE_NUGET_PKG% == yes (
     rem no error checking
 
     pushd %cmake-root%\cmake\iotsdk_x64
-    cmake -Drun_longhaul_tests:BOOL=%CMAKE_run_longhaul_tests% -Drun_e2e_tests:BOOL=%CMAKE_run_e2e_tests% -Drun_unittests:BOOL=%CMAKE_run_unittests% %build-root% -Duse_prov_client:BOOL=%prov_auth% -G "Visual Studio 14 Win64"
+    cmake -Drun_longhaul_tests:BOOL=%CMAKE_run_longhaul_tests% -Drun_e2e_tests:BOOL=%CMAKE_run_e2e_tests% -Drun_sfc_tests:BOOL=%CMAKE_run_sfc_tests% -Drun_unittests:BOOL=%CMAKE_run_unittests% %build-root% -Duse_prov_client:BOOL=%prov_auth% -G "Visual Studio 14 Win64"
     if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
     popd
 
@@ -272,20 +261,20 @@ if %MAKE_NUGET_PKG% == yes (
     rem no error checking
 
     pushd %cmake-root%\cmake\iotsdk_arm
-    cmake -Drun_longhaul_tests:BOOL=%CMAKE_run_longhaul_tests% -Drun_e2e_tests:BOOL=%CMAKE_run_e2e_tests% -Drun_unittests:BOOL=%CMAKE_run_unittests% %build-root% -Duse_prov_client:BOOL=%prov_auth% -G "Visual Studio 14 ARM"
+    cmake -Drun_longhaul_tests:BOOL=%CMAKE_run_longhaul_tests% -Drun_e2e_tests:BOOL=%CMAKE_run_e2e_tests% -Drun_sfc_tests:BOOL=%CMAKE_run_sfc_tests% -Drun_unittests:BOOL=%CMAKE_run_unittests% %build-root% -Duse_prov_client:BOOL=%prov_auth% -G "Visual Studio 14 ARM"
     if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
 
 ) else if %build-platform% == x64 (
     echo ***Running CMAKE for Win64***
-    cmake -Drun_longhaul_tests:BOOL=%CMAKE_run_longhaul_tests% -Drun_e2e_tests:BOOL=%CMAKE_run_e2e_tests% -Drun_unittests:BOOL=%CMAKE_run_unittests% %build-root% -Duse_prov_client:BOOL=%prov_auth% -G "Visual Studio 14 Win64"
+    cmake -Drun_longhaul_tests:BOOL=%CMAKE_run_longhaul_tests% -Drun_e2e_tests:BOOL=%CMAKE_run_e2e_tests% -Drun_sfc_tests:BOOL=%CMAKE_run_sfc_tests% -Drun_unittests:BOOL=%CMAKE_run_unittests% %build-root% -Duse_prov_client:BOOL=%prov_auth% -G "Visual Studio 14 Win64"
     if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
 ) else if %build-platform% == arm (
     echo ***Running CMAKE for ARM***
-    cmake -Drun_longhaul_tests:BOOL=%CMAKE_run_longhaul_tests% -Drun_e2e_tests:BOOL=%CMAKE_run_e2e_tests% -Drun_unittests:BOOL=%CMAKE_run_unittests% %build-root% -Duse_prov_client:BOOL=%prov_auth% -G "Visual Studio 14 ARM"
+    cmake -Drun_longhaul_tests:BOOL=%CMAKE_run_longhaul_tests% -Drun_e2e_tests:BOOL=%CMAKE_run_e2e_tests% -Drun_sfc_tests:BOOL=%CMAKE_run_sfc_tests% -Drun_unittests:BOOL=%CMAKE_run_unittests% %build-root% -Duse_prov_client:BOOL=%prov_auth% -G "Visual Studio 14 ARM"
     if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
 ) else (
     echo ***Running CMAKE for Win32***
-    cmake -Drun_longhaul_tests:BOOL=%CMAKE_run_longhaul_tests% -Drun_e2e_tests:BOOL=%CMAKE_run_e2e_tests% -Drun_unittests:BOOL=%CMAKE_run_unittests% %build-root% -Duse_prov_client:BOOL=%prov_auth%
+    cmake -Drun_longhaul_tests:BOOL=%CMAKE_run_longhaul_tests% -Drun_e2e_tests:BOOL=%CMAKE_run_e2e_tests% -Drun_sfc_tests:BOOL=%CMAKE_run_sfc_tests% -Drun_unittests:BOOL=%CMAKE_run_unittests% %build-root% -Duse_prov_client:BOOL=%prov_auth%
     if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
 )
 
@@ -313,7 +302,7 @@ if %MAKE_NUGET_PKG% == yes (
         if !ERRORLEVEL! neq 0 exit /b !ERRORLEVEL!
 
         if %build-platform% neq arm (
-            ctest -C "debug" -V
+            ctest -C "debug" -V -j 8
             if not !ERRORLEVEL!==0 exit /b !ERRORLEVEL!
         )
     )

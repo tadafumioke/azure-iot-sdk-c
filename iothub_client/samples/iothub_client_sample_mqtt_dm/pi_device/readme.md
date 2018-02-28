@@ -1,4 +1,7 @@
 # Firmware update of a Raspberry Pi 3 using Azure IoT Hub device management
+
+**NOTE: THIS SAMPLE IS PROVIDED ONLY FOR ILLUSTRATIVE PURPOSES.  IT RECEIVES MINIMAL MICROSOFT SUPPORT AND SHOULD NOT BE USED FOR PRODUCTION.**
+
 The following instructions explain how to do a firmware update on a Raspberry Pi 3 running Raspbian using Azure IoT Hub.
 The sample is a simple C application that will run on a Raspberry Pi, establish connection with Azure IoT Hub and wait for a "firmware update" call from Azure IoT Hub.
 Before jumping in, it is recommended to read through the following documentation in order to understand the way device management is done using Azure IoT Hub:
@@ -38,8 +41,12 @@ The instructions below show how to trigger the firmware update after preparing a
 Once triggered, the application will download the new firmware image package, install it then reboot the device.
 The new firmware image contains the application already, which is setup to run as a service at boottime, reporting on the new firmware image version through Device Twins.
 
-The code for the sample application is available in the [azure-io-sdks](https://github.com/azure/azure-io-sdks) repository, but to simplify the exercise, we have compiled and published the sample application in a package.
-If you want to compile the application along with the rest of the SDK directly on the Pi, you can do so following these [instructions](../../../../../doc/get_started/raspbian-3gpi-c.md), but the below instructions assume that you are downloading the app package.
+The code for the sample application is available in the [azure-iot-sdk-c](https://github.com/Azure/azure-iot-sdk-c) 
+repository, but to simplify the exercise, we have compiled and published the sample application in a package.
+If you want to compile the application along with the rest of the SDK directly on the Pi, you can do so 
+following these 
+[instructions](https://github.com/Azure/azure-iot-device-ecosystem/blob/master/get_started/raspbian-3gpi-c.md), 
+but the below instructions assume that you are downloading the app package.
 
 ## Run the sample
 To run the sample, you will need to prepare an existing image running on a Raspberry Pi to run the sample application, and prepare a new firmware image that will be deployed to your device.
@@ -89,7 +96,7 @@ Assuming you have an older version of Raspbian running on your Raspberry Pi, fol
 
 	```
 	sudo apt-get update
-	sudo apt-get install -y iothub_client_sample_firmware_update
+	sudo apt-get install -y iothub-client-sample-firmware-update
 	```
 
 -	Insert the device's connection string into file /usr/share/iothub_client_sample/.device_connection_string

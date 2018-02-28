@@ -54,14 +54,27 @@ typedef struct UPLOADTOBLOB_SAVED_DATA_TAG
 {
     unsigned char* source;
     size_t size;
-    char* destinationFileName;
     IOTHUB_CLIENT_FILE_UPLOAD_CALLBACK iotHubClientFileUploadCallback;
-    void* context;
+}UPLOADTOBLOB_SAVED_DATA;
+
+typedef struct UPLOADTOBLOB_MULTIBLOCK_SAVED_DATA_TAG
+{
+    IOTHUB_CLIENT_FILE_UPLOAD_GET_DATA_CALLBACK getDataCallback;
+    IOTHUB_CLIENT_FILE_UPLOAD_GET_DATA_CALLBACK_EX getDataCallbackEx;
+}UPLOADTOBLOB_MULTIBLOCK_SAVED_DATA;
+
+typedef struct UPLOADTOBLOB_THREAD_INFO_TAG
+{
+    char* destinationFileName;
     THREAD_HANDLE uploadingThreadHandle;
-    IOTHUB_CLIENT_HANDLE iotHubClientHandle;
     LOCK_HANDLE lockGarbage;
     int canBeGarbageCollected; /*flag indicating that the UPLOADTOBLOB_SAVED_DATA structure can be freed because the thread deadling with it finished*/
-}UPLOADTOBLOB_SAVED_DATA;
+    IOTHUB_CLIENT_HANDLE iotHubClientHandle;
+    void* context;
+    UPLOADTOBLOB_SAVED_DATA uploadBlobSavedData;
+    UPLOADTOBLOB_MULTIBLOCK_SAVED_DATA uploadBlobMultiblockSavedData;
+}UPLOADTOBLOB_THREAD_INFO;
+
 #endif
 
 #define USER_CALLBACK_TYPE_VALUES       \
@@ -131,6 +144,14 @@ typedef struct IOTHUB_QUEUE_CONTEXT_TAG
 const size_t IoTHubClient_ThreadTerminationOffset = offsetof(IOTHUB_CLIENT_INSTANCE, StopThread);
 
 #ifndef DONT_USE_UPLOADTOBLOB
+static void freeUploadToBlobThreadInfo(UPLOADTOBLOB_THREAD_INFO* threadInfo)
+{
+    Lock_Deinit(threadInfo->lockGarbage);
+    free(threadInfo->uploadBlobSavedData.source);
+    free(threadInfo->destinationFileName);
+    free(threadInfo);
+}
+
 /*this function is called from _Destroy and from ScheduleWork_Thread to join finished blobUpload threads and free that memory*/
 static void garbageCollectorImpl(IOTHUB_CLIENT_INSTANCE* iotHubClientInstance)
 {
@@ -139,37 +160,34 @@ static void garbageCollectorImpl(IOTHUB_CLIENT_INSTANCE* iotHubClientInstance)
     LIST_ITEM_HANDLE item = singlylinkedlist_get_head_item(iotHubClientInstance->savedDataToBeCleaned);
     while (item != NULL)
     {
-        const UPLOADTOBLOB_SAVED_DATA* savedData = (const UPLOADTOBLOB_SAVED_DATA*)singlylinkedlist_item_get_value(item);
+        UPLOADTOBLOB_THREAD_INFO* threadInfo = (UPLOADTOBLOB_THREAD_INFO*)singlylinkedlist_item_get_value(item);
         LIST_ITEM_HANDLE old_item = item;
         item = singlylinkedlist_get_next_item(item);
 
-        if (Lock(savedData->lockGarbage) != LOCK_OK)
+        if (Lock(threadInfo->lockGarbage) != LOCK_OK)
         {
             LogError("unable to Lock");
         }
         else
         {
-            if (savedData->canBeGarbageCollected == 1)
+            if (threadInfo->canBeGarbageCollected == 1)
             {
                 int notUsed;
-                if (ThreadAPI_Join(savedData->uploadingThreadHandle, &notUsed) != THREADAPI_OK)
+                if (ThreadAPI_Join(threadInfo->uploadingThreadHandle, &notUsed) != THREADAPI_OK)
                 {
                     LogError("unable to ThreadAPI_Join");
                 }
                 (void)singlylinkedlist_remove(iotHubClientInstance->savedDataToBeCleaned, old_item);
-                free((void*)savedData->source);
-                free((void*)savedData->destinationFileName);
 
-                if (Unlock(savedData->lockGarbage) != LOCK_OK)
+                if (Unlock(threadInfo->lockGarbage) != LOCK_OK)
                 {
                     LogError("unable to unlock after locking");
                 }
-                (void)Lock_Deinit(savedData->lockGarbage);
-                free((void*)savedData);
+                freeUploadToBlobThreadInfo(threadInfo);
             }
             else
             {
-                if (Unlock(savedData->lockGarbage) != LOCK_OK)
+                if (Unlock(threadInfo->lockGarbage) != LOCK_OK)
                 {
                     LogError("unable to unlock after locking");
                 }
@@ -405,6 +423,44 @@ static void dispatch_user_callbacks(IOTHUB_CLIENT_INSTANCE* iotHubClientInstance
 {
     size_t callbacks_length = VECTOR_size(call_backs);
     size_t index;
+
+    IOTHUB_CLIENT_DEVICE_TWIN_CALLBACK desired_state_callback = NULL;
+    IOTHUB_CLIENT_EVENT_CONFIRMATION_CALLBACK event_confirm_callback = NULL;
+    IOTHUB_CLIENT_REPORTED_STATE_CALLBACK reported_state_callback = NULL;
+    IOTHUB_CLIENT_CONNECTION_STATUS_CALLBACK connection_status_callback = NULL;
+    IOTHUB_CLIENT_DEVICE_METHOD_CALLBACK_ASYNC device_method_callback = NULL;
+    IOTHUB_CLIENT_INBOUND_DEVICE_METHOD_CALLBACK inbound_device_method_callback = NULL;
+    IOTHUB_CLIENT_MESSAGE_CALLBACK_ASYNC message_callback = NULL;
+    IOTHUB_CLIENT_HANDLE message_user_context_handle = NULL;
+    IOTHUB_CLIENT_HANDLE method_user_context_handle = NULL;
+
+    // Make a local copy of these callbacks, as we don't run with a lock held and iotHubClientInstance may change mid-run.
+    if (Lock(iotHubClientInstance->LockHandle) != LOCK_OK)
+    {
+        LogError("failed locking for dispatch_user_callbacks");
+    }
+    else
+    {
+        desired_state_callback = iotHubClientInstance->desired_state_callback;
+        event_confirm_callback = iotHubClientInstance->event_confirm_callback;
+        reported_state_callback = iotHubClientInstance->reported_state_callback;
+        connection_status_callback = iotHubClientInstance->connection_status_callback;
+        device_method_callback = iotHubClientInstance->device_method_callback;
+        inbound_device_method_callback = iotHubClientInstance->inbound_device_method_callback;
+        message_callback = iotHubClientInstance->message_callback;
+        if (iotHubClientInstance->method_user_context)
+        {
+            method_user_context_handle = iotHubClientInstance->method_user_context->iotHubClientHandle;
+        }
+        if (iotHubClientInstance->message_user_context)
+        {
+            message_user_context_handle = iotHubClientInstance->message_user_context->iotHubClientHandle;
+        }
+        
+        (void)Unlock(iotHubClientInstance->LockHandle);
+    }
+
+    
     for (index = 0; index < callbacks_length; index++)
     {
         USER_CALLBACK_INFO* queued_cb = (USER_CALLBACK_INFO*)VECTOR_element(call_backs, index);
@@ -418,19 +474,6 @@ static void dispatch_user_callbacks(IOTHUB_CLIENT_INSTANCE* iotHubClientInstance
             {
                 case CALLBACK_TYPE_DEVICE_TWIN:
                 {
-                    IOTHUB_CLIENT_DEVICE_TWIN_CALLBACK desired_state_callback;
-
-                    if (Lock(iotHubClientInstance->LockHandle) != LOCK_OK)
-                    {
-                        LogError("failed locking for dispatch_user_callbacks");
-                        desired_state_callback = NULL;
-                    }
-                    else
-                    {
-                        desired_state_callback = iotHubClientInstance->desired_state_callback;
-                        (void)Unlock(iotHubClientInstance->LockHandle);
-                    }
-
                     if (desired_state_callback)
                     {
                         desired_state_callback(queued_cb->iothub_callback.dev_twin_cb_info.update_state, queued_cb->iothub_callback.dev_twin_cb_info.payLoad, queued_cb->iothub_callback.dev_twin_cb_info.size, queued_cb->userContextCallback);
@@ -443,25 +486,25 @@ static void dispatch_user_callbacks(IOTHUB_CLIENT_INSTANCE* iotHubClientInstance
                     break;
                 }
                 case CALLBACK_TYPE_EVENT_CONFIRM:
-                    if (iotHubClientInstance->event_confirm_callback)
+                    if (event_confirm_callback)
                     {
-                        iotHubClientInstance->event_confirm_callback(queued_cb->iothub_callback.event_confirm_cb_info.confirm_result, queued_cb->userContextCallback);
+                        event_confirm_callback(queued_cb->iothub_callback.event_confirm_cb_info.confirm_result, queued_cb->userContextCallback);
                     }
                     break;
                 case CALLBACK_TYPE_REPORTED_STATE:
-                    if (iotHubClientInstance->reported_state_callback)
+                    if (reported_state_callback)
                     {
-                        iotHubClientInstance->reported_state_callback(queued_cb->iothub_callback.reported_state_cb_info.status_code, queued_cb->userContextCallback);
+                        reported_state_callback(queued_cb->iothub_callback.reported_state_cb_info.status_code, queued_cb->userContextCallback);
                     }
                     break;
                 case CALLBACK_TYPE_CONNECTION_STATUS:
-                    if (iotHubClientInstance->connection_status_callback)
+                    if (connection_status_callback)
                     {
-                        iotHubClientInstance->connection_status_callback(queued_cb->iothub_callback.connection_status_cb_info.connection_status, queued_cb->iothub_callback.connection_status_cb_info.status_reason, queued_cb->userContextCallback);
+                        connection_status_callback(queued_cb->iothub_callback.connection_status_cb_info.connection_status, queued_cb->iothub_callback.connection_status_cb_info.status_reason, queued_cb->userContextCallback);
                     }
                     break;
                 case CALLBACK_TYPE_DEVICE_METHOD:
-                    if (iotHubClientInstance->device_method_callback)
+                    if (device_method_callback)
                     {
                         const char* method_name = STRING_c_str(queued_cb->iothub_callback.method_cb_info.method_name);
                         const unsigned char* payload = BUFFER_u_char(queued_cb->iothub_callback.method_cb_info.payload);
@@ -469,12 +512,11 @@ static void dispatch_user_callbacks(IOTHUB_CLIENT_INSTANCE* iotHubClientInstance
 
                         unsigned char* payload_resp = NULL;
                         size_t response_size = 0;
-                        int status = iotHubClientInstance->device_method_callback(method_name, payload, payload_len, &payload_resp, &response_size, queued_cb->userContextCallback);
+                        int status = device_method_callback(method_name, payload, payload_len, &payload_resp, &response_size, queued_cb->userContextCallback);
 
                         if (payload_resp && (response_size > 0))
                         {
-                            IOTHUB_CLIENT_HANDLE handle = iotHubClientInstance->method_user_context->iotHubClientHandle;
-                            IOTHUB_CLIENT_RESULT result = IoTHubClient_DeviceMethodResponse(handle, queued_cb->iothub_callback.method_cb_info.method_id, (const unsigned char*)payload_resp, response_size, status);
+                            IOTHUB_CLIENT_RESULT result = IoTHubClient_DeviceMethodResponse(method_user_context_handle, queued_cb->iothub_callback.method_cb_info.method_id, (const unsigned char*)payload_resp, response_size, status);
                             if (result != IOTHUB_CLIENT_OK)
                             {
                                 LogError("IoTHubClient_LL_DeviceMethodResponse failed");
@@ -491,28 +533,27 @@ static void dispatch_user_callbacks(IOTHUB_CLIENT_INSTANCE* iotHubClientInstance
                     }
                     break;
                 case CALLBACK_TYPE_INBOUD_DEVICE_METHOD:
-                    if (iotHubClientInstance->inbound_device_method_callback)
+                    if (inbound_device_method_callback)
                     {
                         const char* method_name = STRING_c_str(queued_cb->iothub_callback.method_cb_info.method_name);
                         const unsigned char* payload = BUFFER_u_char(queued_cb->iothub_callback.method_cb_info.payload);
                         size_t payload_len = BUFFER_length(queued_cb->iothub_callback.method_cb_info.payload);
 
-                        iotHubClientInstance->inbound_device_method_callback(method_name, payload, payload_len, queued_cb->iothub_callback.method_cb_info.method_id, queued_cb->userContextCallback);
+                        inbound_device_method_callback(method_name, payload, payload_len, queued_cb->iothub_callback.method_cb_info.method_id, queued_cb->userContextCallback);
 
                         BUFFER_delete(queued_cb->iothub_callback.method_cb_info.payload);
                         STRING_delete(queued_cb->iothub_callback.method_cb_info.method_name);
                     }
                     break;
                 case CALLBACK_TYPE_MESSAGE:
-                    if (iotHubClientInstance->message_callback)
+                    if (message_callback)
                     {
-                        IOTHUBMESSAGE_DISPOSITION_RESULT disposition = iotHubClientInstance->message_callback(queued_cb->iothub_callback.message_cb_info->messageHandle, queued_cb->userContextCallback);
-                        IOTHUB_CLIENT_HANDLE handle = iotHubClientInstance->message_user_context->iotHubClientHandle;
+                        IOTHUBMESSAGE_DISPOSITION_RESULT disposition = message_callback(queued_cb->iothub_callback.message_cb_info->messageHandle, queued_cb->userContextCallback);
 
-                        if (Lock(handle->LockHandle) == LOCK_OK)
+                        if (Lock(message_user_context_handle->LockHandle) == LOCK_OK)
                         {
-                            IOTHUB_CLIENT_RESULT result = IoTHubClient_LL_SendMessageDisposition(handle->IoTHubClientLLHandle, queued_cb->iothub_callback.message_cb_info, disposition);
-                            (void)Unlock(handle->LockHandle);
+                            IOTHUB_CLIENT_RESULT result = IoTHubClient_LL_SendMessageDisposition(message_user_context_handle->IoTHubClientLLHandle, queued_cb->iothub_callback.message_cb_info, disposition);
+                            (void)Unlock(message_user_context_handle->LockHandle);
                             if (result != IOTHUB_CLIENT_OK)
                             {
                                 LogError("IoTHubClient_LL_SendMessageDisposition failed");
@@ -1065,11 +1106,6 @@ IOTHUB_CLIENT_RESULT IoTHubClient_SendEventAsync(IOTHUB_CLIENT_HANDLE iotHubClie
         }
         else
         {
-            if (iotHubClientInstance->created_with_transport_handle == 0)
-            {
-                iotHubClientInstance->event_confirm_callback = eventConfirmationCallback;
-            }
-
             /* Codes_SRS_IOTHUBCLIENT_01_025: [IoTHubClient_SendEventAsync shall be made thread-safe by using the lock created in IoTHubClient_Create.] */
             if (Lock(iotHubClientInstance->LockHandle) != LOCK_OK)
             {
@@ -1079,6 +1115,11 @@ IOTHUB_CLIENT_RESULT IoTHubClient_SendEventAsync(IOTHUB_CLIENT_HANDLE iotHubClie
             }
             else
             {
+                if (iotHubClientInstance->created_with_transport_handle == 0)
+                {
+                    iotHubClientInstance->event_confirm_callback = eventConfirmationCallback;
+                }
+
                 if (iotHubClientInstance->created_with_transport_handle != 0 || eventConfirmationCallback == NULL)
                 {
                     result = IoTHubClient_LL_SendEventAsync(iotHubClientInstance->IoTHubClientLLHandle, eventMessageHandle, eventConfirmationCallback, userContextCallback);
@@ -1174,11 +1215,6 @@ IOTHUB_CLIENT_RESULT IoTHubClient_SetMessageCallback(IOTHUB_CLIENT_HANDLE iotHub
         }
         else
         {
-            if (iotHubClientInstance->created_with_transport_handle == 0)
-            {
-                iotHubClientInstance->message_callback = messageCallback;
-            }
-
             /* Codes_SRS_IOTHUBCLIENT_01_027: [IoTHubClient_SetMessageCallback shall be made thread-safe by using the lock created in IoTHubClient_Create.] */
             if (Lock(iotHubClientInstance->LockHandle) != LOCK_OK)
             {
@@ -1188,6 +1224,10 @@ IOTHUB_CLIENT_RESULT IoTHubClient_SetMessageCallback(IOTHUB_CLIENT_HANDLE iotHub
             }
             else
             {
+                if (iotHubClientInstance->created_with_transport_handle == 0)
+                {
+                    iotHubClientInstance->message_callback = messageCallback;
+                }
                 if (iotHubClientInstance->message_user_context != NULL)
                 {
                     free(iotHubClientInstance->message_user_context);
@@ -1573,11 +1613,6 @@ IOTHUB_CLIENT_RESULT IoTHubClient_SendReportedState(IOTHUB_CLIENT_HANDLE iotHubC
         }
         else
         {
-            if (iotHubClientInstance->created_with_transport_handle == 0)
-            {
-                iotHubClientInstance->reported_state_callback = reportedStateCallback;
-            }
-
             /*Codes_SRS_IOTHUBCLIENT_10_021: [** `IoTHubClient_SendReportedState` shall be made thread-safe by using the lock created in IoTHubClient_Create. ]*/
             if (Lock(iotHubClientInstance->LockHandle) != LOCK_OK)
             {
@@ -1587,6 +1622,11 @@ IOTHUB_CLIENT_RESULT IoTHubClient_SendReportedState(IOTHUB_CLIENT_HANDLE iotHubC
             }
             else
             {
+                if (iotHubClientInstance->created_with_transport_handle == 0)
+                {
+                    iotHubClientInstance->reported_state_callback = reportedStateCallback;
+                }
+
                 if (iotHubClientInstance->created_with_transport_handle != 0 || reportedStateCallback == NULL)
                 {
                     /*Codes_SRS_IOTHUBCLIENT_10_017: [** `IoTHubClient_SendReportedState` shall call `IoTHubClient_LL_SendReportedState`, while passing the `IoTHubClient_LL handle` created by `IoTHubClient_LL_Create` along with the parameters `reportedState`, `size`, `reportedStateCallback`, and `userContextCallback`. ]*/
@@ -1647,11 +1687,6 @@ IOTHUB_CLIENT_RESULT IoTHubClient_SetDeviceMethodCallback(IOTHUB_CLIENT_HANDLE i
         }
         else
         {
-            if (iotHubClientInstance->created_with_transport_handle == 0)
-            {
-                iotHubClientInstance->device_method_callback = deviceMethodCallback;
-            }
-
             /*Codes_SRS_IOTHUBCLIENT_12_018: [ IoTHubClient_SetDeviceMethodCallback shall be made thread-safe by using the lock created in IoTHubClient_Create. ]*/
             if (Lock(iotHubClientInstance->LockHandle) != LOCK_OK)
             {
@@ -1661,6 +1696,11 @@ IOTHUB_CLIENT_RESULT IoTHubClient_SetDeviceMethodCallback(IOTHUB_CLIENT_HANDLE i
             }
             else
             {
+                if (iotHubClientInstance->created_with_transport_handle == 0)
+                {
+                    iotHubClientInstance->device_method_callback = deviceMethodCallback;
+                }
+
                 if (iotHubClientInstance->method_user_context)
                 {
                     free(iotHubClientInstance->method_user_context);
@@ -1730,11 +1770,6 @@ IOTHUB_CLIENT_RESULT IoTHubClient_SetDeviceMethodCallback_Ex(IOTHUB_CLIENT_HANDL
         }
         else
         {
-            if (iotHubClientInstance->created_with_transport_handle == 0)
-            {
-                iotHubClientInstance->inbound_device_method_callback = inboundDeviceMethodCallback;
-            }
-
             /*Codes_SRS_IOTHUBCLIENT_07_007: [ IoTHubClient_SetDeviceMethodCallback_Ex shall be made thread-safe by using the lock created in IoTHubClient_Create. ]*/
             if (Lock(iotHubClientInstance->LockHandle) != LOCK_OK)
             {
@@ -1744,6 +1779,11 @@ IOTHUB_CLIENT_RESULT IoTHubClient_SetDeviceMethodCallback_Ex(IOTHUB_CLIENT_HANDL
             }
             else
             {
+                if (iotHubClientInstance->created_with_transport_handle == 0)
+                {
+                    iotHubClientInstance->inbound_device_method_callback = inboundDeviceMethodCallback;
+                }
+
                 if (iotHubClientInstance->method_user_context)
                 {
                     free(iotHubClientInstance->method_user_context);
@@ -1825,60 +1865,151 @@ IOTHUB_CLIENT_RESULT IoTHubClient_DeviceMethodResponse(IOTHUB_CLIENT_HANDLE iotH
 }
 
 #ifndef DONT_USE_UPLOADTOBLOB
-static int uploadingThread(void *data)
+static IOTHUB_CLIENT_RESULT startUploadToBlobWorkerThread(UPLOADTOBLOB_THREAD_INFO* threadInfo, THREAD_START_FUNC uploadThreadFunc)
 {
-    UPLOADTOBLOB_SAVED_DATA* savedData = (UPLOADTOBLOB_SAVED_DATA*)data;
+    IOTHUB_CLIENT_RESULT result;
 
-    if (Lock(savedData->iotHubClientHandle->LockHandle) == LOCK_OK)
+    LIST_ITEM_HANDLE item;
+
+    if (Lock(threadInfo->iotHubClientHandle->LockHandle) != LOCK_OK)
     {
-        IOTHUB_CLIENT_FILE_UPLOAD_RESULT upload_result;
-        /*it so happens that IoTHubClient_LL_UploadToBlob is thread-safe because there's no saved state in the handle and there are no globals, so no need to protect it*/
-        /*not having it protected means multiple simultaneous uploads can happen*/
-        /*Codes_SRS_IOTHUBCLIENT_02_054: [ The thread shall call IoTHubClient_LL_UploadToBlob passing the information packed in the structure. ]*/
-        if (IoTHubClient_LL_UploadToBlob(savedData->iotHubClientHandle->IoTHubClientLLHandle, savedData->destinationFileName, savedData->source, savedData->size) == IOTHUB_CLIENT_OK)
+        LogError("Lock failed");
+        result = IOTHUB_CLIENT_ERROR;
+    }
+    else
+    {
+        if ((item = singlylinkedlist_add(threadInfo->iotHubClientHandle->savedDataToBeCleaned, threadInfo)) == NULL)
         {
-            upload_result = FILE_UPLOAD_OK;
+            LogError("Adding item to list failed");
+            result = IOTHUB_CLIENT_ERROR;
+        }
+        else if (ThreadAPI_Create(&threadInfo->uploadingThreadHandle, uploadThreadFunc, threadInfo) != THREADAPI_OK)
+        {
+            /*Codes_SRS_IOTHUBCLIENT_02_053: [ If copying to the structure or spawning the thread fails, then IoTHubClient_UploadToBlobAsync shall fail and return IOTHUB_CLIENT_ERROR. ]*/
+            LogError("unable to ThreadAPI_Create");
+            // Remove the item from linked list here, while we're still under lock.  Final garbage collector also does it under lock.
+            (void)singlylinkedlist_remove(threadInfo->iotHubClientHandle->savedDataToBeCleaned, item);
+            result = IOTHUB_CLIENT_ERROR;
         }
         else
         {
-            LogError("unable to IoTHubClient_LL_UploadToBlob");
-            upload_result = FILE_UPLOAD_ERROR;
+            result = IOTHUB_CLIENT_OK;
         }
-        (void)Unlock(savedData->iotHubClientHandle->LockHandle);
-
-        if (savedData->iotHubClientFileUploadCallback != NULL)
-        {
-            /*Codes_SRS_IOTHUBCLIENT_02_055: [ If IoTHubClient_LL_UploadToBlob fails then the thread shall call iotHubClientFileUploadCallbackInternal passing as result FILE_UPLOAD_ERROR and as context the structure from SRS IOTHUBCLIENT 02 051. ]*/
-            savedData->iotHubClientFileUploadCallback(upload_result, savedData->context);
-        }
+        (void)Unlock(threadInfo->iotHubClientHandle->LockHandle);
     }
-    else
+
+    return result;
+}
+
+static UPLOADTOBLOB_THREAD_INFO* allocateUploadToBlob(const char* destinationFileName, IOTHUB_CLIENT_HANDLE iotHubClientHandle, void* context)
+{
+    UPLOADTOBLOB_THREAD_INFO* threadInfo = (UPLOADTOBLOB_THREAD_INFO*)malloc(sizeof(UPLOADTOBLOB_THREAD_INFO));
+    if (threadInfo == NULL)
     {
-        LogError("Lock failed");
+        LogError("unable to allocate thread object");
+    }
+    else 
+    {
+        memset(threadInfo, 0, sizeof(UPLOADTOBLOB_THREAD_INFO));
+        threadInfo->iotHubClientHandle = iotHubClientHandle;
+        threadInfo->context = context;
+
+        if (mallocAndStrcpy_s(&threadInfo->destinationFileName, destinationFileName) != 0)
+        {
+            /*Codes_SRS_IOTHUBCLIENT_02_053: [ If copying to the structure or spawning the thread fails, then IoTHubClient_UploadToBlobAsync shall fail and return IOTHUB_CLIENT_ERROR. ]*/
+            LogError("unable to mallocAndStrcpy_s");
+            freeUploadToBlobThreadInfo(threadInfo);
+            threadInfo = NULL;
+        }        
+        else if ((threadInfo->lockGarbage = Lock_Init()) == NULL)
+        {
+            LogError("unable to allocate a lock");
+            freeUploadToBlobThreadInfo(threadInfo);
+            threadInfo = NULL;
+        }
     }
 
+    return threadInfo;
+}
+
+static int markThreadReadyToBeGarbageCollected(UPLOADTOBLOB_THREAD_INFO* threadInfo)
+{
     /*Codes_SRS_IOTHUBCLIENT_02_071: [ The thread shall mark itself as disposable. ]*/
-    if (Lock(savedData->lockGarbage) != LOCK_OK)
+    if (Lock(threadInfo->lockGarbage) != LOCK_OK)
     {
         LogError("unable to Lock - trying anyway");
-        savedData->canBeGarbageCollected = 1;
+        threadInfo->canBeGarbageCollected = 1;
     }
     else
     {
-        savedData->canBeGarbageCollected = 1;
+        threadInfo->canBeGarbageCollected = 1;
 
-        if (Unlock(savedData->lockGarbage) != LOCK_OK)
+        if (Unlock(threadInfo->lockGarbage) != LOCK_OK)
         {
             LogError("unable to Unlock after locking");
         }
     }
 
     ThreadAPI_Exit(0);
-    return 0;
+    return 0;   
 }
-#endif
 
-#ifndef DONT_USE_UPLOADTOBLOB
+static IOTHUB_CLIENT_RESULT initializeUploadToBlobData(UPLOADTOBLOB_THREAD_INFO* threadInfo, const unsigned char* source, size_t size, IOTHUB_CLIENT_FILE_UPLOAD_CALLBACK iotHubClientFileUploadCallback)
+{
+    IOTHUB_CLIENT_RESULT result;
+
+    threadInfo->uploadBlobSavedData.size = size;
+    threadInfo->uploadBlobSavedData.iotHubClientFileUploadCallback = iotHubClientFileUploadCallback;
+
+    if (size != 0)
+    {
+        if ((threadInfo->uploadBlobSavedData.source = (unsigned char*)malloc(size)) == NULL)
+        {
+            LogError("Cannot allocate source field");
+            result = IOTHUB_CLIENT_ERROR;
+        }
+        else
+        {
+            memcpy(threadInfo->uploadBlobSavedData.source, source, size);
+            result = IOTHUB_CLIENT_OK;
+        }
+    }
+    else
+    {
+        result = IOTHUB_CLIENT_OK;
+    }
+    
+    return result;
+}
+
+
+static int uploadingThread(void *data)
+{
+    IOTHUB_CLIENT_FILE_UPLOAD_RESULT upload_result;
+    UPLOADTOBLOB_THREAD_INFO* threadInfo = (UPLOADTOBLOB_THREAD_INFO*)data;
+
+    /*it so happens that IoTHubClient_LL_UploadToBlob is thread-safe because there's no saved state in the handle and there are no globals, so no need to protect it*/
+    /*not having it protected means multiple simultaneous uploads can happen*/
+    /*Codes_SRS_IOTHUBCLIENT_02_054: [ The thread shall call IoTHubClient_LL_UploadToBlob passing the information packed in the structure. ]*/
+    if (IoTHubClient_LL_UploadToBlob(threadInfo->iotHubClientHandle->IoTHubClientLLHandle, threadInfo->destinationFileName, threadInfo->uploadBlobSavedData.source, threadInfo->uploadBlobSavedData.size) == IOTHUB_CLIENT_OK)
+    {
+        upload_result = FILE_UPLOAD_OK;
+    }
+    else
+    {
+        LogError("unable to IoTHubClient_LL_UploadToBlob");
+        upload_result = FILE_UPLOAD_ERROR;
+    }
+
+    if (threadInfo->uploadBlobSavedData.iotHubClientFileUploadCallback != NULL)
+    {
+        /*Codes_SRS_IOTHUBCLIENT_02_055: [ If IoTHubClient_LL_UploadToBlob fails then the thread shall call iotHubClientFileUploadCallbackInternal passing as result FILE_UPLOAD_ERROR and as context the structure from SRS IOTHUBCLIENT 02 051. ]*/
+        threadInfo->uploadBlobSavedData.iotHubClientFileUploadCallback(upload_result, threadInfo->context);
+    }
+
+    return markThreadReadyToBeGarbageCollected(threadInfo);
+}
+
 IOTHUB_CLIENT_RESULT IoTHubClient_UploadToBlobAsync(IOTHUB_CLIENT_HANDLE iotHubClientHandle, const char* destinationFileName, const unsigned char* source, size_t size, IOTHUB_CLIENT_FILE_UPLOAD_CALLBACK iotHubClientFileUploadCallback, void* context)
 {
     IOTHUB_CLIENT_RESULT result;
@@ -1904,131 +2035,128 @@ IOTHUB_CLIENT_RESULT IoTHubClient_UploadToBlobAsync(IOTHUB_CLIENT_HANDLE iotHubC
     else
     {
         /*Codes_SRS_IOTHUBCLIENT_02_051: [IoTHubClient_UploadToBlobAsync shall copy the souce, size, iotHubClientFileUploadCallback, context into a structure.]*/
-        UPLOADTOBLOB_SAVED_DATA *savedData = (UPLOADTOBLOB_SAVED_DATA *)malloc(sizeof(UPLOADTOBLOB_SAVED_DATA));
-        if (savedData == NULL)
+        UPLOADTOBLOB_THREAD_INFO *threadInfo = allocateUploadToBlob(destinationFileName, iotHubClientHandle, context);
+        if (threadInfo == NULL)
         {
             /*Codes_SRS_IOTHUBCLIENT_02_053: [ If copying to the structure or spawning the thread fails, then IoTHubClient_UploadToBlobAsync shall fail and return IOTHUB_CLIENT_ERROR. ]*/
-            LogError("unable to malloc - oom");
+            LogError("unable to create upload thread info");
+            result = IOTHUB_CLIENT_ERROR;
+        }
+        else if ((result = initializeUploadToBlobData(threadInfo, source, size, iotHubClientFileUploadCallback)) != IOTHUB_CLIENT_OK)
+        {
+            /*Codes_SRS_IOTHUBCLIENT_02_053: [ If copying to the structure or spawning the thread fails, then IoTHubClient_UploadToBlobAsync shall fail and return IOTHUB_CLIENT_ERROR. ]*/
+            LogError("unable to initialize upload blob info");
+            result = IOTHUB_CLIENT_ERROR;
+        }
+        else if ((result = StartWorkerThreadIfNeeded(iotHubClientHandle)) != IOTHUB_CLIENT_OK)
+        {
+            /*Codes_SRS_IOTHUBCLIENT_02_053: [ If copying to the structure or spawning the thread fails, then IoTHubClient_UploadToBlobAsync shall fail and return IOTHUB_CLIENT_ERROR. ]*/
+            LogError("Could not start worker thread");
+            freeUploadToBlobThreadInfo(threadInfo);
+        }
+        /*Codes_SRS_IOTHUBCLIENT_02_052: [ IoTHubClient_UploadToBlobAsync shall spawn a thread passing the structure build in SRS IOTHUBCLIENT 02 051 as thread data.]*/
+        else if ((result = startUploadToBlobWorkerThread(threadInfo, uploadingThread)) != IOTHUB_CLIENT_OK)
+        {
+            /*Codes_SRS_IOTHUBCLIENT_02_053: [ If copying to the structure or spawning the thread fails, then IoTHubClient_UploadToBlobAsync shall fail and return IOTHUB_CLIENT_ERROR. ]*/
+            LogError("unable to start upload thread");
+            freeUploadToBlobThreadInfo(threadInfo);
+        }
+        else
+        {
+            result = IOTHUB_CLIENT_OK;
+        }
+    }
+
+    return result;
+}
+
+static int uploadMultipleBlock_thread(void* data)
+{
+    UPLOADTOBLOB_THREAD_INFO* threadInfo = (UPLOADTOBLOB_THREAD_INFO*)data;
+    IOTHUB_CLIENT_LL_HANDLE llHandle = threadInfo->iotHubClientHandle->IoTHubClientLLHandle;
+
+    /*Codes_SRS_IOTHUBCLIENT_99_078: [ The thread shall call `IoTHubClient_LL_UploadMultipleBlocksToBlob` or `IoTHubClient_LL_UploadMultipleBlocksToBlobEx` passing the information packed in the structure. ]*/
+    IOTHUB_CLIENT_RESULT result;
+
+    if (threadInfo->uploadBlobMultiblockSavedData.getDataCallback != NULL)
+    {
+        result = IoTHubClient_LL_UploadMultipleBlocksToBlob(llHandle, threadInfo->destinationFileName, threadInfo->uploadBlobMultiblockSavedData.getDataCallback, threadInfo->context);
+    }
+    else
+    {
+        result = IoTHubClient_LL_UploadMultipleBlocksToBlobEx(llHandle, threadInfo->destinationFileName, threadInfo->uploadBlobMultiblockSavedData.getDataCallbackEx, threadInfo->context);
+    }        
+
+    return markThreadReadyToBeGarbageCollected(threadInfo);
+}
+
+IOTHUB_CLIENT_RESULT IoTHubClient_UploadMultipleBlocksToBlobAsync_Impl(IOTHUB_CLIENT_HANDLE iotHubClientHandle, const char* destinationFileName, IOTHUB_CLIENT_FILE_UPLOAD_GET_DATA_CALLBACK getDataCallback, IOTHUB_CLIENT_FILE_UPLOAD_GET_DATA_CALLBACK_EX getDataCallbackEx, void* context)
+{
+    IOTHUB_CLIENT_RESULT result;
+
+    /*Codes_SRS_IOTHUBCLIENT_99_072: [ If `iotHubClientHandle` is `NULL` then `IoTHubClient_UploadMultipleBlocksToBlobAsync(Ex)` shall fail and return `IOTHUB_CLIENT_INVALID_ARG`. ]*/
+    /*Codes_SRS_IOTHUBCLIENT_99_073: [ If `destinationFileName` is `NULL` then `IoTHubClient_UploadMultipleBlocksToBlobAsync(Ex)` shall fail and return `IOTHUB_CLIENT_INVALID_ARG`. ]*/
+    /*Codes_SRS_IOTHUBCLIENT_99_074: [ If `getDataCallback` is `NULL` then `IoTHubClient_UploadMultipleBlocksToBlobAsync(Ex)` shall fail and return `IOTHUB_CLIENT_INVALID_ARG`. ]*/
+    if (
+        (iotHubClientHandle == NULL) ||
+        (destinationFileName == NULL) ||
+        ((getDataCallback == NULL) && (getDataCallbackEx == NULL))
+        )
+    {
+        LogError("invalid parameters iotHubClientHandle = %p , destinationFileName = %p, getDataCallback = %p, getDataCallbackEx = %p",
+            iotHubClientHandle,
+            destinationFileName,
+            getDataCallback,
+            getDataCallbackEx
+        );
+        result = IOTHUB_CLIENT_INVALID_ARG;
+    }
+    else
+    {
+        /*Codes_SRS_IOTHUBCLIENT_99_075: [ `IoTHubClient_UploadMultipleBlocksToBlobAsync(Ex)` shall copy the `destinationFileName`, `getDataCallback`, `context`  and `iotHubClientHandle` into a structure. ]*/
+        UPLOADTOBLOB_THREAD_INFO *threadInfo = allocateUploadToBlob(destinationFileName, iotHubClientHandle, context);
+        if (threadInfo == NULL)
+        {
+            /*Codes_SRS_IOTHUBCLIENT_02_053: [ If copying to the structure or spawning the thread fails, then IoTHubClient_UploadToBlobAsync shall fail and return IOTHUB_CLIENT_ERROR. ]*/
+            LogError("unable to create upload thread info");
             result = IOTHUB_CLIENT_ERROR;
         }
         else
         {
-            if (mallocAndStrcpy_s((char**)&savedData->destinationFileName, destinationFileName) != 0)
+            /*Codes_SRS_IOTHUBCLIENT_99_075: [ `IoTHubClient_UploadMultipleBlocksToBlobAsync(Ex)` shall copy the `destinationFileName`, `getDataCallback`, `context`  and `iotHubClientHandle` into a structure. ]*/
+            threadInfo->uploadBlobMultiblockSavedData.getDataCallback = getDataCallback;
+            threadInfo->uploadBlobMultiblockSavedData.getDataCallbackEx = getDataCallbackEx;
+
+            if ((result = StartWorkerThreadIfNeeded(iotHubClientHandle)) != IOTHUB_CLIENT_OK)
             {
                 /*Codes_SRS_IOTHUBCLIENT_02_053: [ If copying to the structure or spawning the thread fails, then IoTHubClient_UploadToBlobAsync shall fail and return IOTHUB_CLIENT_ERROR. ]*/
-                LogError("unable to mallocAndStrcpy_s");
-                free(savedData);
-                result = IOTHUB_CLIENT_ERROR;
+                LogError("Could not start worker thread");
+                freeUploadToBlobThreadInfo(threadInfo);
+            }            
+            else if ((result = startUploadToBlobWorkerThread(threadInfo, uploadMultipleBlock_thread)) != IOTHUB_CLIENT_OK)
+            {
+                /*Codes_SRS_IOTHUBCLIENT_02_053: [ If copying to the structure or spawning the thread fails, then IoTHubClient_UploadToBlobAsync shall fail and return IOTHUB_CLIENT_ERROR. ]*/
+                LogError("unable to start upload thread");
+                freeUploadToBlobThreadInfo(threadInfo);
             }
             else
             {
-                savedData->size = size;
-                int sourceCloned;
-                if (size == 0)
-                {
-                    savedData->source = NULL;
-                    sourceCloned = 1;
-                }
-                else
-                {
-                    savedData->source = (unsigned char*)malloc(size);
-                    if (savedData->source == NULL)
-                    {
-                        /*Codes_SRS_IOTHUBCLIENT_02_053: [ If copying to the structure or spawning the thread fails, then IoTHubClient_UploadToBlobAsync shall fail and return IOTHUB_CLIENT_ERROR. ]*/
-                        LogError("unable to malloc - oom");
-                        free(savedData->destinationFileName);
-                        free(savedData);
-                        sourceCloned = 0;
-                    }
-                    else
-                    {
-                        sourceCloned = 1;
-                    }
-                }
-
-                if (sourceCloned == 0)
-                {
-                    result = IOTHUB_CLIENT_ERROR;
-                }
-                else
-                {
-                    IOTHUB_CLIENT_INSTANCE* iotHubClientHandleData = (IOTHUB_CLIENT_INSTANCE*)iotHubClientHandle;
-
-                    savedData->iotHubClientFileUploadCallback = iotHubClientFileUploadCallback;
-                    savedData->context = context;
-                    (void)memcpy(savedData->source, source, size);
-
-                    if ((result = StartWorkerThreadIfNeeded(iotHubClientHandleData)) != IOTHUB_CLIENT_OK)
-                    {
-                        free(savedData->source);
-                        free(savedData->destinationFileName);
-                        free(savedData);
-                        result = IOTHUB_CLIENT_ERROR;
-                        LogError("Could not start worker thread");
-                    }
-                    else
-                    {
-                        if (Lock(iotHubClientHandleData->LockHandle) != LOCK_OK) /*locking because the next statement is changing blobThreadsToBeJoined*/
-                        {
-                            LogError("unable to lock");
-                            free(savedData->source);
-                            free(savedData->destinationFileName);
-                            free(savedData);
-                            result = IOTHUB_CLIENT_ERROR;
-                        }
-                        else
-                        {
-                            /*Codes_SRS_IOTHUBCLIENT_02_058: [ IoTHubClient_UploadToBlobAsync shall add the structure to the list of structures that need to be cleaned once file upload finishes. ]*/
-                            LIST_ITEM_HANDLE item = singlylinkedlist_add(iotHubClientHandleData->savedDataToBeCleaned, savedData);
-                            if (item == NULL)
-                            {
-                                LogError("unable to singlylinkedlist_add");
-                                free(savedData->source);
-                                free(savedData->destinationFileName);
-                                free(savedData);
-                                result = IOTHUB_CLIENT_ERROR;
-                            }
-                            else
-                            {
-                                savedData->iotHubClientHandle = iotHubClientHandle;
-                                savedData->canBeGarbageCollected = 0;
-                                if ((savedData->lockGarbage = Lock_Init()) == NULL)
-                                {
-                                    (void)singlylinkedlist_remove(iotHubClientHandleData->savedDataToBeCleaned, item);
-                                    free(savedData->source);
-                                    free(savedData->destinationFileName);
-                                    free(savedData);
-                                    result = IOTHUB_CLIENT_ERROR;
-                                    LogError("unable to Lock_Init");
-                                }
-                                else
-                                {
-                                    /*Codes_SRS_IOTHUBCLIENT_02_052: [ IoTHubClient_UploadToBlobAsync shall spawn a thread passing the structure build in SRS IOTHUBCLIENT 02 051 as thread data.]*/
-                                    if (ThreadAPI_Create(&savedData->uploadingThreadHandle, uploadingThread, savedData) != THREADAPI_OK)
-                                    {
-                                        /*Codes_SRS_IOTHUBCLIENT_02_053: [ If copying to the structure or spawning the thread fails, then IoTHubClient_UploadToBlobAsync shall fail and return IOTHUB_CLIENT_ERROR. ]*/
-                                        LogError("unablet to ThreadAPI_Create");
-                                        (void)Lock_Deinit(savedData->lockGarbage);
-                                        (void)singlylinkedlist_remove(iotHubClientHandleData->savedDataToBeCleaned, item);
-                                        free(savedData->source);
-                                        free(savedData->destinationFileName);
-                                        free(savedData);
-                                        result = IOTHUB_CLIENT_ERROR;
-                                    }
-                                    else
-                                    {
-                                        result = IOTHUB_CLIENT_OK;
-                                    }
-                                }
-                            }
-
-                            (void)Unlock(iotHubClientHandleData->LockHandle);
-                        }
-                    }
-                }
+                /*Codes_SRS_IOTHUBCLIENT_99_077: [ If copying to the structure and spawning the thread succeeds, then `IoTHubClient_UploadMultipleBlocksToBlobAsync(Ex)` shall return `IOTHUB_CLIENT_OK`. ]*/
+                result = IOTHUB_CLIENT_OK;
             }
         }
     }
     return result;
 }
+
+IOTHUB_CLIENT_RESULT IoTHubClient_UploadMultipleBlocksToBlobAsync(IOTHUB_CLIENT_HANDLE iotHubClientHandle, const char* destinationFileName, IOTHUB_CLIENT_FILE_UPLOAD_GET_DATA_CALLBACK getDataCallback, void* context)
+{
+    return IoTHubClient_UploadMultipleBlocksToBlobAsync_Impl(iotHubClientHandle, destinationFileName, getDataCallback, NULL, context);
+}
+
+IOTHUB_CLIENT_RESULT IoTHubClient_UploadMultipleBlocksToBlobAsyncEx(IOTHUB_CLIENT_HANDLE iotHubClientHandle, const char* destinationFileName, IOTHUB_CLIENT_FILE_UPLOAD_GET_DATA_CALLBACK_EX getDataCallbackEx, void* context)
+{
+    return IoTHubClient_UploadMultipleBlocksToBlobAsync_Impl(iotHubClientHandle, destinationFileName, NULL, getDataCallbackEx, context);
+}
+
 #endif /*DONT_USE_UPLOADTOBLOB*/

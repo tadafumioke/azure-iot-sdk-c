@@ -84,6 +84,7 @@ typedef struct PROV_INSTANCE_INFO_TAG
     tickcounter_ms_t timeout_value;
 
     char* registration_id;
+    bool user_supplied_reg_id;
 
     PROV_AUTH_HANDLE prov_auth_handle;
 
@@ -492,6 +493,9 @@ static void on_transport_status(PROV_DEVICE_TRANSPORT_STATUS transport_status, v
                     }
                 }
                 break;
+            default:
+                LogError("Unknown status encountered");
+                break;
         }
     }
 }
@@ -558,14 +562,6 @@ PROV_DEVICE_LL_HANDLE Prov_Device_LL_Create(const char* uri, const char* id_scop
                 destroy_instance(result);
                 result = NULL;
             }
-            /* Codes_SRS_PROV_CLIENT_07_035: [ Prov_Device_LL_Create shall store the registration_id from the security module. ] */
-            else if ((result->registration_id = prov_auth_get_registration_id(result->prov_auth_handle)) == NULL)
-            {
-                /* Codes_SRS_PROV_CLIENT_07_003: [ If any error is encountered, Prov_Device_LL_CreateFromUri shall return NULL. ] */
-                LogError("failure: Unable to retrieve registration Id from device auth.");
-                destroy_instance(result);
-                result = NULL;
-            }
             else if ((result->tick_counter = tickcounter_create()) == NULL)
             {
                 LogError("failure: allocating tickcounter");
@@ -584,7 +580,7 @@ PROV_DEVICE_LL_HANDLE Prov_Device_LL_Create(const char* uri, const char* id_scop
                     hsm_type = TRANSPORT_HSM_TYPE_X509;
                 }
 
-                if ((result->transport_handle = result->prov_transport_protocol->prov_transport_create(uri, hsm_type, result->scope_id, result->registration_id, PROV_API_VERSION)) == NULL)
+                if ((result->transport_handle = result->prov_transport_protocol->prov_transport_create(uri, hsm_type, result->scope_id, PROV_API_VERSION)) == NULL)
                 {
                     /* Codes_SRS_PROV_CLIENT_07_003: [ If any error is encountered, Prov_Device_LL_CreateFromUri shall return NULL. ] */
                     LogError("failed calling into transport create");
@@ -617,6 +613,13 @@ PROV_DEVICE_RESULT Prov_Device_LL_Register_Device(PROV_DEVICE_LL_HANDLE handle, 
         LogError("Invalid parameter specified handle: %p register_callback: %p", handle, register_callback);
         result = PROV_DEVICE_RESULT_INVALID_ARG;
     }
+    /* Codes_SRS_PROV_CLIENT_07_035: [ Prov_Device_LL_Create shall store the registration_id from the security module. ] */
+    else if (handle->registration_id == NULL && (handle->registration_id = prov_auth_get_registration_id(handle->prov_auth_handle)) == NULL)
+    {
+        /* Codes_SRS_PROV_CLIENT_07_003: [ If any error is encountered, Prov_Device_LL_CreateFromUri shall return NULL. ] */
+        LogError("failure: Unable to retrieve registration Id from device auth.");
+        result = PROV_DEVICE_RESULT_ERROR;
+    }
     else
     {
         BUFFER_HANDLE ek_value = NULL;
@@ -625,6 +628,11 @@ PROV_DEVICE_RESULT Prov_Device_LL_Register_Device(PROV_DEVICE_LL_HANDLE handle, 
         if (handle->prov_state != CLIENT_STATE_READY)
         {
             LogError("state is invalid");
+            if (!handle->user_supplied_reg_id)
+            {
+                free(handle->registration_id);
+                handle->registration_id = NULL;
+            }
             result = PROV_DEVICE_RESULT_ERROR;
         }
         else
@@ -634,11 +642,21 @@ PROV_DEVICE_RESULT Prov_Device_LL_Register_Device(PROV_DEVICE_LL_HANDLE handle, 
                 if ((ek_value = prov_auth_get_endorsement_key(handle->prov_auth_handle)) == NULL)
                 {
                     LogError("Could not get endorsement key from tpm");
+                    if (!handle->user_supplied_reg_id)
+                    {
+                        free(handle->registration_id);
+                        handle->registration_id = NULL;
+                    }
                     result = PROV_DEVICE_RESULT_ERROR;
                 }
                 else if ((srk_value = prov_auth_get_storage_key(handle->prov_auth_handle)) == NULL)
                 {
                     LogError("Could not get storage root key from tpm");
+                    if (!handle->user_supplied_reg_id)
+                    {
+                        free(handle->registration_id);
+                        handle->registration_id = NULL;
+                    }
                     result = PROV_DEVICE_RESULT_ERROR;
                     BUFFER_delete(ek_value);
                 }
@@ -654,11 +672,21 @@ PROV_DEVICE_RESULT Prov_Device_LL_Register_Device(PROV_DEVICE_LL_HANDLE handle, 
                 if ((x509_cert = prov_auth_get_certificate(handle->prov_auth_handle)) == NULL)
                 {
                     LogError("Could not get the x509 certificate");
+                    if (!handle->user_supplied_reg_id)
+                    {
+                        free(handle->registration_id);
+                        handle->registration_id = NULL;
+                    }
                     result = PROV_DEVICE_RESULT_ERROR;
                 }
                 else if ((x509_private_key = prov_auth_get_alias_key(handle->prov_auth_handle)) == NULL)
                 {
                     LogError("Could not get the x509 alias key");
+                    if (!handle->user_supplied_reg_id)
+                    {
+                        free(handle->registration_id);
+                        handle->registration_id = NULL;
+                    }
                     free(x509_cert);
                     result = PROV_DEVICE_RESULT_ERROR;
                 }
@@ -667,6 +695,11 @@ PROV_DEVICE_RESULT Prov_Device_LL_Register_Device(PROV_DEVICE_LL_HANDLE handle, 
                     if (handle->prov_transport_protocol->prov_transport_x509_cert(handle->transport_handle, x509_cert, x509_private_key) != 0)
                     {
                         LogError("unable to set the x509 certificate information on transport");
+                        if (!handle->user_supplied_reg_id)
+                        {
+                            free(handle->registration_id);
+                            handle->registration_id = NULL;
+                        }
                         result = PROV_DEVICE_RESULT_ERROR;
                     }
                     else
@@ -680,19 +713,30 @@ PROV_DEVICE_RESULT Prov_Device_LL_Register_Device(PROV_DEVICE_LL_HANDLE handle, 
         }
         if (result == PROV_DEVICE_RESULT_OK)
         {
-            if (handle->prov_transport_protocol->prov_transport_open(handle->transport_handle, ek_value, srk_value, on_transport_registration_data, handle, on_transport_status, handle) != 0)
+            /* Codes_SRS_PROV_CLIENT_07_008: [ Prov_Device_LL_Register_Device shall set the state to send the registration request to on subsequent DoWork calls. ] */
+            handle->register_callback = register_callback;
+            handle->user_context = user_context;
+
+            handle->register_status_cb = reg_status_cb;
+            handle->status_user_ctx = status_ctx;
+
+            if (handle->prov_transport_protocol->prov_transport_open(handle->transport_handle, handle->registration_id, ek_value, srk_value, on_transport_registration_data, handle, on_transport_status, handle) != 0)
             {
                 LogError("Failure establishing  connection");
+                if (!handle->user_supplied_reg_id)
+                {
+                    free(handle->registration_id);
+                    handle->registration_id = NULL;
+                }
+                handle->register_callback = NULL;
+                handle->user_context = NULL;
+
+                handle->register_status_cb = NULL;
+                handle->status_user_ctx = NULL;
                 result = PROV_DEVICE_RESULT_ERROR;
             }
             else
             {
-                /* Codes_SRS_PROV_CLIENT_07_008: [ Prov_Device_LL_Register_Device shall set the state to send the registration request to on subsequent DoWork calls. ] */
-                handle->register_callback = register_callback;
-                handle->user_context = user_context;
-
-                handle->register_status_cb = reg_status_cb;
-                handle->status_user_ctx = status_ctx;
                 handle->prov_state = CLIENT_STATE_REGISTER_SEND;
                 /* Codes_SRS_PROV_CLIENT_07_009: [ Upon success Prov_Device_LL_Register_Device shall return PROV_CLIENT_OK. ] */
                 result = PROV_DEVICE_RESULT_OK;
@@ -788,7 +832,7 @@ void Prov_Device_LL_DoWork(PROV_DEVICE_LL_HANDLE handle)
             (void)tickcounter_get_current_ms(prov_info->tick_counter, &current_time);
             if ((current_time - prov_info->timeout_value) / 1000 > PROV_DEFAULT_TIMEOUT)
             {
-                LogError("Failure sending operation status");
+                LogError("Timed out connecting to provisioning service");
                 prov_info->error_reason = PROV_DEVICE_RESULT_TIMEOUT;
                 prov_info->prov_state = CLIENT_STATE_ERROR;
             }
@@ -839,12 +883,49 @@ PROV_DEVICE_RESULT Prov_Device_LL_SetOption(PROV_DEVICE_LL_HANDLE handle, const 
 
             if (handle->prov_transport_protocol->prov_transport_set_proxy(handle->transport_handle, proxy_options) != 0)
             {
-                LogError("Failure setting proxy options");
+                LogError("setting proxy options");
                 result = PROV_DEVICE_RESULT_ERROR;
             }
             else
             {
                 result = PROV_DEVICE_RESULT_OK;
+            }
+        }
+        else if (strcmp(PROV_REGISTRATION_ID, option_name) == 0)
+        {
+            if (handle->prov_state != CLIENT_STATE_READY)
+            {
+                LogError("registration id cannot be set after registration has begun");
+                result = PROV_DEVICE_RESULT_ERROR;
+            }
+            else if (value == NULL)
+            {
+                LogError("value must be set to the correct registration id");
+                result = PROV_DEVICE_RESULT_ERROR;
+            }
+            else
+            {
+                if (handle->registration_id != NULL)
+                {
+                    free(handle->registration_id);
+                }
+                
+                if (mallocAndStrcpy_s(&handle->registration_id, (const char*)value) != 0)
+                {
+                    LogError("Failure allocating setting registration id");
+                    result = PROV_DEVICE_RESULT_ERROR;
+                }
+                else if (prov_auth_set_registration_id(handle->prov_auth_handle, handle->registration_id) != 0)
+                {
+                    LogError("Failure setting registration id");
+                    free(handle->registration_id);
+                    result = PROV_DEVICE_RESULT_ERROR;
+                }
+                else
+                {
+                    handle->user_supplied_reg_id = true;
+                    result = PROV_DEVICE_RESULT_OK;
+                }
             }
         }
         else

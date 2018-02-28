@@ -25,7 +25,7 @@ typedef struct DEVICE_REGISTRATION_STATE_TAG
 
 DEFINE_ENUM_STRINGS(REGISTRATION_STATUS, REGISTRATION_STATUS_VALUES)
 
-static const REGISTRATION_STATUS registrationStatus_fromJson(const char* str_rep)
+static REGISTRATION_STATUS registrationStatus_fromJson(const char* str_rep)
 {
     REGISTRATION_STATUS new_status = REGISTRATION_STATUS_ERROR;
 
@@ -133,7 +133,9 @@ DEVICE_REGISTRATION_STATE_HANDLE deviceRegistrationState_fromJson(JSON_Object* r
             new_device_reg_state = NULL;
         }
         else
+        {
             new_device_reg_state->error_code = (int)json_object_get_number(root_object, DEVICE_REGISTRATION_STATE_JSON_KEY_ERROR_CODE);
+        }
     }
 
     return new_device_reg_state;
