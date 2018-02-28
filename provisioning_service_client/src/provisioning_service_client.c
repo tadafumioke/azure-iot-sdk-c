@@ -227,78 +227,41 @@ static HTTP_HEADERS_HANDLE construct_http_headers(const PROV_SERVICE_CLIENT* pro
     return result;
 }
 
-//static STRING_HANDLE construct_registration_path(const char* registration_id, const char* path_fmt)
-//{
-//    STRING_HANDLE result;
-//    STRING_HANDLE registration_encode;
-//
-//    if (registration_id == NULL)
-//    {
-//        LogError("invalid registration id");
-//        result = NULL;
-//    }
-//    else if ((registration_encode = URL_EncodeString(registration_id)) == NULL)
-//    {
-//        LogError("Failed encode registration Id");
-//        result = NULL;
-//    }
-//    else
-//    {
-//        if ((result = STRING_construct_sprintf(path_fmt, STRING_c_str(registration_encode), PROVISIONING_SERVICE_API_VERSION)) == NULL)
-//        {
-//            LogError("Failed constructing provisioning path");
-//        }
-//        STRING_delete(registration_encode);
-//    }
-//    return result;
-//}
-
-static int format_path_args(STRING_HANDLE path, const char* registration_id)
+static STRING_HANDLE create_registration_path(const char* path_format, const char* id)
 {
-    int result;
-    STRING_HANDLE registration_encode;
+    STRING_HANDLE registration_path;
 
-    if (registration_id == NULL)
+    if (id == NULL)
     {
-        LogError("invalid registration id");
-        result = __FAILURE__;
-    }
-    else if ((registration_encode = URL_EncodeString(registration_id)) == NULL)
-    {
-        LogError("Failed encode registration Id");
-        result = __FAILURE__;
-    }
-    else if (STRING_sprintf(path, STRING_c_str(registration_encode)) != 0)
-    {
-        LogError("Failed to format path arguments");
-        result = __FAILURE__;
+        registration_path = STRING_construct(path_format);
     }
     else
     {
-        STRING_delete(registration_encode);
-        result = 0;
+        STRING_HANDLE encoded_id;
+        if ((encoded_id = URL_EncodeString(id)) == NULL)
+        {
+            LogError("Unable to URL encode ID");
+            registration_path = NULL;
+        }
+        else
+        {
+            registration_path = STRING_construct_sprintf(path_format, STRING_c_str(encoded_id));
+            STRING_delete(encoded_id);
+        }
     }
-    return result;
-}
 
-static int add_path_query_params(STRING_HANDLE path)
-{
-    int result;
-    if (STRING_concat(path, API_VERSION_QUERY_PARAM) != 0)
+    if (registration_path == NULL)
+    {
+        LogError("Failed constructing base path");
+    }
+    else if (STRING_sprintf(registration_path, API_VERSION_QUERY_PARAM, PROVISIONING_SERVICE_API_VERSION) != 0)
     {
         LogError("Unable to add query paramters");
-        result = __FAILURE__;
+        STRING_delete(registration_path);
+        registration_path = NULL;
     }
-    else if (STRING_sprintf(path, PROVISIONING_SERVICE_API_VERSION) != 0)
-    {
-        LogError("Unable to add query paramters");
-        result = __FAILURE__;
-    }
-    else
-    {
-        result = 0;
-    }
-    return result;
+
+    return registration_path;
 }
 
 static HTTP_CLIENT_HANDLE connect_to_service(PROV_SERVICE_CLIENT* prov_client)
@@ -442,21 +405,10 @@ static int prov_sc_create_or_update_record(PROVISIONING_SERVICE_CLIENT_HANDLE pr
         }
         else
         {
-            STRING_HANDLE registration_path;
-            if ((registration_path = STRING_construct(path_format)) == NULL)
+            STRING_HANDLE registration_path = create_registration_path(path_format, vector.getId(handle));
+            if (registration_path == NULL)
             {
-                LogError("Failed constructing provisioning path");
-                result = __FAILURE__;
-            }
-            else if (format_path_args(registration_path, vector.getId(handle)) != 0)
-            {
-                LogError("Failed constructing provisioning path");
-                result = __FAILURE__;
-            }
-            else if (add_path_query_params(registration_path) != 0)
-            {
-                LogError("Failed constructing provisioning path");
-                result = __FAILURE__;
+                LogError("Failed to construct a registration path");
             }
             else
             {
@@ -517,21 +469,10 @@ static int prov_sc_delete_record_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE pro
     }
     else
     {
-        STRING_HANDLE registration_path;
-        if ((registration_path = STRING_construct(path_format)) == NULL)
+        STRING_HANDLE registration_path = create_registration_path(path_format, id);
+        if (registration_path == NULL)
         {
-            LogError("Failed constructing provisioning path");
-            result = __FAILURE__;
-        }
-        else if (format_path_args(registration_path, id) != 0)
-        {
-            LogError("Failed constructing provisioning path");
-            result = __FAILURE__;
-        }
-        else if (add_path_query_params(registration_path) != 0)
-        {
-            LogError("Failed constructing provisioning path");
-            result = __FAILURE__;
+            LogError("Failed to construct a registration path");
         }
         else
         {
@@ -576,21 +517,10 @@ static int prov_sc_get_record(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, co
     }
     else
     {
-        STRING_HANDLE registration_path;
-        if ((registration_path = STRING_construct(path_format)) == NULL)
+        STRING_HANDLE registration_path = create_registration_path(path_format, id);
+        if (registration_path == NULL)
         {
-            LogError("Failed constructing provisioning path");
-            result = __FAILURE__;
-        }
-        else if (format_path_args(registration_path, id) != 0)
-        {
-            LogError("Failed constructing provisioning path");
-            result = __FAILURE__;
-        }
-        else if (add_path_query_params(registration_path) != 0)
-        {
-            LogError("Failed constructing provisioning path");
-            result = __FAILURE__;
+            LogError("Failed to construct a registration path");
         }
         else
         {
@@ -642,16 +572,10 @@ static int prov_sc_run_bulk_operation(PROVISIONING_SERVICE_CLIENT_HANDLE prov_cl
     }
     else
     {
-        STRING_HANDLE registration_path;
-        if ((registration_path = STRING_construct(path_format)) == NULL)
+        STRING_HANDLE registration_path = create_registration_path(path_format, NULL);
+        if (registration_path == NULL)
         {
-            LogError("Failed constructing provisioning path");
-            result = __FAILURE__;
-        }
-        else if (add_path_query_params(registration_path) != 0)
-        {
-            LogError("Failed constructing provisioning path");
-            result = __FAILURE__;
+            LogError("Failed to construct a registration path");
         }
         else
         {

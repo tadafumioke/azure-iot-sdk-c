@@ -23,7 +23,9 @@ int main()
     INDIVIDUAL_ENROLLMENT_HANDLE ie1 = individualEnrollment_create(registrationId1, am);
     INDIVIDUAL_ENROLLMENT_HANDLE ie2 = individualEnrollment_create(registrationId2, am);
     
-    INDIVIDUAL_ENROLLMENT_HANDLE ie_list[] = { ie1, ie2 };
+    INDIVIDUAL_ENROLLMENT_HANDLE ie_list[2];
+    ie_list[0] = ie1;
+    ie_list[1] = ie2;
 
     prov_sc = prov_sc_create_from_connection_string(connectionString);
     prov_sc_set_trace(prov_sc, TRACING_STATUS_ON);
@@ -33,7 +35,7 @@ int main()
     bulkop.enrollments = ie_list;
     bulkop.enrollments_num = 2;
 
-    int result = prov_sc_run_individual_enrollment_bulk_op(prov_sc, &bulkop);
+    prov_sc_run_individual_enrollment_bulk_operation(prov_sc, &bulkop);
 
     return result;
 }
